@@ -1,0 +1,31 @@
+# Local dev infrastructure. `docker compose up -d` to start.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: startupkit
+      POSTGRES_PASSWORD: startupkit
+      POSTGRES_DB: startupkit
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+
+  temporal:
+    image: temporalio/auto-setup:1.24
+    depends_on: [postgres]
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: startupkit
+      POSTGRES_PWD: startupkit
+      POSTGRES_SEEDS: postgres
+    ports: ["7233:7233"]
+
+  temporal-ui:
+    image: temporalio/ui:2.26.2
+    depends_on: [temporal]
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    ports: ["8080:8080"]
+
+volumes:
+  pgdata:

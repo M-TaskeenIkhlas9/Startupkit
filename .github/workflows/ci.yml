@@ -1,0 +1,14 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install 3.12
+      - run: uv sync --extra dev
+      - run: uv run ruff check .
+      - run: uv run mypy
+      - run: uv run lint-imports        # module boundary contracts
+      - run: uv run pytest              # includes every adapter's conformance tests

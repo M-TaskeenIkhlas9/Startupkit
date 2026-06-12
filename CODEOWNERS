@@ -1,0 +1,29 @@
+# Ownership maps to the 5-person split. See docs/team-ownership.md.
+# Shared interfaces (ports/shared.py, service Protocols) change via RFC reviewed by all owners.
+
+# Eng 1 — Platform spine
+/src/startupkit/core/orchestration/   @eng-spine
+/src/startupkit/core/company_object/  @eng-spine
+/src/startupkit/core/tenancy/         @eng-spine
+/src/startupkit/core/services/        @eng-spine
+
+# Eng 2 — Ports, adapters, registry
+/src/startupkit/ports/                @eng-integrations
+/src/startupkit/adapters/             @eng-integrations
+/src/startupkit/core/ports_runtime/   @eng-integrations
+
+# Eng 3 — Intelligence: documents + compliance
+/src/startupkit/core/document_intelligence/ @eng-intelligence
+/src/startupkit/core/compliance/            @eng-intelligence
+
+# Eng 4 — Workflows
+/src/startupkit/workflows/            @eng-workflows
+
+# Eng 5 — App surface: API, web, security, observability
+/apps/                                @eng-product
+/src/startupkit/core/security/        @eng-product
+/src/startupkit/core/observability/   @eng-product
+
+# Shared — needs consensus
+/src/startupkit/ports/shared.py       @eng-spine @eng-integrations
+/docs/                                @eng-spine @eng-integrations @eng-intelligence @eng-workflows @eng-product

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StartupKit — Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#16201f; --ink-soft:#46514f; --muted:#6c7773;
+  --paper:#f6f7f4; --panel:#ffffff; --panel-2:#eef1ec; --line:#dde2db;
+  --teal:#0F6E56; --teal-50:#E1F5EE; --teal-900:#04342C;
+  --blue:#185FA5; --blue-50:#E6F1FB; --blue-900:#042C53;
+  --amber:#BA7517; --amber-50:#FAEEDA; --amber-900:#412402;
+  --purple:#534AB7; --purple-50:#EEEDFE; --purple-900:#26215C;
+  --coral:#D85A30; --coral-50:#FAECE7; --red:#A32D2D; --red-50:#FCEBEB;
+  --green:#3B6D11;
+  --disp:"Space Grotesk",sans-serif; --body:"Inter",sans-serif; --mono:"IBM Plex Mono",monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.62;font-size:16px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:980px;margin:0 auto;padding:0 28px}
+svg{display:block;width:100%;height:auto;font-family:var(--body)}
+.t{font-size:14px;font-weight:600}
+.ts{font-size:12px}
+.bt{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.04em}
+
+/* header */
+header{border-top:6px solid var(--teal);background:var(--panel);border-bottom:1px solid var(--line)}
+.rail{height:6px;display:flex}
+.rail i{display:block}
+.eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);font-weight:600}
+h1{font-family:var(--disp);font-weight:700;font-size:46px;line-height:1.04;letter-spacing:-.02em;margin:.35em 0 .2em}
+.sub{font-size:18px;color:var(--ink-soft);max-width:62ch;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.meta b{color:var(--ink);font-weight:600}
+
+/* sections */
+section{padding:46px 0;border-bottom:1px solid var(--line)}
+.kicker{font-family:var(--mono);font-size:12.5px;font-weight:600;letter-spacing:.1em;color:var(--amber);text-transform:uppercase}
+h2{font-family:var(--disp);font-weight:600;font-size:30px;line-height:1.1;letter-spacing:-.015em;margin:.25em 0 .5em}
+h3{font-family:var(--disp);font-weight:600;font-size:19px;margin:1.6em 0 .4em;letter-spacing:-.01em}
+p{margin:.7em 0;color:var(--ink-soft)}
+p strong,li strong{color:var(--ink);font-weight:600}
+code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);padding:.1em .4em;border-radius:5px;color:var(--teal-900)}
+ul{margin:.6em 0;padding-left:0;list-style:none}
+ul li{position:relative;padding-left:22px;margin:.42em 0;color:var(--ink-soft)}
+ul li::before{content:"";position:absolute;left:2px;top:11px;width:7px;height:7px;border-radius:2px;background:var(--teal)}
+ul.amber li::before{background:var(--amber)}
+ul.blue li::before{background:var(--blue)}
+ul.purple li::before{background:var(--purple)}
+
+/* signature 70/30 bar */
+.split{display:flex;height:46px;border-radius:8px;overflow:hidden;border:1px solid var(--line);margin:18px 0 6px;font-family:var(--mono);font-size:12.5px;font-weight:600}
+.split .core{flex:0 0 70%;background:var(--teal-50);color:var(--teal-900);display:flex;align-items:center;padding:0 16px;border-right:2px solid var(--teal)}
+.split .var{flex:1;background:var(--amber-50);color:var(--amber-900);display:flex;align-items:center;padding:0 16px}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin:6px 0 16px;font-size:13px;color:var(--ink-soft);font-family:var(--mono)}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.sw{width:13px;height:13px;border-radius:3px;display:inline-block}
+
+figure{margin:22px 0 6px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 18px}
+figcaption{font-size:13px;color:var(--muted);margin-top:10px;text-align:center;font-style:italic}
+
+/* callout */
+.note{border-left:3px solid var(--coral);background:var(--coral-50);padding:12px 16px;border-radius:0 8px 8px 0;margin:18px 0;font-size:14.5px}
+.note b{color:var(--coral)}
+.fuse{border-left:3px solid var(--red);background:var(--red-50)}
+.fuse b{color:var(--red)}
+
+/* table */
+.tbl{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+.tbl th{font-family:var(--mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;text-align:left;padding:10px 12px;border-bottom:2px solid var(--ink);color:var(--ink)}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--ink-soft);vertical-align:top}
+.tbl tr td:first-child{font-weight:600;color:var(--ink)}
+.pill{font-family:var(--mono);font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.pc{background:var(--teal-50);color:var(--teal-900)}
+.pv{background:var(--amber-50);color:var(--amber-900)}
+
+/* steps */
+.steps{counter-reset:s;margin:16px 0}
+.step{counter-increment:s;position:relative;padding:14px 0 14px 56px;border-bottom:1px solid var(--line)}
+.step:last-child{border-bottom:0}
+.step::before{content:counter(s,decimal-leading-zero);position:absolute;left:0;top:14px;font-family:var(--mono);font-size:14px;font-weight:600;color:var(--amber);background:var(--amber-50);width:38px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:7px}
+.step b{font-family:var(--disp);font-weight:600;color:var(--ink);font-size:16px}
+
+footer{padding:34px 0 60px;color:var(--muted);font-family:var(--mono);font-size:12.5px}
+a{color:var(--teal);text-decoration:none;border-bottom:1px solid var(--line)}
+
+@media (max-width:640px){h1{font-size:34px}h2{font-size:24px}.wrap{padding:0 18px}.split .core{flex-basis:66%}}
+@media print{
+  body{background:#fff}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  section{break-inside:avoid}
+  figure{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="rail"><i style="flex:0 0 70%;background:var(--teal)"></i><i style="flex:1;background:var(--amber)"></i></div>
+  <div class="wrap" style="padding-top:42px;padding-bottom:38px">
+    <div class="eyebrow">StartupKit · by Tensorfold</div>
+    <h1>The operating system<br>for founders.</h1>
+    <p class="sub">A technical architecture for running the entire company-formation-to-growth journey — eight gated workflows, one source of truth, every capability swappable between a third-party tool and a first-party build.</p>
+    <div class="meta">
+      <span><b>Pattern</b> &nbsp;Modular monolith · hexagonal</span>
+      <span><b>Method</b> &nbsp;Product-line engineering (70 / 30)</span>
+      <span><b>Status</b> &nbsp;Architecture review v2</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section>
+  <div class="kicker">§00 · Thesis</div>
+  <h2>One idea carries the whole system</h2>
+  <p>Every workflow step is the same shape: <code>{ capability, action, provider }</code>. A founder declares <em>what</em> they want done; the platform decides <em>who</em> does it. That single abstraction is simultaneously your integration strategy, your "third-party now, first-party later" path, and your product line. The workflow never names a vendor — it depends on a <strong>port</strong>, and a registry resolves the port to whichever <strong>adapter</strong> the founder chose.</p>
+  <p>This makes the codebase split cleanly along product-line-engineering lines: a large, reusable platform and a thin band of per-workflow and per-provider variation.</p>
+  <div class="split">
+    <div class="core">~70% &nbsp;Core platform — engine · company object · services · ports · infra</div>
+    <div class="var">~30% &nbsp;Variant — workflow manifests · adapters · rule-packs</div>
+  </div>
+  <p style="font-size:14px;color:var(--muted)">Three load-bearing decisions sit under everything: the orchestrator uses <strong>durable execution</strong> (workflows wait days and survive restarts), the Company Object is <strong>event-sourced</strong> (documents stay in sync, the audit trail is free), and the system ships as <strong>one deployable</strong> with hard internal seams.</p>
+</section>
+
+<section>
+  <div class="kicker">§01 · System at a glance</div>
+  <h2>Eight layers, one container</h2>
+  <p>A modular monolith. One deploy for the MVP, but every layer is bounded so doc-generation, the compliance engine, or per-workflow workers can be lifted into their own services when scale or regulatory isolation demands it — without a rewrite.</p>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--teal-50);border:1.5px solid var(--teal)"></i>Core platform (~70%)</span>
+    <span><i class="sw" style="background:var(--blue-50);border:1.5px solid var(--blue)"></i>Intelligence / AI</span>
+    <span><i class="sw" style="background:var(--amber-50);border:1.5px solid var(--amber)"></i>Variant (~30%)</span>
+    <span><i class="sw" style="background:var(--purple-50);border:1.5px solid var(--purple)"></i>Source of truth</span>
+  </div>
+  <figure>
+    <svg viewBox="0 0 920 716" role="img" aria-label="Eight-layer architecture stack">
+      <!-- Band 1: Founder experience (teal) -->
+      <rect x="20" y="16" width="880" height="78" rx="12" fill="var(--teal-50)" stroke="var(--teal)" stroke-width="1"/>
+      <text class="bt" x="36" y="38" fill="var(--teal-900)">FOUNDER EXPERIENCE</text>
+      <g>
+        <rect x="36" y="46" width="272" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="172" y="62" text-anchor="middle" fill="var(--ink)">Founder web app</text><text class="ts" x="172" y="78" text-anchor="middle" fill="var(--muted)">dashboard + status</text>
+        <rect x="324" y="46" width="272" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="460" y="62" text-anchor="middle" fill="var(--ink)">API gateway</text><text class="ts" x="460" y="78" text-anchor="middle" fill="var(--muted)">REST / GraphQL</text>
+        <rect x="612" y="46" width="272" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="748" y="62" text-anchor="middle" fill="var(--ink)">Webhook ingress</text><text class="ts" x="748" y="78" text-anchor="middle" fill="var(--muted)">verified provider callbacks</text>
+      </g>
+      <!-- Band 2: Orchestration core (teal) -->
+      <rect x="20" y="102" width="880" height="78" rx="12" fill="var(--teal-50)" stroke="var(--teal)" stroke-width="1"/>
+      <text class="bt" x="36" y="124" fill="var(--teal-900)">ORCHESTRATION CORE · DURABLE</text>
+      <g>
+        <rect x="36" y="132" width="158" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="115" y="148" text-anchor="middle" fill="var(--ink)">Workflow engine</text><text class="ts" x="115" y="164" text-anchor="middle" fill="var(--muted)">durable execution</text>
+        <rect x="208" y="132" width="158" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="287" y="148" text-anchor="middle" fill="var(--ink)">Trigger bus</text><text class="ts" x="287" y="164" text-anchor="middle" fill="var(--muted)">transactional outbox</text>
+        <rect x="380" y="132" width="158" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="459" y="148" text-anchor="middle" fill="var(--ink)">Scheduler</text><text class="ts" x="459" y="164" text-anchor="middle" fill="var(--muted)">waits · timers</text>
+        <rect x="552" y="132" width="158" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="631" y="148" text-anchor="middle" fill="var(--ink)">Human-task inbox</text><text class="ts" x="631" y="164" text-anchor="middle" fill="var(--muted)">assign · remind</text>
+        <rect x="724" y="132" width="158" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="803" y="148" text-anchor="middle" fill="var(--ink)">Saga manager</text><text class="ts" x="803" y="164" text-anchor="middle" fill="var(--muted)">compensation</text>
+      </g>
+      <!-- Band 3: Intelligence services (blue) -->
+      <rect x="20" y="188" width="880" height="78" rx="12" fill="var(--blue-50)" stroke="var(--blue)" stroke-width="1"/>
+      <text class="bt" x="36" y="210" fill="var(--blue-900)">INTELLIGENCE SERVICES</text>
+      <g>
+        <rect x="36" y="218" width="272" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="172" y="234" text-anchor="middle" fill="var(--ink)">Document intelligence</text><text class="ts" x="172" y="250" text-anchor="middle" fill="var(--muted)">generate · validate · approve</text>
+        <rect x="324" y="218" width="272" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="460" y="234" text-anchor="middle" fill="var(--ink)">Regulatory engine</text><text class="ts" x="460" y="250" text-anchor="middle" fill="var(--muted)">rule-packs · deadlines</text>
+        <rect x="612" y="218" width="272" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="748" y="234" text-anchor="middle" fill="var(--ink)">Health &amp; funnel</text><text class="ts" x="748" y="250" text-anchor="middle" fill="var(--muted)">scoring · drop-off</text>
+      </g>
+      <!-- Band 4: Company object (purple) -->
+      <rect x="20" y="274" width="880" height="78" rx="12" fill="var(--purple-50)" stroke="var(--purple)" stroke-width="1.5"/>
+      <text class="bt" x="36" y="296" fill="var(--purple-900)">SOURCE OF TRUTH</text>
+      <text x="460" y="312" text-anchor="middle" fill="var(--purple-900)" style="font-family:var(--disp);font-weight:600;font-size:18px">Company object</text>
+      <text class="ts" x="460" y="332" text-anchor="middle" fill="var(--purple)">event-sourced · changes re-derive every dependent document</text>
+      <!-- Band 5: Shared services (teal) -->
+      <rect x="20" y="360" width="880" height="78" rx="12" fill="var(--teal-50)" stroke="var(--teal)" stroke-width="1"/>
+      <text class="bt" x="36" y="382" fill="var(--teal-900)">SHARED SERVICES · REUSED EVERYWHERE</text>
+      <g>
+        <rect x="36" y="390" width="158" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="115" y="415" text-anchor="middle" fill="var(--ink)">Document store</text>
+        <rect x="208" y="390" width="158" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="287" y="415" text-anchor="middle" fill="var(--ink)">E-signature</text>
+        <rect x="380" y="390" width="158" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="459" y="415" text-anchor="middle" fill="var(--ink)">Notifications</text>
+        <rect x="552" y="390" width="158" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="631" y="415" text-anchor="middle" fill="var(--ink)">Approvals</text>
+        <rect x="724" y="390" width="158" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="803" y="411" text-anchor="middle" fill="var(--ink)">Audit log</text><text class="ts" x="803" y="426" text-anchor="middle" fill="var(--muted)">hash-chained</text>
+      </g>
+      <!-- Band 6: Workflow modules (amber) -->
+      <rect x="20" y="446" width="880" height="78" rx="12" fill="var(--amber-50)" stroke="var(--amber)" stroke-width="1"/>
+      <text class="bt" x="36" y="468" fill="var(--amber-900)">WORKFLOW MODULES · DECLARATIVE (~30%)</text>
+      <g fill="#fff">
+        <rect x="36" y="476" width="87" height="42" rx="7" stroke="var(--line)"/><rect x="131" y="476" width="87" height="42" rx="7" stroke="var(--line)"/><rect x="226" y="476" width="87" height="42" rx="7" stroke="var(--line)"/><rect x="321" y="476" width="87" height="42" rx="7" stroke="var(--line)"/><rect x="416" y="476" width="87" height="42" rx="7" stroke="var(--line)"/><rect x="511" y="476" width="87" height="42" rx="7" stroke="var(--line)"/><rect x="606" y="476" width="87" height="42" rx="7" stroke="var(--line)"/><rect x="701" y="476" width="87" height="42" rx="7" stroke="var(--line)"/><rect x="796" y="476" width="87" height="42" rx="7" stroke="var(--line)"/>
+      </g>
+      <g text-anchor="middle">
+        <text class="t" x="79" y="492" fill="var(--ink)">W1</text><text class="ts" x="79" y="508" fill="var(--muted)">Formation</text>
+        <text class="t" x="174" y="492" fill="var(--ink)">W2</text><text class="ts" x="174" y="508" fill="var(--muted)">IP / Legal</text>
+        <text class="t" x="269" y="492" fill="var(--ink)">W3</text><text class="ts" x="269" y="508" fill="var(--muted)">Finance</text>
+        <text class="t" x="364" y="492" fill="var(--ink)">W4</text><text class="ts" x="364" y="508" fill="var(--muted)">Tech</text>
+        <text class="t" x="459" y="492" fill="var(--ink)">W5</text><text class="ts" x="459" y="508" fill="var(--muted)">Brand</text>
+        <text class="t" x="554" y="492" fill="var(--ink)">W6</text><text class="ts" x="554" y="508" fill="var(--muted)">People</text>
+        <text class="t" x="649" y="492" fill="var(--ink)">W7</text><text class="ts" x="649" y="508" fill="var(--muted)">GTM</text>
+        <text class="t" x="744" y="492" fill="var(--ink)">W8</text><text class="ts" x="744" y="508" fill="var(--muted)">Ops</text>
+        <text class="t" x="839" y="492" fill="var(--ink)">FR</text><text class="ts" x="839" y="508" fill="var(--muted)">Fundraise</text>
+      </g>
+      <!-- Band 7: Ports + adapters (amber) -->
+      <rect x="20" y="532" width="880" height="78" rx="12" fill="var(--amber-50)" stroke="var(--amber)" stroke-width="1"/>
+      <text class="bt" x="36" y="554" fill="var(--amber-900)">CAPABILITY PORTS + ADAPTERS · registry · conformance · anti-corruption</text>
+      <g fill="#fff">
+        <rect x="36" y="562" width="131" height="40" rx="8" stroke="var(--line)"/><rect x="179" y="562" width="131" height="40" rx="8" stroke="var(--line)"/><rect x="322" y="562" width="131" height="40" rx="8" stroke="var(--line)"/><rect x="465" y="562" width="131" height="40" rx="8" stroke="var(--line)"/><rect x="608" y="562" width="131" height="40" rx="8" stroke="var(--line)"/><rect x="751" y="562" width="131" height="40" rx="8" stroke="#85B7EB"/>
+      </g>
+      <g text-anchor="middle">
+        <text class="t" x="101" y="586" fill="var(--ink)">Banking</text>
+        <text class="t" x="244" y="586" fill="var(--ink)">Payments</text>
+        <text class="t" x="387" y="586" fill="var(--ink)">E-sign</text>
+        <text class="t" x="530" y="586" fill="var(--ink)">Payroll</text>
+        <text class="t" x="673" y="586" fill="var(--ink)">Hosting</text>
+        <text class="t" x="816" y="586" fill="var(--blue)">LLM / model</text>
+      </g>
+      <!-- Band 8: Data / security / infra (teal) -->
+      <rect x="20" y="618" width="880" height="80" rx="12" fill="var(--teal-50)" stroke="var(--teal)" stroke-width="1"/>
+      <text class="bt" x="36" y="640" fill="var(--teal-900)">DATA · SECURITY · INFRASTRUCTURE</text>
+      <g>
+        <rect x="36" y="648" width="131" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="101" y="664" text-anchor="middle" fill="var(--ink)">Company DB</text><text class="ts" x="101" y="680" text-anchor="middle" fill="var(--muted)">row-level isolation</text>
+        <rect x="179" y="648" width="131" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="244" y="664" text-anchor="middle" fill="var(--ink)">Event store</text><text class="ts" x="244" y="680" text-anchor="middle" fill="var(--muted)">immutable log</text>
+        <rect x="322" y="648" width="131" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="387" y="664" text-anchor="middle" fill="var(--ink)">Secrets vault</text><text class="ts" x="387" y="680" text-anchor="middle" fill="var(--muted)">scoped tokens</text>
+        <rect x="465" y="648" width="131" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="530" y="664" text-anchor="middle" fill="var(--ink)">Auth + RBAC</text><text class="ts" x="530" y="680" text-anchor="middle" fill="var(--muted)">per-resource</text>
+        <rect x="608" y="648" width="131" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="673" y="664" text-anchor="middle" fill="var(--ink)">Variation config</text><text class="ts" x="673" y="680" text-anchor="middle" fill="var(--muted)">PLE engine</text>
+        <rect x="751" y="648" width="131" height="42" rx="8" fill="#fff" stroke="var(--line)"/><text class="t" x="816" y="664" text-anchor="middle" fill="var(--ink)">Observability</text><text class="ts" x="816" y="680" text-anchor="middle" fill="var(--muted)">traces · metrics</text>
+      </g>
+    </svg>
+    <figcaption>The stack top-to-bottom. Requests enter at the top; everything reads and writes the Company Object in the middle; ports resolve to providers near the bottom.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="kicker">§02 · Source of truth</div>
+  <h2>The Company Object, event-sourced</h2>
+  <p>Your marketing promises documents that "regenerate and stay in sync." That is not a mutable record you overwrite — it is an <strong>append-only event log with projections</strong>. Every change ("address updated," "founder added," "EIN issued") is an immutable event. Projections re-derive the cap table, the documents, the compliance calendar, and the cross-workflow triggers from those events. Change the registered address once, and every generated document that embeds it is regenerated from the same source.</p>
+  <figure>
+    <svg viewBox="0 0 920 300" role="img" aria-label="Event-sourced company object with projections">
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+      <rect x="20" y="118" width="150" height="64" rx="10" fill="var(--amber-50)" stroke="var(--amber)"/><text class="t" x="95" y="146" text-anchor="middle" fill="var(--amber-900)">Workflow step</text><text class="ts" x="95" y="164" text-anchor="middle" fill="var(--amber)">writes a fact</text>
+      <line x1="170" y1="150" x2="206" y2="150" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <rect x="208" y="110" width="200" height="80" rx="10" fill="var(--purple-50)" stroke="var(--purple)" stroke-width="1.5"/><text class="t" x="308" y="142" text-anchor="middle" fill="var(--purple-900)">Event store</text><text class="ts" x="308" y="162" text-anchor="middle" fill="var(--purple)">immutable · ordered · replayable</text>
+      <line x1="408" y1="135" x2="476" y2="70" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="408" y1="148" x2="476" y2="120" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="408" y1="160" x2="476" y2="180" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="408" y1="172" x2="476" y2="240" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <rect x="478" y="42" width="200" height="44" rx="9" fill="var(--teal-50)" stroke="var(--teal)"/><text class="t" x="578" y="68" text-anchor="middle" fill="var(--teal-900)">Cap table projection</text>
+      <rect x="478" y="100" width="200" height="44" rx="9" fill="var(--teal-50)" stroke="var(--teal)"/><text class="t" x="578" y="126" text-anchor="middle" fill="var(--teal-900)">Documents (re-derived)</text>
+      <rect x="478" y="158" width="200" height="44" rx="9" fill="var(--teal-50)" stroke="var(--teal)"/><text class="t" x="578" y="184" text-anchor="middle" fill="var(--teal-900)">Compliance calendar</text>
+      <rect x="478" y="216" width="200" height="44" rx="9" fill="var(--blue-50)" stroke="var(--blue)"/><text class="t" x="578" y="242" text-anchor="middle" fill="var(--blue-900)">Cross-workflow triggers</text>
+      <line x1="678" y1="238" x2="746" y2="238" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <rect x="748" y="210" width="152" height="56" rx="10" fill="var(--amber-50)" stroke="var(--amber)"/><text class="t" x="824" y="234" text-anchor="middle" fill="var(--amber-900)">Unblocks W2 · W6</text><text class="ts" x="824" y="252" text-anchor="middle" fill="var(--amber)">via outbox</text>
+    </svg>
+    <figcaption>One write becomes many derived views — and the dependency graph ("entity formed → unblock W2 + W6") is just another projection delivered through the outbox.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="kicker">§03 · The AI layer</div>
+  <h2>Document intelligence is the product</h2>
+  <p>Half your workflow nodes say "generate" — Articles of Incorporation, the 83(b) election, offer letters, positioning statements. A hallucinated clause in a legal or financial document is not a bug, it is a liability. So generation is never free-form. It runs a hard pipeline: <strong>ground</strong> the model in a vetted template and clause library plus the Company Object's fields, <strong>generate</strong> through a model port, <strong>validate</strong> deterministically (schema, required fields, jurisdiction rules), gate on a <strong>human approval</strong> (your existing "Approve?" steps), then write to an <strong>immutable, versioned store</strong>. An eval suite of golden documents guards every change.</p>
+  <figure>
+    <svg viewBox="0 0 920 320" role="img" aria-label="Document intelligence pipeline">
+      <defs><marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+      <!-- spine -->
+      <rect x="20" y="96" width="128" height="58" rx="9" fill="#fff" stroke="var(--line)"/><text class="t" x="84" y="120" text-anchor="middle" fill="var(--ink)">Grounding</text><text class="ts" x="84" y="138" text-anchor="middle" fill="var(--muted)">templates + fields</text>
+      <line x1="148" y1="125" x2="174" y2="125" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <rect x="176" y="96" width="128" height="58" rx="9" fill="var(--blue-50)" stroke="var(--blue)"/><text class="t" x="240" y="120" text-anchor="middle" fill="var(--blue-900)">Generate</text><text class="ts" x="240" y="138" text-anchor="middle" fill="var(--blue)">model port</text>
+      <line x1="304" y1="125" x2="330" y2="125" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <rect x="332" y="96" width="128" height="58" rx="9" fill="var(--teal-50)" stroke="var(--teal)"/><text class="t" x="396" y="120" text-anchor="middle" fill="var(--teal-900)">Validate</text><text class="ts" x="396" y="138" text-anchor="middle" fill="var(--teal)">rules · schema</text>
+      <line x1="460" y1="125" x2="486" y2="125" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <path d="M488 125 L548 96 L608 125 L548 154 Z" fill="var(--amber-50)" stroke="var(--amber)"/><text class="t" x="548" y="130" text-anchor="middle" fill="var(--amber-900)">valid?</text>
+      <line x1="608" y1="125" x2="634" y2="125" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <rect x="636" y="96" width="120" height="58" rx="9" fill="var(--purple-50)" stroke="var(--purple)"/><text class="t" x="696" y="120" text-anchor="middle" fill="var(--purple-900)">Human approve</text><text class="ts" x="696" y="138" text-anchor="middle" fill="var(--purple)">gate</text>
+      <line x1="756" y1="125" x2="782" y2="125" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <rect x="784" y="96" width="116" height="58" rx="9" fill="#fff" stroke="var(--line)"/><text class="t" x="842" y="120" text-anchor="middle" fill="var(--ink)">Versioned</text><text class="ts" x="842" y="138" text-anchor="middle" fill="var(--muted)">immutable store</text>
+      <!-- regenerate loop -->
+      <path d="M548 154 L548 200 L240 200 L240 156" fill="none" stroke="var(--coral)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+      <text class="ts" x="394" y="194" text-anchor="middle" fill="var(--coral)">no → regenerate / flag</text>
+      <!-- side feeds -->
+      <rect x="176" y="238" width="128" height="50" rx="9" fill="#fff" stroke="var(--blue)"/><text class="t" x="240" y="260" text-anchor="middle" fill="var(--blue-900)">Model registry</text><text class="ts" x="240" y="277" text-anchor="middle" fill="var(--muted)">Claude / GPT</text>
+      <line x1="240" y1="238" x2="240" y2="156" stroke="var(--blue)" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#ar2)"/>
+      <rect x="332" y="238" width="128" height="50" rx="9" fill="#fff" stroke="var(--teal)"/><text class="t" x="396" y="260" text-anchor="middle" fill="var(--teal-900)">Eval suite</text><text class="ts" x="396" y="277" text-anchor="middle" fill="var(--muted)">golden documents</text>
+      <line x1="396" y1="238" x2="396" y2="156" stroke="var(--teal)" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#ar2)"/>
+      <rect x="20" y="238" width="128" height="50" rx="9" fill="#fff" stroke="var(--line)"/><text class="t" x="84" y="260" text-anchor="middle" fill="var(--ink)">Clause library</text><text class="ts" x="84" y="277" text-anchor="middle" fill="var(--muted)">vetted · jurisdictional</text>
+      <line x1="84" y1="238" x2="84" y2="156" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#ar2)"/>
+    </svg>
+    <figcaption>Generation is bracketed by deterministic validation and a human gate. The model is a swappable provider; nothing reaches a founder unvalidated and unapproved.</figcaption>
+  </figure>
+  <p style="font-size:14px;color:var(--muted)">The model is just another port — the same abstraction as banking or e-sign — so you can route by document type, fall back across providers, and track cost per tenant without touching workflow code.</p>
+</section>
+
+<section>
+  <div class="kicker">§04 · Compliance</div>
+  <h2>Regulatory intelligence, as a first-class engine</h2>
+  <p>Compliance is a pillar in your deck, so it gets real architecture, not a cron job. The engine is driven by <strong>jurisdiction rule-packs</strong> — data, not code — that describe what's required for a given entity type and state. A <strong>regulatory-data pipeline</strong> keeps those packs current as laws change. From a tenant's profile it generates the deadline calendar and the recurring filings, and it owns the irreversible fuses.</p>
+  <div class="note fuse"><b>The 83(b) fuse.</b> A 30-day, no-extensions, irreversible deadline cannot ride on best-effort delivery. It needs redundant, multi-channel, <em>acknowledged</em> reminders with escalating urgency and a human backstop if it goes unacknowledged. Treat it as the canonical guaranteed-delivery case the whole notification path is designed around.</p></div>
+  <ul class="blue">
+    <li><strong>Rule-packs</strong> are versioned variation assets — adding a jurisdiction is authoring data, not shipping code.</li>
+    <li><strong>Change detection</strong> on the source data flags when a generated calendar must be re-derived (another Company Object projection).</li>
+    <li><strong>Escalation policy</strong> is explicit and tested: who gets told, on which channels, after how long, and what happens on silence.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="kicker">§05 · Provider abstraction</div>
+  <h2>Swap safely, or it isn't really swappable</h2>
+  <p>The module depends only on the port. A registry reads the tenant's choice and returns an adapter. For the MVP you ship only third-party adapters; the interface is the contract that makes "first-party later" a one-file change. But "swap safely" is only true with three additions: a <strong>conformance suite</strong> every adapter must pass, an <strong>anti-corruption layer</strong> so a vendor's schema never leaks into your domain, and <strong>capability negotiation</strong> because no two providers support an identical feature set.</p>
+  <figure>
+    <svg viewBox="0 0 920 360" role="img" aria-label="Port, registry, adapters, conformance and anti-corruption">
+      <defs><marker id="ar3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+      <rect x="20" y="120" width="150" height="62" rx="10" fill="var(--amber-50)" stroke="var(--amber)"/><text class="t" x="95" y="146" text-anchor="middle" fill="var(--amber-900)">W3 module</text><text class="ts" x="95" y="164" text-anchor="middle" fill="var(--amber)">knows the port only</text>
+      <line x1="170" y1="151" x2="206" y2="151" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <rect x="208" y="120" width="150" height="62" rx="10" fill="var(--teal-50)" stroke="var(--teal)"/><text class="t" x="283" y="146" text-anchor="middle" fill="var(--teal-900)">Banking port</text><text class="ts" x="283" y="164" text-anchor="middle" fill="var(--teal)">interface · core</text>
+      <line x1="358" y1="151" x2="394" y2="151" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <rect x="396" y="120" width="150" height="62" rx="10" fill="var(--teal-50)" stroke="var(--teal)"/><text class="t" x="471" y="146" text-anchor="middle" fill="var(--teal-900)">Registry</text><text class="ts" x="471" y="164" text-anchor="middle" fill="var(--teal)">reads tenant config</text>
+      <line x1="546" y1="138" x2="600" y2="92" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <line x1="546" y1="151" x2="600" y2="151" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <line x1="546" y1="164" x2="600" y2="210" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <rect x="602" y="66" width="150" height="50" rx="9" fill="var(--amber-50)" stroke="var(--amber)"/><text class="t" x="677" y="86" text-anchor="middle" fill="var(--amber-900)">Mercury</text><text class="ts" x="677" y="103" text-anchor="middle" fill="var(--amber)">third-party</text>
+      <rect x="602" y="126" width="150" height="50" rx="9" fill="var(--amber-50)" stroke="var(--amber)"/><text class="t" x="677" y="146" text-anchor="middle" fill="var(--amber-900)">Relay</text><text class="ts" x="677" y="163" text-anchor="middle" fill="var(--amber)">third-party</text>
+      <rect x="602" y="186" width="150" height="50" rx="9" fill="#fff" stroke="var(--purple)" stroke-dasharray="5 4"/><text class="t" x="677" y="206" text-anchor="middle" fill="var(--purple-900)">StartupKit bank</text><text class="ts" x="677" y="223" text-anchor="middle" fill="var(--purple)">planned first-party</text>
+      <!-- conformance gate -->
+      <rect x="788" y="66" width="112" height="170" rx="10" fill="var(--teal-50)" stroke="var(--teal)" stroke-dasharray="4 3"/><text class="t" x="844" y="142" text-anchor="middle" fill="var(--teal-900)">Conformance</text><text class="ts" x="844" y="160" text-anchor="middle" fill="var(--teal)">every adapter</text><text class="ts" x="844" y="176" text-anchor="middle" fill="var(--teal)">passes the same</text><text class="ts" x="844" y="192" text-anchor="middle" fill="var(--teal)">test suite</text>
+      <line x1="752" y1="91" x2="786" y2="120" stroke="var(--teal)" stroke-width="1" stroke-dasharray="3 3"/>
+      <line x1="752" y1="151" x2="786" y2="151" stroke="var(--teal)" stroke-width="1" stroke-dasharray="3 3"/>
+      <line x1="752" y1="211" x2="786" y2="182" stroke="var(--teal)" stroke-width="1" stroke-dasharray="3 3"/>
+      <!-- ACL -->
+      <rect x="208" y="270" width="338" height="56" rx="10" fill="var(--blue-50)" stroke="var(--blue)"/><text class="t" x="377" y="294" text-anchor="middle" fill="var(--blue-900)">Anti-corruption layer</text><text class="ts" x="377" y="312" text-anchor="middle" fill="var(--blue)">maps vendor models → domain · vendor schema never leaks in</text>
+      <line x1="660" y1="236" x2="520" y2="268" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#ar3)"/>
+      <line x1="377" y1="270" x2="300" y2="184" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#ar3)"/>
+    </svg>
+    <figcaption>The same pattern covers banking, payments, e-sign, payroll, hosting, and the LLM. Build one adapter to add a provider; the workflow above never changes.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="kicker">§06 · Reliability</div>
+  <h2>Long waits, hard failures, money and government</h2>
+  <p>These workflows wait days and weeks, and several nodes are explicitly marked critical. The orchestration core earns its keep here.</p>
+  <ul>
+    <li><strong>Durable execution</strong> (Temporal / Inngest / DBOS, or DB-backed sagas + a queue) so a wait for the IRS or a founder's signature survives every deploy and crash. This is the single biggest risk if hand-rolled.</li>
+    <li><strong>Transactional outbox</strong> for triggers — the cross-workflow gate commits atomically with the state change, so "entity formed" is never lost.</li>
+    <li><strong>Saga compensation</strong> for the red paths — a rejected Delaware filing has a defined rollback-and-retry, not an orphaned half-state.</li>
+    <li><strong>Idempotency keys</strong> on every external mutation — you never double-file with the IRS or double-charge a card because a webhook retried.</li>
+    <li><strong>Circuit breakers + dead-letter queues</strong> per adapter — third-party tools <em>will</em> go down; degrade visibly instead of hanging.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="kicker">§07 · Trust</div>
+  <h2>A fiduciary product, secured like one</h2>
+  <p>You hold EINs, SSNs, cap tables, and OAuth tokens into founders' bank, Stripe, and GitHub accounts. Security is a product feature here, not a backlog item.</p>
+  <ul class="purple">
+    <li><strong>Tenant isolation</strong> enforced at the database (row-level security), with the option to graduate sensitive tenants to schema- or DB-per-tenant.</li>
+    <li><strong>Field-level encryption</strong> for PII and secrets — EIN, SSN, bank details, and provider tokens encrypted distinctly from ordinary data.</li>
+    <li><strong>Scoped, rotated tokens</strong> per adapter — least privilege, short-lived, revocable per connection.</li>
+    <li><strong>Tamper-evident audit</strong> — the hash-chained log doubles as legal evidence and SOC&nbsp;2 material.</li>
+    <li><strong>Data residency</strong> — EU customers (your W2 already generates a DPA) mean region-aware storage from the start.</li>
+    <li><strong>SOC 2 by design</strong> — audit trails, access control, encryption, and change management are cheap now and brutal to retrofit.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="kicker">§08 · The product line</div>
+  <h2>Variation, made explicit</h2>
+  <p>The PLE engine is a real component, not a vibe. A <strong>variation model</strong> spans entity type × jurisdiction × industry × provider choices × plan tier. A <strong>configurator</strong> assembles each tenant's active workflow set, rule-packs, and adapters from their selections. A UK LLC and a Delaware C-corp are two configurations of one platform — not two codebases.</p>
+  <p>One subtlety that bites later: <strong>workflow versioning</strong>. Definitions evolve, but a founder halfway through W1 must finish on the version they started; new tenants get the new version. Pin the definition at instance start and migrate deliberately.</p>
+</section>
+
+<section>
+  <div class="kicker">§09 · The 70 / 30 map</div>
+  <h2>What's core, what varies</h2>
+  <table class="tbl">
+    <thead><tr><th>Component</th><th>Tier</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Orchestration engine</td><td><span class="pill pc">Core</span></td><td>Built once; every workflow runs on it.</td></tr>
+      <tr><td>Company Object + event store</td><td><span class="pill pc">Core</span></td><td>One source of truth, shared by all.</td></tr>
+      <tr><td>Shared services (doc, e-sign, notify, approve, audit)</td><td><span class="pill pc">Core</span></td><td>Identical needs across workflows.</td></tr>
+      <tr><td>Port interfaces + registry + conformance</td><td><span class="pill pc">Core</span></td><td>The contract that makes providers swappable.</td></tr>
+      <tr><td>Document intelligence pipeline</td><td><span class="pill pc">Core</span></td><td>One generate-validate-approve path for all docs.</td></tr>
+      <tr><td>Auth, multi-tenancy, secrets, observability</td><td><span class="pill pc">Core</span></td><td>Cross-cutting platform plumbing.</td></tr>
+      <tr><td>Workflow step manifests + templates</td><td><span class="pill pv">Variant</span></td><td>The 30% that differs per workflow.</td></tr>
+      <tr><td>Concrete provider adapters</td><td><span class="pill pv">Variant</span></td><td>One thin adapter per third-party tool.</td></tr>
+      <tr><td>Jurisdiction &amp; entity rule-packs</td><td><span class="pill pv">Variant</span></td><td>Data per state / country / entity type.</td></tr>
+      <tr><td>Industry packs</td><td><span class="pill pv">Variant</span></td><td>SaaS vs hardware vs services presets.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="kicker">§10 · Build order</div>
+  <h2>The MVP cut line</h2>
+  <p>Prove the spine on one workflow before scaling to eight. Third-party adapters only; first-party deferred entirely.</p>
+  <div class="steps">
+    <div class="step"><b>Platform spine.</b> Durable workflow engine + event-sourced Company Object + outbox trigger bus + multi-tenant auth. Nothing founder-facing yet — this is the thing everything else stands on.</div>
+    <div class="step"><b>Port framework.</b> Define the port interfaces, the registry, and the conformance harness. Build one adapter each for the critical capabilities: incorporation, banking, e-sign, payments.</div>
+    <div class="step"><b>Document intelligence v1.</b> Grounded generation → deterministic validators → human approval → versioned store, with a starter eval suite. The legal/financial safety net comes online here.</div>
+    <div class="step"><b>W1 end-to-end.</b> Ship Business Formation as the reference workflow — it gates everything and exercises the entire spine, including the 83(b) fuse.</div>
+    <div class="step"><b>Compliance engine.</b> Rule-packs + the guaranteed-deadline path, validated against the 83(b) case.</div>
+    <div class="step"><b>W2–W8 as manifests.</b> With the spine proven, the rest are largely declarative — the 30% — reusing everything above.</div>
+  </div>
+  <div class="note"><b>Dogfood it.</b> Build StartupKit on the same kind of providers it sells — Temporal, Clerk/WorkOS, Stripe, a managed Postgres. It de-risks the build and is a genuinely good founder story for YC.</div>
+</section>
+
+<section style="border-bottom:0">
+  <div class="kicker">§11 · One credible default</div>
+  <h2>A starting stack</h2>
+  <p>Named so the team can argue with something concrete — swap freely.</p>
+  <table class="tbl">
+    <tbody>
+      <tr><td>Language</td><td>Python 3.12 — the team’s strength and the native AI / LLM ecosystem (Pydantic, Anthropic SDK).</td></tr>
+      <tr><td>Durable execution</td><td>Temporal via the temporalio Python SDK (durable timers cover the scheduler).</td></tr>
+      <tr><td>Data</td><td>Postgres with row-level security; event store in Postgres; S3 / R2 for documents.</td></tr>
+      <tr><td>Eventing</td><td>Transactional outbox in Postgres → broker (NATS) or the engine's own event stream.</td></tr>
+      <tr><td>Auth &amp; secrets</td><td>Clerk or WorkOS for auth; KMS-encrypted columns or Infisical for the per-tenant vault.</td></tr>
+      <tr><td>Models</td><td>Anthropic Claude behind a model port, with structured outputs and deterministic validators.</td></tr>
+      <tr><td>Frontend</td><td>Next.js / React (the founder web app stays JS, talks to the FastAPI backend).</td></tr>
+      <tr><td>Observability</td><td>OpenTelemetry → Grafana or Datadog; Sentry for errors.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer class="wrap">
+  StartupKit · architecture review v2 · core ~70% / variant ~30% · one container, hard seams.
+</footer>
+
+</main>
+</body>
+</html>
