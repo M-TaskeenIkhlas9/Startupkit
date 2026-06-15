@@ -1,0 +1,119 @@
+==============================================================================
+ LEGEND — How to read the 8 Startup Launch Workflow diagrams
+==============================================================================
+
+Each diagram is a fine-grained, end-to-end user journey. Read it top to bottom.
+Every box is a single action performed by a single actor. The vertical bands
+(swimlanes) tell you WHO performs each action.
+
+
+------------------------------------------------------------------------------
+ SWIMLANES — the actors (vertical columns)
+------------------------------------------------------------------------------
+
+FOUNDER
+   A human action taken in the platform's UI (clicking, entering data,
+   reviewing, approving, signing). In Workflow 4 this lane is labelled "CTO"
+   (the technical founder).
+
+PLATFORM
+   An automated action performed by the system we are building — generating
+   documents, pre-filling forms, calling APIs, running checks, storing files.
+
+THIRD-PARTY
+   An action performed by, or a wait on, an EXTERNAL service or person that
+   the platform calls out to. This is NOT part of our system.
+   "Third-Party" includes, but is NOT limited to:
+       - A hired partner attorney / outside legal counsel
+       - Government bodies: Delaware Secretary of State, IRS, state tax offices
+       - Formation / registered-agent services: Stripe Atlas, Firstbase
+       - Banks & fintech: Mercury, Relay, Ramp, Brex
+       - Payments & accounting: Stripe, QuickBooks, Xero
+       - E-signature: DocuSign
+       - Payroll / HR: Gusto, Rippling, Deel
+       - Infrastructure vendors: Cloudflare, GitHub, Doppler, Supabase, Neon,
+         Clerk, Auth0, Resend, Postmark, Sentry, Better Uptime, AWS, GCP,
+         Vercel, Railway
+       - GTM / sales tools: DocSend, HubSpot, Attio, Apollo.io, Clay, Intercom
+       - Workspace & ops: Google Workspace, Slack, 1Password, Calendly, Loom,
+         Zoom, Zapier, Make
+   In short: any party outside the platform — whether a paid human professional
+   (like a partner attorney) or an external software/API — lives in this lane.
+
+EMPLOYEE  (Workflow 6 only)
+   A new hire's action during onboarding (e.g. entering direct-deposit details,
+   completing tax forms).
+
+DESIGN TOOL  (Workflow 5 only)
+   Asset/output produced via a design tool (e.g. Figma) — logo files,
+   design tokens.
+
+
+------------------------------------------------------------------------------
+ SHAPES & COLOURS — what each node means
+------------------------------------------------------------------------------
+
+WHITE rounded box ........ Process step. One actor, one atomic action.
+
+YELLOW diamond ........... Decision. Always a yes/no question. Two arrows
+                           leave it (e.g. "yes" / "no"). Three-way choices are
+                           shown as two diamonds in a row.
+
+BLUE box ................. WAIT STATE. The flow is paused for an external event
+                           or a time delay (e.g. "WAIT — 1 to 5 business days",
+                           "WAIT — all founders sign"). Nothing happens until
+                           the event occurs.
+
+ORANGE box ............... Document / asset produced and stored (an artefact
+                           that leaves the system — e.g. Certificate of
+                           Incorporation, signed PIIA, invoice template, logo).
+
+RED box .................. Failure, retry, or time-critical step. Marks error
+                           handling paths and irreversible deadlines
+                           (e.g. the 83(b) election — file within 30 days,
+                           no extensions).
+
+GREEN ball / box ......... Start of the flow, or a track marked complete/GREEN
+                           (used in the parallel tracks of Workflows 4 and 8).
+
+PURPLE box ............... Cross-workflow trigger or gate. Marks where one
+                           workflow hands off to (or is unblocked by) another.
+
+
+------------------------------------------------------------------------------
+ SYMBOLS used in labels
+------------------------------------------------------------------------------
+
+  TRIGGER (down arrow) ... This workflow has reached a milestone that UNBLOCKS
+                           another workflow. Example: W1 "EIN received" unblocks
+                           W3's bank-account step.
+
+  ENTER (up/left arrow) .. This workflow STARTS (or resumes) because an upstream
+                           workflow reached a milestone. Example: W2 enters on
+                           "entity formed" from W1.
+
+  Loops .................. An arrow that bends back upward is a loop — the same
+                           steps repeat (e.g. once per founder, once per new
+                           hire, or "edit and re-check until approved").
+
+  Fork / Join ............ Where one arrow splits into several parallel columns
+                           that run at the same time, then merge back together.
+                           Workflows 4 and 8 are the most parallel-heavy.
+
+
+------------------------------------------------------------------------------
+ FILES IN THIS FOLDER
+------------------------------------------------------------------------------
+
+  master_dependency_graph.png ........ The map of how all 8 workflows gate
+                                        each other. Read this FIRST.
+  Plantuml_W1_Business_Formation.png
+  Plantuml_W2_IP_and_Legal_Contracts.png
+  Plantuml_W3_Financial_Infrastructure.png
+  Plantuml_W4_Technical_Infrastructure.png
+  Plantuml_W5_Brand_and_Product_Foundation.png
+  Plantuml_W6_People_and_HR.png
+  Plantuml_W7_Go_to_Market.png
+  Plantuml_W8_Operations_and_Tooling.png
+
+==============================================================================
