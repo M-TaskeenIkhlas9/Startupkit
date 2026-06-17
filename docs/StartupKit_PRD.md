@@ -985,3 +985,655 @@ The MVP is complete when a founder can:
 18. Resume the process after a backend or worker interruption.
 19. Complete the process without duplicate external actions.
 20. Access only data belonging to the correct tenant.
+
+
+---
+
+## 23. Detailed Product Flow: From Workspace Creation to Ongoing Startup Execution
+
+This section explains how a founder moves through StartupKit and how the reusable core platform supports each step.
+
+### 23.1 Workspace creation
+
+The founder creates an account and a company workspace.
+
+The system must:
+
+- create the tenant and company workspace;
+- connect the founder to the workspace with the correct role;
+- create the initial Company Object;
+- create the onboarding state;
+- create an audit record;
+- attach tenant and company context to all future work.
+
+**Core used**
+
+- **Tenancy:** isolates the company’s data.
+- **Security and RBAC:** controls access.
+- **Company Object:** creates the initial company record.
+- **Audit:** records who created the workspace and when.
+- **Observability:** assigns correlation and trace identifiers.
+
+**Data created**
+
+- tenant;
+- user;
+- membership;
+- company workspace;
+- initial company state;
+- onboarding session;
+- audit event.
+
+### 23.2 Entry path selection
+
+The founder selects one of two primary paths:
+
+1. I am starting from an idea.
+2. I already have a company.
+
+A new founder enters stage assessment, validation, and planning.
+
+An existing-company founder enters company-data collection, document upload, and gap assessment.
+
+**Core used**
+
+- **Workflow Orchestration:** starts the correct W0 route.
+- **Product Configuration:** selects the relevant workflow variation.
+- **Task System:** creates the first founder action.
+- **Company Object:** records the selected path.
+
+### 23.3 W0 stage assessment
+
+StartupKit asks focused questions about:
+
+- current startup stage;
+- whether a company already exists;
+- customer validation;
+- product status;
+- founder count;
+- legal and financial setup;
+- website and technical setup;
+- current goal.
+
+The UI must ask questions step by step and allow save and resume.
+
+**Core used**
+
+- **Workflow Orchestration:** controls question order and branching.
+- **Task System:** represents founder actions.
+- **Company Object:** stores confirmed stage information.
+- **Approvals/Confirmation:** records the founder’s route confirmation.
+- **Audit:** records important stage decisions.
+
+**Result**
+
+- current stage;
+- recommended route;
+- relevant workflows;
+- first blockers;
+- first required outcome;
+- personalized journey plan.
+
+### 23.4 Existing-company intake and audit
+
+If the founder already has a company, StartupKit allows them to:
+
+- enter company details;
+- upload formation, tax, legal, banking, and operational documents;
+- connect available providers;
+- confirm which systems already exist.
+
+Extracted facts must remain unverified until the founder reviews them.
+
+**Core used**
+
+- **Documents:** stores source files and versions.
+- **Document Intelligence:** extracts candidate facts.
+- **Company Object:** stores facts as extracted or awaiting review.
+- **Task System:** creates verification tasks.
+- **Approvals:** records founder confirmation.
+- **Evidence:** links verified facts to source documents.
+- **Workflow Orchestration:** skips or marks complete proven outcomes.
+
+**Result**
+
+- completed outcomes;
+- missing outcomes;
+- outdated or risky items;
+- recommended corrective work;
+- the correct place to continue in W1–W8.
+
+### 23.5 Journey plan creation
+
+After W0, StartupKit creates the founder’s journey plan.
+
+The plan must show:
+
+- current stage;
+- relevant workflows;
+- active outcomes;
+- blocked outcomes;
+- provider-dependent work;
+- founder-dependent work;
+- future stages.
+
+It should show meaningful outcomes rather than every internal step.
+
+Examples:
+
+- Validate customer problem
+- Form company
+- Complete founder legal documents
+- Open business bank account
+- Set up website
+- Prepare launch
+- Start payroll
+
+**Core used**
+
+- **Company Object:** provides verified state.
+- **Workflow Orchestration:** determines active and eligible workflows.
+- **Read Models/Projections:** creates founder-friendly journey views.
+- **Task System:** identifies the next action.
+- **Compliance:** adds urgent obligations and deadlines.
+
+### 23.6 Outcome activation
+
+When an outcome becomes relevant, the workflow engine activates the required workflow or workflow segment.
+
+Examples:
+
+- formation readiness activates W1;
+- verified EIN unlocks banking in W3;
+- approved ICP and positioning unlock GTM work in W7;
+- bank readiness unlocks payroll in W6.
+
+**Core used**
+
+- **Workflow Orchestration:** starts, pauses, and resumes workflows.
+- **Company Events:** represent confirmed changes.
+- **Trigger Bus/Outbox:** reliably informs dependent workflows.
+- **Company Object:** updates current status.
+- **Read Models:** updates journey and dashboard views.
+
+### 23.7 Founder information collection
+
+Each workflow asks only for information needed for the current step.
+
+Previously verified information must be reused.
+
+**Core used**
+
+- **Task System:** creates the information task.
+- **Company Object:** provides prefilled facts.
+- **Validation Rules:** checks completeness and format.
+- **Security:** protects sensitive information.
+- **Workflow Orchestration:** decides the next step.
+
+### 23.8 Work-item creation and execution
+
+When work is required, StartupKit creates a work item.
+
+It may be completed by:
+
+- founder;
+- platform automation;
+- AI;
+- integrated provider;
+- specialist or reviewer;
+- a combination of these.
+
+The work item must show:
+
+- required outcome;
+- responsible party;
+- current status;
+- required inputs;
+- due date;
+- blocker;
+- expected evidence.
+
+**Core used**
+
+- **Task/Work Management:** owns the work lifecycle.
+- **Workflow Orchestration:** creates the work and waits for completion.
+- **Approvals:** controls sensitive transitions.
+- **Audit:** records assignment and status changes.
+- **Notifications:** informs the responsible person.
+
+### 23.9 Document preparation and review
+
+When a document is needed, StartupKit must:
+
+1. identify the document type;
+2. collect verified company facts;
+3. select an approved template or source;
+4. generate or populate a draft;
+5. run deterministic checks;
+6. request review where needed;
+7. present the draft to the founder;
+8. allow approval or changes;
+9. preserve every version.
+
+**Core used**
+
+- **Document Intelligence:** prepares and validates drafts.
+- **Documents:** manages lifecycle, versions, and access.
+- **Approvals:** records the decision on the exact version.
+- **Company Object:** supplies verified company facts.
+- **Audit:** records generation, review, and approval.
+- **AI Services:** assist with drafting where appropriate.
+
+### 23.10 Provider execution
+
+After approval, StartupKit may send work to an integrated provider.
+
+The workflow requests a capability from the integration runtime rather than calling a provider directly.
+
+**Core used**
+
+- **Integration Runtime:** creates and tracks the provider operation.
+- **Provider Registry:** selects the adapter.
+- **Adapter:** translates the internal request into the provider API.
+- **Idempotency:** prevents duplicate external actions.
+- **Background Worker:** performs the provider call.
+- **Audit and Observability:** record the operation.
+
+**Flow**
+
+1. Workflow requests a capability.
+2. Integration run is created.
+3. Provider is selected.
+4. Background worker calls the provider.
+5. Provider returns immediate, pending, or failed status.
+6. StartupKit updates the work item.
+7. Founder sees the provider state.
+
+### 23.11 Waiting, webhook, and reconciliation
+
+Provider work may enter states such as:
+
+- submitted;
+- waiting for provider;
+- waiting for founder KYC;
+- additional information requested;
+- under review;
+- completed;
+- failed.
+
+Completion may arrive through:
+
+- webhook;
+- polling;
+- manual confirmation;
+- uploaded evidence.
+
+**Core used**
+
+- **Workflow Orchestration:** waits without losing state.
+- **Integration Runtime:** reconciles provider status.
+- **Webhook Ingress:** receives callbacks.
+- **Background Workers:** process callbacks and polling.
+- **Retry and Dead-Letter Handling:** recover failures.
+- **Notifications:** alert the founder when action is needed.
+
+### 23.12 Evidence capture and verification
+
+A work item should not be marked complete only because a checkbox was selected.
+
+Where appropriate, the system must capture:
+
+- signed document;
+- filing certificate;
+- EIN confirmation;
+- bank approval;
+- provider receipt;
+- domain ownership;
+- website publication;
+- payroll activation.
+
+**Core used**
+
+- **Documents/Evidence:** stores proof and metadata.
+- **Approvals or Verification:** confirms evidence where needed.
+- **Company Object:** links completion to evidence.
+- **Audit:** records who confirmed completion.
+
+### 23.13 Company Object update
+
+After completion is verified, the system updates authoritative company state.
+
+Examples:
+
+- `entity_status = formed`
+- `ein_status = verified`
+- `bank_status = active`
+- `website_status = live`
+
+Important changes must create domain events.
+
+**Core used**
+
+- **Company Object:** stores current verified state.
+- **Domain Events:** record what happened.
+- **Event Store:** preserves history.
+- **Outbox/Trigger Bus:** informs dependent workflows.
+- **Read Models:** updates founder-facing views.
+
+### 23.14 Next-action and workflow unlocking
+
+After Company Object changes, StartupKit determines what becomes available next.
+
+Examples:
+
+- entity formed → W2 legal setup can continue;
+- EIN verified → W3 banking can proceed;
+- bank active → W6 payroll can proceed;
+- positioning approved → W7 GTM can proceed.
+
+**Core used**
+
+- **Workflow Orchestration:** evaluates dependencies.
+- **Trigger Bus:** sends reliable triggers.
+- **Task System:** creates the next action.
+- **Read Models:** refreshes Home and Journey.
+- **Notifications:** informs the founder.
+
+### 23.15 Ongoing tracking across W1–W8
+
+Even where work is mostly completed through integrations, StartupKit must track:
+
+- relevance;
+- status;
+- responsible party;
+- founder action;
+- provider progress;
+- blockers;
+- evidence;
+- completion;
+- next dependency.
+
+This applies to W1–W8.
+
+The MVP may automate only part of these workflows, but all must be visible and trackable.
+
+### 23.16 Manual fallback
+
+When no integration is available, StartupKit must:
+
+1. explain the required outcome;
+2. provide clear instructions;
+3. track responsibility;
+4. allow evidence upload;
+5. review or verify evidence;
+6. update the Company Object;
+7. continue the journey.
+
+Manual fallback is a supported execution mode.
+
+### 23.17 Ongoing company operation
+
+After initial setup, StartupKit continues to support:
+
+- recurring compliance;
+- new hires;
+- new legal documents;
+- provider changes;
+- website and brand updates;
+- GTM campaigns;
+- infrastructure changes;
+- fundraising readiness.
+
+The founder journey continues beyond formation.
+
+---
+
+## 24. How the Core Is Used Across the Product
+
+| Core capability | Responsibility |
+|---|---|
+| Company Object | Stores authoritative company state |
+| Workflow Orchestration | Controls what happens, waits, branches, and resumes |
+| Tasks and Work | Tracks founder, provider, platform, and specialist work |
+| Approvals | Protects sensitive and irreversible actions |
+| Documents | Stores versions, signed files, and evidence |
+| Document Intelligence | Extracts, prepares, and validates content |
+| Integration Runtime | Coordinates provider execution and status |
+| Provider Adapters | Translate StartupKit requests to provider APIs |
+| Compliance | Calculates obligations, deadlines, and escalation |
+| Tenancy | Keeps company data isolated |
+| Security | Protects sensitive information and permissions |
+| Audit | Records who did what and when |
+| Observability | Monitors APIs, workers, workflows, providers, and AI |
+| Read Models | Creates fast founder-facing views |
+| Notifications | Informs users about actions, waiting states, and outcomes |
+
+---
+
+## 25. Basic Requirements Before Core Development Starts
+
+### 25.1 Confirm the first vertical slice
+
+Choose one complete outcome to build first.
+
+Recommended slice:
+
+1. create workspace;
+2. start W0 or a simple W1 path;
+3. create a founder task;
+4. collect company information;
+5. generate one document;
+6. approve the document;
+7. create one integration run;
+8. receive provider completion;
+9. store evidence;
+10. update Company Object;
+11. unlock the next action.
+
+This should become the reference implementation for the core.
+
+### 25.2 Confirm domain language
+
+Agree on consistent meanings for:
+
+- tenant;
+- company;
+- founder;
+- Company Object;
+- workflow;
+- workflow run;
+- step;
+- task;
+- work item;
+- approval;
+- document;
+- document version;
+- evidence;
+- integration run;
+- provider;
+- adapter;
+- event;
+- projection;
+- blocker.
+
+Document these terms in a domain glossary.
+
+### 25.3 Define state lifecycles
+
+Define valid states and transitions for:
+
+- workflows;
+- steps;
+- tasks;
+- work items;
+- approvals;
+- documents;
+- integrations;
+- evidence.
+
+Example:
+
+`draft → awaiting_review → approved → sent_for_signature → signed`
+
+### 25.4 Define first commands and events
+
+Initial commands may include:
+
+- CreateWorkspace
+- SubmitCompanyInformation
+- ApproveDocument
+- StartIntegration
+- ConfirmIntegrationCompletion
+
+Initial events may include:
+
+- WorkspaceCreated
+- CompanyInformationSubmitted
+- DocumentApproved
+- IntegrationStarted
+- EvidenceStored
+- CompanyOutcomeCompleted
+
+### 25.5 Define ownership boundaries
+
+Decide which module owns each concept.
+
+Examples:
+
+- Company Object owns verified company state.
+- Documents owns document versions.
+- Approvals owns approval decisions.
+- Integration Runtime owns provider operations.
+- Workflow Orchestration owns execution.
+- Tasks/Work owns responsibility and progress.
+
+### 25.6 Define the initial data model
+
+After flow, states, commands, and ownership are clear, define the first data model.
+
+Likely entities:
+
+- tenants;
+- users;
+- memberships;
+- companies;
+- company facts;
+- workflow definitions;
+- workflow runs;
+- step runs;
+- tasks;
+- work items;
+- approvals;
+- documents;
+- document versions;
+- evidence;
+- provider connections;
+- integration runs;
+- domain events;
+- outbox events;
+- audit events.
+
+Model only what the first vertical slice requires.
+
+### 25.7 Select initial technology decisions
+
+Create short architecture decisions for:
+
+- primary database;
+- workflow engine;
+- background queue and workers;
+- file storage;
+- authentication;
+- event and outbox approach;
+- first provider integration;
+- deployment environment;
+- observability tools.
+
+### 25.8 Define security and tenancy rules
+
+Before storing real data, define:
+
+- tenant isolation;
+- roles and permissions;
+- sensitive fields;
+- encryption;
+- provider-secret storage;
+- webhook verification;
+- audit requirements;
+- AI data-sharing limits.
+
+### 25.9 Define API and application boundaries
+
+Agree that:
+
+- FastAPI is the API layer;
+- business rules live in application and domain services;
+- provider-specific code lives in adapters;
+- long-running work runs in workers or workflow orchestration;
+- core logic must be testable without starting the API server.
+
+### 25.10 Define testable acceptance criteria
+
+The first slice must prove:
+
+- workflow survives restart;
+- duplicate provider calls are prevented;
+- founder progress is saved;
+- approval is tied to a document version;
+- provider status is trackable;
+- evidence is stored;
+- Company Object updates correctly;
+- next work unlocks;
+- tenant data remains isolated;
+- critical actions are auditable.
+
+### 25.11 Prepare provider sandbox access
+
+Before a real integration, obtain:
+
+- sandbox account;
+- API credentials;
+- webhook documentation;
+- test data;
+- status definitions;
+- rate limits;
+- error codes;
+- receipt or evidence examples.
+
+If unavailable, start with a fake adapter using the same contract.
+
+### 25.12 Confirm initial UI contracts
+
+Define founder-facing read models for:
+
+- Home;
+- Journey;
+- Current Step;
+- Work;
+- Document Review;
+- Provider Status.
+
+The API should return founder-friendly views rather than the internal workflow graph.
+
+---
+
+## 26. Recommended Core Development Starting Order
+
+1. Confirm the first vertical slice.
+2. Define domain language and boundaries.
+3. Define states, commands, and events.
+4. Define plain Python domain models.
+5. Define repository and provider interfaces.
+6. Design the initial database model.
+7. Implement application use cases.
+8. Implement persistence adapters.
+9. Add the API layer.
+10. Add background execution.
+11. Add one provider adapter.
+12. Connect the first durable workflow.
+13. Build founder-facing read models.
+14. Test restart, retry, idempotency, evidence, and tenant isolation.
+
+
+
+
