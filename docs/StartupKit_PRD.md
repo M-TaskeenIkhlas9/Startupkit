@@ -1617,23 +1617,5 @@ The API should return founder-friendly views rather than the internal workflow g
 
 ---
 
-## 26. Recommended Core Development Starting Order
-
-1. Confirm the first vertical slice.
-2. Define domain language and boundaries.
-3. Define states, commands, and events.
-4. Define plain Python domain models.
-5. Define repository and provider interfaces.
-6. Design the initial database model.
-7. Implement application use cases.
-8. Implement persistence adapters.
-9. Add the API layer.
-10. Add background execution.
-11. Add one provider adapter.
-12. Connect the first durable workflow.
-13. Build founder-facing read models.
-14. Test restart, retry, idempotency, evidence, and tenant isolation.
-
-
 
 
