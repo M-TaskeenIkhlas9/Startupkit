@@ -2,16 +2,22 @@
 
 Add a check here when you tighten the port contract — all adapters re-verify automatically.
 """
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from startupkit.ports.banking import BankingPort, OpenAccountInput
 from startupkit.ports.shared import ProviderContext
 
 _CTX = ProviderContext(tenant_id="t_test", idempotency_key="idem_1", credential_ref="cred_test")
-_CODES = {"unauthorized", "rate_limited", "validation_failed",
-          "not_found", "provider_unavailable", "conflict", "unknown"}
+_CODES = {
+    "unauthorized",
+    "rate_limited",
+    "validation_failed",
+    "not_found",
+    "provider_unavailable",
+    "conflict",
+    "unknown",
+}
 
 
 class BankingConformance:
@@ -25,7 +31,8 @@ class BankingConformance:
 
     async def test_open_account_returns_normalized_shape(self) -> None:
         r = await self.make().open_account(
-            _CTX, OpenAccountInput(legal_name="Acme Inc", ein="12-3456789", formation_docs_ref="doc_1"),
+            _CTX,
+            OpenAccountInput(legal_name="Acme Inc", ein="12-3456789", formation_docs_ref="doc_1"),
         )
         assert r.ok
         assert len(r.value.account_number_last4) == 4

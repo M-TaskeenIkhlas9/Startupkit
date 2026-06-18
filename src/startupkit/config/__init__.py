@@ -1,4 +1,5 @@
 """Typed config. Fail fast on missing required vars in the real impl (use pydantic-settings)."""
+
 import os
 
 

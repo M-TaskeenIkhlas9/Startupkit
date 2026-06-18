@@ -3,9 +3,10 @@
 This is what turns W2..W8 into data (the 30%) instead of bespoke code.
 Real Temporal wiring (proxy activities, signals for human waits) lives in apps/worker.
 """
+
 from __future__ import annotations
 
-from typing import Literal, Union
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -49,7 +50,7 @@ class EmitTriggerStep(BaseModel):
     next: str | None = None
 
 
-Step = Union[ActionStep, GenerateDocStep, HumanTaskStep, WaitEventStep, DecisionStep, EmitTriggerStep]
+Step = ActionStep | GenerateDocStep | HumanTaskStep | WaitEventStep | DecisionStep | EmitTriggerStep
 
 
 class WorkflowManifest(BaseModel):

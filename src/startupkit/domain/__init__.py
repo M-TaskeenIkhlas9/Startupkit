@@ -1,4 +1,8 @@
-"""Ubiquitous-language types shared across the platform. Keep aligned with docs/domain-glossary.md."""
+"""Ubiquitous-language types shared across the platform.
+
+Keep aligned with docs/domain-glossary.md.
+"""
+
 from typing import Literal
 
 EntityType = Literal["c-corp", "llc"]

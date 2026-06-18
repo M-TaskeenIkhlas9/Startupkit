@@ -2,6 +2,7 @@
 
 The seam that makes "third-party now, first-party later" a config change, not a code change.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable

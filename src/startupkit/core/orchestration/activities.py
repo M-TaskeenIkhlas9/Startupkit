@@ -2,6 +2,7 @@
 
 Implemented + registered with the Temporal worker in apps/worker. Each MUST be idempotent.
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel

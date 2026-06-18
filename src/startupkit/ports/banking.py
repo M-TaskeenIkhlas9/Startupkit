@@ -2,6 +2,7 @@
 
 Implemented by adapters/banking_* . Conformance-tested in core/ports_runtime/conformance.
 """
+
 from __future__ import annotations
 
 from typing import Literal, Protocol, runtime_checkable
@@ -31,5 +32,7 @@ class BankingPort(Protocol):
     descriptor: ProviderDescriptor
 
     def supports(self, feature: BankingFeature) -> bool: ...
-    async def open_account(self, ctx: ProviderContext, inp: OpenAccountInput) -> Result[BankAccount]: ...
+    async def open_account(
+        self, ctx: ProviderContext, inp: OpenAccountInput
+    ) -> Result[BankAccount]: ...
     async def get_account(self, ctx: ProviderContext, account_id: str) -> Result[BankAccount]: ...
