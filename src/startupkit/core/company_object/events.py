@@ -2,9 +2,10 @@
 
 Projections (see ./projections) derive cap table, documents, compliance calendar, and triggers.
 """
+
 from __future__ import annotations
 
-from typing import Literal, Union
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -40,12 +41,12 @@ class StockIssued(BaseModel):
     issued_at: str
 
 
-CompanyEvent = Union[CompanyNamed, FounderAdded, EntityFormed, EinIssued, StockIssued]
+CompanyEvent = CompanyNamed | FounderAdded | EntityFormed | EinIssued | StockIssued
 
 
 class EventEnvelope(BaseModel):
     id: str
     tenant_id: str
-    sequence: int           # monotonic per tenant — ordering + optimistic concurrency
+    sequence: int  # monotonic per tenant — ordering + optimistic concurrency
     occurred_at: str
     event: CompanyEvent = Field(discriminator="type")

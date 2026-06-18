@@ -1,4 +1,8 @@
-"""Example projection: derive the cap table purely from events. Pure function = trivially testable."""
+"""Example projection: derive the cap table purely from events.
+
+Pure function = trivially testable.
+"""
+
 from __future__ import annotations
 
 from pydantic import BaseModel

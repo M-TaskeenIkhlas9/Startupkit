@@ -1,4 +1,8 @@
-"""Temporal worker host: connect, register the manifest-runner workflow + activities. TODO(@eng-spine)."""
+"""Temporal worker host: connect, register the manifest-runner workflow + activities.
+
+TODO(@eng-spine).
+"""
+
 from __future__ import annotations
 
 
