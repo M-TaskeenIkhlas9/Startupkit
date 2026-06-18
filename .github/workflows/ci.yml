@@ -1,14 +1,74 @@
 name: ci
-on: [push, pull_request]
+
+on:
+  push:
+    branches: [main]      # full run when something lands on main
+  pull_request:            # and on every PR
+
+# If you push again to the same PR, cancel the older still-running check.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-test:
+  ruff:                       # → required check named "ruff"
+    name: ruff
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v4
       - run: uv python install 3.12
       - run: uv sync --extra dev
       - run: uv run ruff check .
+
+  mypy:                       # → required check named "mypy"
+    name: mypy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.12
+      - run: uv sync --extra dev
       - run: uv run mypy
-      - run: uv run lint-imports        # module boundary contracts
-      - run: uv run pytest              # includes every adapter's conformance tests
+
+  lint-imports:               # → required check named "lint-imports"
+    name: lint-imports
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.12
+      - run: uv sync --extra dev
+      - run: uv run lint-imports
+
+  pytest:                     # → required check named "pytest" (this one gets a database)
+    name: pytest
+    runs-on: ubuntu-latest
+
+    # A throwaway Postgres for the duration of the job — same creds as docker-compose,
+    # so database tests behave exactly like they do on a laptop.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: startupkit
+          POSTGRES_PASSWORD: startupkit
+          POSTGRES_DB: startupkit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U startupkit"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://startupkit:startupkit@localhost:5432/startupkit
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.12
+      - run: uv sync --extra dev
+      - run: uv run pytest
+      
