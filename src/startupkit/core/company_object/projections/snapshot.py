@@ -66,6 +66,18 @@ class DocumentRecord(BaseModel):
     issues: list[str] = Field(default_factory=list)
 
 
+class SubmittedDoc(BaseModel):
+    """A document the founder completed — filled the template, or uploaded their own copy."""
+
+    doc_key: str
+    workflow_code: str
+    phase_n: int
+    doc_name: str
+    method: str  # "filled" | "uploaded"
+    fields: dict[str, str] = Field(default_factory=dict)
+    filename: str = ""
+
+
 class FounderProfile(BaseModel):
     """Who the founder is — the Input Layer's onboarding questionnaire result."""
 
@@ -130,16 +142,20 @@ class CompanySnapshot(BaseModel):
     customer: str = ""
     solution: str = ""
     readiness_score: int = 0
+    cofounder_verdict: str = ""
     founders: list[FounderView] = Field(default_factory=list)
     domains: list[DomainView] = Field(default_factory=list)
     completed_phases: dict[str, list[int]] = Field(default_factory=dict)  # code -> [phase_n]
     documents: list[DocumentRecord] = Field(default_factory=list)
+    submitted_documents: dict[str, SubmittedDoc] = Field(default_factory=dict)  # doc_key -> doc
     # --- Founder Input Layer ---
     founder_profile: FounderProfile = Field(default_factory=FounderProfile)
     milestones: list[Milestone] = Field(default_factory=list)
     integrations: list[Integration] = Field(default_factory=list)
     notes: list[InputNote] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
+    assessments: dict[str, dict[str, str]] = Field(default_factory=dict)  # phase -> {qid: answer}
+    facts: dict[str, str] = Field(default_factory=dict)  # AI Co-Founder memory — never re-ask
     intake_complete: bool = False
     version: int = 0  # = number of events folded; every edit bumps this (the 'versioned' twin)
 
@@ -160,6 +176,7 @@ def project_snapshot(events: list[EventEnvelope]) -> CompanySnapshot:
             snap.customer = e.customer
             snap.solution = e.solution
             snap.readiness_score = e.readiness_score
+            snap.cofounder_verdict = e.cofounder_verdict
             fields["brand"].update(problem=e.problem, solution=e.solution)
             fields["gtm"]["customer"] = e.customer
         elif e.type == "company.profile.set":
@@ -220,6 +237,16 @@ def project_snapshot(events: list[EventEnvelope]) -> CompanySnapshot:
                     issues=e.issues,
                 )
             )
+        elif e.type == "document.submitted":
+            snap.submitted_documents[e.doc_key] = SubmittedDoc(
+                doc_key=e.doc_key,
+                workflow_code=e.workflow_code,
+                phase_n=e.phase_n,
+                doc_name=e.doc_name,
+                method=e.method,
+                fields=e.fields,
+                filename=e.filename,
+            )
         elif e.type == "founder.profile.set":
             snap.founder_profile = FounderProfile(
                 name=e.name,
@@ -267,6 +294,11 @@ def project_snapshot(events: list[EventEnvelope]) -> CompanySnapshot:
                     added_at=env.occurred_at,
                 )
             )
+        elif e.type == "assessment.saved":
+            bucket = snap.assessments.setdefault(str(e.phase), {})
+            bucket.update(e.answers)
+        elif e.type == "facts.recorded":
+            snap.facts.update(e.facts)
         elif e.type == "intake.completed":
             snap.intake_complete = True
 

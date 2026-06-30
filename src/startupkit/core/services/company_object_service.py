@@ -14,12 +14,15 @@ from datetime import UTC, datetime
 from pydantic import BaseModel
 
 from startupkit.core.company_object.events import (
+    AssessmentSaved,
     CompanyEvent,
     CompanyObjectCreated,
     CompanyProfileSet,
     DocumentGenerated,
+    DocumentSubmitted,
     EinIssued,
     EvidenceAdded,
+    FactsRecorded,
     FounderAdded,
     FounderProfileSet,
     IdeaValidated,
@@ -64,6 +67,7 @@ class CompanyObjectService:
                     solution=req.solution,
                     detected_stage=req.stage,
                     readiness_score=req.readiness_score or 0,
+                    cofounder_verdict=req.cofounder_verdict or "",
                 )
             )
         events.append(
@@ -118,6 +122,9 @@ class CompanyObjectService:
         if req.ein:
             events.append(WorkflowPhaseCompleted(workflow_code="W1", phase_n=5))
 
+        if req.facts:
+            events.append(FactsRecorded(facts=req.facts))
+
         events.append(IntakeCompleted())
 
         # tenant_id == company_id in Phase 1 (one company per tenant).
@@ -140,6 +147,10 @@ class CompanyObjectService:
         existing = await self._store.load(company_id)
         events: list[CompanyEvent] = list(docs)
         await self._store.append(company_id, events, expected_sequence=len(existing))
+
+    async def submit_document(self, company_id: str, event: DocumentSubmitted) -> None:
+        """Record that the founder completed a document — filled the template, or uploaded it."""
+        await self._append(company_id, event)
 
     async def _append(self, company_id: str, event: CompanyEvent) -> None:
         existing = await self._store.load(company_id)
@@ -182,6 +193,15 @@ class CompanyObjectService:
             company_id,
             EvidenceAdded(evidence_id=_new_id("EV"), name=name, kind=kind, ref=ref, note=note),
         )
+
+    async def save_assessment(
+        self, company_id: str, phase: int, answers: dict[str, str]
+    ) -> None:
+        await self._append(company_id, AssessmentSaved(phase=phase, answers=answers))
+
+    async def record_facts(self, company_id: str, facts: dict[str, str]) -> None:
+        if facts:
+            await self._append(company_id, FactsRecorded(facts=facts))
 
     async def snapshot(self, company_id: str) -> CompanySnapshot:
         return project_snapshot(await self._store.load(company_id))

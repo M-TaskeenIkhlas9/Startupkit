@@ -45,3 +45,13 @@ class AnthropicModelAdapter:
         )
         block = msg.content[0]
         return block.text if isinstance(block, TextBlock) else ""
+
+    async def complete(self, system: str, prompt: str) -> str:
+        msg = await self._client.messages.create(
+            model=self._model,
+            max_tokens=700,
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        block = msg.content[0]
+        return block.text if isinstance(block, TextBlock) else ""

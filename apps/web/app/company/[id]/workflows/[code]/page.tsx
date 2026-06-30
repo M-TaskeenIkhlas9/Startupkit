@@ -28,51 +28,71 @@ export default async function WorkflowDetail({
 
   return (
     <div className="space-y-8">
-      <div
-        className="rounded-3xl border border-line p-7"
-        style={{ background: `linear-gradient(135deg, ${d.color}10, #ffffff 70%)` }}
-      >
+      <div>
         <Link
           href={`/company/${params.id}/workflows`}
-          className="font-mono text-xs text-muted hover:text-teal"
+          className="font-mono text-xs text-muted hover:text-ink"
         >
           ← All workflows · {snap.name}
         </Link>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <span
-            className="rounded-lg px-3 py-1.5 font-mono text-sm font-bold text-white"
-            style={{ background: d.color }}
-          >
-            {d.code}
-          </span>
-          <h1 className="text-3xl font-bold text-ink">{d.name}</h1>
-          <StatusBadge status={view.status} />
-        </div>
-        <p className="mt-2 max-w-2xl text-ink-soft">{d.goal}</p>
-
-        <div className="mt-5 max-w-md">
-          <div className="flex justify-between font-mono text-xs text-muted">
-            <span>
-              {phasesDone}/{d.phases.length} phases
-            </span>
-            <span>{view.progress_pct}%</span>
+        <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-panel shadow-card">
+          <div className="flex items-start gap-5 border-l-4 p-7" style={{ borderLeftColor: d.color }}>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="font-mono text-xs font-bold tracking-widest" style={{ color: d.color }}>
+                  {d.code}
+                </span>
+                <StatusBadge status={view.status} />
+              </div>
+              <h1 className="mt-1.5 text-3xl font-extrabold tracking-tight text-ink">{d.name}</h1>
+              <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-soft">{d.goal}</p>
+              {view.blocked_reason && (
+                <p className="mt-3 inline-block rounded-md bg-paper px-3 py-1.5 text-sm text-muted">
+                  🔒 {view.blocked_reason}
+                </p>
+              )}
+              {(d.depends_on.length > 0 || d.unlocks.length > 0) && (
+                <div className="mt-3 flex flex-wrap gap-2 font-mono text-[11px] text-muted">
+                  {d.depends_on.length > 0 && <Chip>needs {d.depends_on.join(", ")}</Chip>}
+                  {d.unlocks.length > 0 && <Chip>unlocks {d.unlocks.join(", ")}</Chip>}
+                </div>
+              )}
+            </div>
+            <div className="hidden shrink-0 text-right sm:block">
+              <p className="text-4xl font-extrabold leading-none" style={{ color: d.color }}>
+                {view.progress_pct}%
+              </p>
+              <p className="mt-1 font-mono text-xs text-muted">
+                {phasesDone}/{d.phases.length} phases
+              </p>
+            </div>
           </div>
-          <div className="mt-1 h-2 w-full rounded bg-line">
-            <div
-              className="h-2 rounded transition-all"
-              style={{ width: `${view.progress_pct}%`, background: d.color }}
-            />
+          {/* segmented phase tracker — the phases are a real ordered sequence */}
+          <div className="flex gap-1.5 border-t border-line bg-paper/60 px-7 py-4">
+            {d.phases.map((p) => {
+              const complete = view.completed_phases.includes(p.n);
+              const current =
+                !complete &&
+                d.phases.filter((x) => x.n < p.n).every((x) => view.completed_phases.includes(x.n));
+              return (
+                <div key={p.n} className="min-w-0 flex-1">
+                  <div
+                    className="h-1.5 rounded-full transition-colors"
+                    style={{
+                      background: complete ? d.color : current ? `${d.color}55` : "#e3e7e2",
+                    }}
+                  />
+                  <p
+                    className={`mt-1.5 truncate text-[10.5px] font-medium ${
+                      complete || current ? "text-ink-soft" : "text-muted"
+                    }`}
+                  >
+                    {p.n}. {p.name}
+                  </p>
+                </div>
+              );
+            })}
           </div>
-        </div>
-
-        {view.blocked_reason && (
-          <p className="mt-4 inline-block rounded-md bg-paper px-3 py-1.5 text-sm text-muted">
-            🔒 {view.blocked_reason}
-          </p>
-        )}
-        <div className="mt-4 flex flex-wrap gap-2 font-mono text-xs text-muted">
-          {d.depends_on.length > 0 && <Chip>needs {d.depends_on.join(", ")}</Chip>}
-          {d.unlocks.length > 0 && <Chip>unlocks {d.unlocks.join(", ")}</Chip>}
         </div>
       </div>
 
@@ -80,6 +100,13 @@ export default async function WorkflowDetail({
         companyId={params.id}
         view={view}
         documents={snap.documents.filter((d) => d.workflow_code === view.definition.code)}
+        company={{
+          name: snap.name,
+          entity_type: snap.entity_type,
+          jurisdiction: snap.jurisdiction,
+          founderName: snap.founders[0]?.name ?? snap.founder_profile.name ?? "",
+        }}
+        submitted={snap.submitted_documents}
       />
     </div>
   );

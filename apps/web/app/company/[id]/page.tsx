@@ -70,14 +70,18 @@ export default async function CompanyPage({ params }: { params: { id: string } }
         </div>
       )}
 
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted">
+      <div className="flex flex-col-reverse gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
             {snap.company_id} · v{snap.version}
           </p>
-          <h1 className="mt-1 text-3xl font-bold text-ink">{snap.name}</h1>
-          <p className="mt-1 text-ink-soft">{snap.one_liner}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <h1 className="mt-2 text-[2.6rem] font-extrabold leading-[1.05] tracking-tight text-ink">
+            {snap.name}
+          </h1>
+          <p className="mt-2.5 max-w-xl text-[15px] leading-relaxed text-ink-soft">
+            {snap.one_liner}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
             <Tag>{snap.stage}</Tag>
             <Tag>{snap.entity_type}</Tag>
             <Tag>{snap.jurisdiction}</Tag>
@@ -104,6 +108,24 @@ export default async function CompanyPage({ params }: { params: { id: string } }
           </div>
         </div>
         <span className="font-mono text-sm text-seal-soft">Open →</span>
+      </Link>
+
+      <Link
+        href={`/company/${snap.company_id}/assessment`}
+        className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-panel px-6 py-4 shadow-card transition hover:border-teal/40 hover:shadow-lift"
+      >
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-50 font-mono text-sm font-bold text-teal-900">
+            ?
+          </span>
+          <div>
+            <p className="font-semibold text-ink">Founder Assessment</p>
+            <p className="text-sm text-muted">
+              5 phases · 249 structured questions, idea → first revenue
+            </p>
+          </div>
+        </div>
+        <span className="font-mono text-sm font-semibold text-teal">Open →</span>
       </Link>
 
       <div className="card p-5">
@@ -299,19 +321,21 @@ function Gauge({ health }: { health: HealthScore }) {
   const color = STATUS_COLOR[health.status];
   const angle = (health.overall / 100) * 360;
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex shrink-0 flex-col items-center gap-2.5">
       <div
-        className="flex h-28 w-28 items-center justify-center rounded-full"
+        className="flex h-32 w-32 items-center justify-center rounded-full"
         style={{ background: `conic-gradient(${color} ${angle}deg, #eef1ec ${angle}deg)` }}
       >
-        <div className="flex h-20 w-20 flex-col items-center justify-center rounded-full bg-panel">
-          <span className="text-2xl font-bold text-ink">{health.overall}</span>
-          <span className="font-mono text-[10px] text-muted">/ 100</span>
+        <div className="flex h-[6.5rem] w-[6.5rem] flex-col items-center justify-center rounded-full bg-panel shadow-[inset_0_1px_3px_rgba(16,40,30,0.06)]">
+          <span className="text-[2rem] font-extrabold leading-none tracking-tight text-ink">
+            {health.overall}
+          </span>
+          <span className="mt-1 font-mono text-[10px] text-muted">/ 100</span>
         </div>
       </div>
       <span
-        className="mt-2 rounded-full px-3 py-0.5 text-xs font-semibold uppercase"
-        style={{ background: color + "22", color }}
+        className="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide"
+        style={{ background: color + "1f", color }}
       >
         {health.status.replace("-", " ")}
       </span>

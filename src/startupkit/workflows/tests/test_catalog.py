@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from startupkit.core.company_object.events import DocumentSubmitted
 from startupkit.core.company_object.memory_store import InMemoryEventStore
 from startupkit.core.services.company_object_service import CompanyObjectService
 from startupkit.core.services.intake import FounderIntake, IntakeRequest
-from startupkit.workflows.catalog import CATALOG, WorkflowView, status_for
+from startupkit.workflows.catalog import CATALOG, WorkflowView, doc_key, status_for
 
 
 def _intake(formation_status: str, ein: str | None = None) -> IntakeRequest:
@@ -33,6 +34,67 @@ def test_w1_has_the_83b_fuse() -> None:
     w1 = next(wf for wf in CATALOG if wf.code == "W1")
     fuses = [d for ph in w1.phases for d in ph.documents if d.critical]
     assert any("83(b)" in d.name for d in fuses)
+
+
+def test_doc_key_is_stable_and_slugged() -> None:
+    assert doc_key("W1", "Certificate of Incorporation") == "W1-certificate-of-incorporation"
+    assert doc_key("W1", "83(b) Election") == "W1-83-b-election"
+
+
+def test_w1_documents_carry_fillable_templates() -> None:
+    w1 = next(wf for wf in CATALOG if wf.code == "W1")
+    templated = [d for ph in w1.phases for d in ph.documents if d.template]
+    assert len(templated) >= 3
+    for d in templated:
+        assert d.fields, f"{d.name} has a template but no fields"
+
+
+def test_every_workflow_has_at_least_one_fillable_template() -> None:
+    for wf in CATALOG:
+        templated = [d for ph in wf.phases for d in ph.documents if d.template]
+        assert templated, f"{wf.code} has no fillable templates"
+        for d in templated:
+            assert d.fields, f"{wf.code} {d.name} has a template but no fields"
+            assert "📤 What to do next" in d.template, f"{wf.code} {d.name} missing the output step"
+
+
+async def test_submitting_required_docs_completes_the_phase() -> None:
+    svc = CompanyObjectService(InMemoryEventStore())
+    cid = await svc.create_from_intake(_intake("idea"))
+    w1 = next(wf for wf in CATALOG if wf.code == "W1")
+    phase = next(p for p in w1.phases if p.n == 2)
+    required = [d for d in phase.documents if d.required]
+
+    # submit all but the last required doc -> phase not yet done
+    for d in required[:-1]:
+        await svc.submit_document(
+            cid,
+            DocumentSubmitted(
+                doc_key=doc_key("W1", d.name),
+                workflow_code="W1",
+                phase_n=2,
+                doc_name=d.name,
+                method="filled",
+            ),
+        )
+    snap = await svc.snapshot(cid)
+    assert all(doc_key("W1", d.name) in snap.submitted_documents for d in required[:-1])
+
+    # the projection records method + filename for an upload
+    await svc.submit_document(
+        cid,
+        DocumentSubmitted(
+            doc_key=doc_key("W1", required[-1].name),
+            workflow_code="W1",
+            phase_n=2,
+            doc_name=required[-1].name,
+            method="uploaded",
+            filename="signed.pdf",
+        ),
+    )
+    snap = await svc.snapshot(cid)
+    last = snap.submitted_documents[doc_key("W1", required[-1].name)]
+    assert last.method == "uploaded" and last.filename == "signed.pdf"
 
 
 async def test_idea_stage_locks_everything_after_w1() -> None:

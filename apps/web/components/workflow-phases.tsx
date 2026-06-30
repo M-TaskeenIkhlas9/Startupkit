@@ -3,7 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { completePhase, generatePhase } from "@/lib/api";
-import type { Actor, DocumentDef, DocumentRecord, GeneratedDocument, Phase, WorkflowView } from "@/lib/types";
+import { DocumentTemplate, type DocCompany } from "@/components/document-template";
+import type {
+  Actor,
+  DocumentRecord,
+  GeneratedDocument,
+  Phase,
+  SubmittedDoc,
+  WorkflowView,
+} from "@/lib/types";
+
+function docKey(code: string, name: string): string {
+  return `${code}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
+}
 
 const ACTOR_BADGE: Record<Actor, { label: string; icon: string; bg: string; fg: string }> = {
   startupkit: { label: "StartupKit drafts this", icon: "⚡", bg: "#E4F1EB", fg: "#0A3326" },
@@ -21,10 +33,14 @@ export function WorkflowPhases({
   companyId,
   view,
   documents,
+  company,
+  submitted,
 }: {
   companyId: string;
   view: WorkflowView;
   documents: DocumentRecord[];
+  company: DocCompany;
+  submitted: Record<string, SubmittedDoc>;
 }) {
   const router = useRouter();
   const [done, setDone] = useState<number[]>(view.completed_phases);
@@ -81,11 +97,21 @@ export function WorkflowPhases({
 
               <div className="mt-3 space-y-2">
                 {p.documents.map((doc) => (
-                  <DocumentRow key={doc.name} doc={doc} done={complete} />
+                  <DocumentTemplate
+                    key={doc.name}
+                    companyId={companyId}
+                    workflowCode={view.definition.code}
+                    phaseN={p.n}
+                    color={color}
+                    doc={doc}
+                    company={company}
+                    submitted={submitted[docKey(view.definition.code, doc.name)]}
+                    generated={(docs[p.n] ?? []).find((g) => g.doc_type === doc.name)}
+                    phaseComplete={complete}
+                    onSubmitted={(r) => setDone(r.workflow.completed_phases)}
+                  />
                 ))}
               </div>
-
-              {docs[p.n]?.length ? <GeneratedList docs={docs[p.n]} /> : null}
 
               <PhaseAction
                 phase={p}
@@ -99,51 +125,6 @@ export function WorkflowPhases({
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function GeneratedList({ docs }: { docs: GeneratedDocument[] }) {
-  return (
-    <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50/50 p-3">
-      <p className="rule mb-2 text-teal-900">Generated documents · {docs.length}</p>
-      <div className="space-y-2">
-        {docs.map((d) => (
-          <details key={d.doc_id} className="group rounded-lg border border-line bg-panel">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2">
-              <span className="flex items-center gap-2 text-sm font-medium text-ink">
-                <span>📄</span>
-                {d.doc_type}
-              </span>
-              <span className="flex items-center gap-2">
-                {d.status === "pending-review" ? (
-                  <span className="badge bg-seal-soft text-seal-ink">pending review</span>
-                ) : (
-                  <span className="badge bg-teal-50 text-teal-900">draft</span>
-                )}
-                <span className="font-mono text-xs text-muted group-open:rotate-180">▾</span>
-              </span>
-            </summary>
-            <div className="border-t border-line px-3 py-3">
-              {d.issues.length > 0 && (
-                <ul className="mb-2 space-y-1">
-                  {d.issues.map((i) => (
-                    <li key={i} className="text-xs text-amber">
-                      ⚠ {i}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-paper p-3 font-mono text-[11px] leading-relaxed text-ink-soft">
-                {d.body}
-              </pre>
-              <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-muted">
-                {d.doc_id} · v{d.version}
-              </p>
-            </div>
-          </details>
-        ))}
-      </div>
     </div>
   );
 }
@@ -193,24 +174,3 @@ function ActorBadge({ actor }: { actor: Actor }) {
   );
 }
 
-function DocumentRow({ doc, done }: { doc: DocumentDef; done: boolean }) {
-  return (
-    <div
-      className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${
-        doc.critical ? "border-fuse/40 bg-[#F8EAE8]" : "border-line bg-paper"
-      }`}
-    >
-      <span className="mt-0.5 text-sm">{done ? "✅" : doc.critical ? "🔴" : "📄"}</span>
-      <div className="flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-ink">{doc.name}</span>
-          {!doc.required && <span className="font-mono text-[10px] uppercase text-muted">optional</span>}
-          {doc.critical && (
-            <span className="font-mono text-[10px] font-bold uppercase text-fuse">critical fuse</span>
-          )}
-        </div>
-        {doc.note && <p className="mt-0.5 text-xs text-muted">{doc.note}</p>}
-      </div>
-    </div>
-  );
-}

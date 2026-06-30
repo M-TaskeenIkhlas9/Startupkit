@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,26 +6,22 @@
 @layer base {
   body {
     @apply bg-paper text-ink antialiased;
-    font-family: "Hanken Grotesk", sans-serif;
-    /* faint ledger grid — the 'record paper' texture, very low contrast */
-    background-image:
-      linear-gradient(rgba(12, 58, 44, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(12, 58, 44, 0.025) 1px, transparent 1px);
-    background-size: 34px 34px;
-    background-position: center top;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    font-feature-settings: "cv11", "ss01";
   }
   h1, h2, h3, h4 {
-    font-family: "Bricolage Grotesque", sans-serif;
+    font-family: "Inter", system-ui, sans-serif;
     letter-spacing: -0.025em;
+    font-weight: 700;
   }
   ::selection {
-    background: rgba(182, 128, 42, 0.22);
+    background: rgba(37, 54, 232, 0.16);
   }
 }
 
 @layer components {
   .eyebrow {
-    @apply font-mono text-xs uppercase tracking-[0.22em] text-seal;
+    @apply font-mono text-xs font-medium uppercase tracking-[0.2em] text-teal;
   }
   .rule {
     @apply font-mono text-[11px] uppercase tracking-[0.18em] text-muted;
@@ -34,19 +30,19 @@
     @apply rounded-2xl border border-line bg-panel shadow-card;
   }
   .card-hover {
-    @apply transition duration-200 hover:-translate-y-0.5 hover:border-seal/40 hover:shadow-lift;
+    @apply transition duration-200 hover:-translate-y-0.5 hover:border-teal/40 hover:shadow-lift;
   }
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition duration-200 disabled:opacity-60;
   }
   .btn-primary {
-    @apply btn bg-teal text-paper shadow-sm hover:bg-teal-900;
+    @apply btn bg-teal text-white shadow-sm hover:bg-teal-900;
   }
   .btn-seal {
     @apply btn bg-seal text-white shadow-seal hover:bg-seal-ink;
   }
   .btn-ghost {
-    @apply btn border border-line bg-panel text-ink hover:border-seal hover:text-seal-ink;
+    @apply btn border border-line bg-panel text-ink hover:border-teal hover:text-teal;
   }
   .badge {
     @apply rounded-full px-2.5 py-0.5 text-xs font-semibold;
@@ -61,19 +57,12 @@
     @apply mb-1.5 block text-sm font-medium text-ink-soft;
   }
   .field-input {
-    @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-seal focus:ring-2 focus:ring-seal/15;
-  }
-  /* wax-seal motif — reused for the Health score */
-  .seal-ring {
-    @apply relative flex items-center justify-center rounded-full;
-    box-shadow: 0 0 0 1px rgba(182, 128, 42, 0.35), inset 0 0 0 4px rgba(255, 255, 255, 0.6);
+    @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-teal focus:ring-2 focus:ring-teal/15;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation: none !important;
     transition: none !important;
   }

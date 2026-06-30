@@ -14,3 +14,7 @@ class ModelPort(Protocol):
     async def fill_template(
         self, template: str, fields: dict[str, object], clauses: list[str]
     ) -> str: ...
+
+    async def complete(self, system: str, prompt: str) -> str:
+        """Free-form reasoning (the AI Co-Founder). Empty string means 'no model available'."""
+        ...

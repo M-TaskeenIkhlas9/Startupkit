@@ -47,6 +47,8 @@ class IntakeRequest(BaseModel):
     customer: str | None = None
     solution: str | None = None
     readiness_score: int | None = None
+    cofounder_verdict: str | None = None
+    facts: dict[str, str] = Field(default_factory=dict)  # captured during the co-founder chat
     # Founder Input Layer — who the founder is (the "About you" onboarding step).
     founder_name: str | None = None
     founder_background: str | None = None

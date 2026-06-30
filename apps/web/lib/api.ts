@@ -5,14 +5,18 @@ import type {
   CompanySnapshot,
   ComplianceItem,
   GenerateResult,
+  SubmitResult,
   GuardrailAction,
   GuardrailResult,
   HealthScore,
+  ChatTurn,
+  IdeaChatResponse,
+  Journey,
   Recommendation,
-  IdeaAssessment,
   IdeaValidationAnswers,
   IntakeRequest,
   NextAction,
+  ValidationResult,
   WorkflowDef,
   WorkflowView,
 } from "./types";
@@ -24,11 +28,27 @@ async function json<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function validateIdea(answers: IdeaValidationAnswers): Promise<IdeaAssessment> {
+export async function validateIdea(answers: IdeaValidationAnswers): Promise<ValidationResult> {
   const res = await fetch(`${BASE}/api/validate-idea`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(answers),
+  });
+  return json(res);
+}
+
+export async function ideaChat(body: {
+  problem: string;
+  customer: string;
+  solution: string;
+  facts: Record<string, string>;
+  messages: ChatTurn[];
+  user_message: string;
+}): Promise<IdeaChatResponse> {
+  const res = await fetch(`${BASE}/api/idea-chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
   return json(res);
 }
@@ -66,6 +86,10 @@ export async function getRecommendations(id: string): Promise<Recommendation[]> 
   return json(await fetch(`${BASE}/api/companies/${id}/recommendations`, { cache: "no-store" }));
 }
 
+export async function getJourney(id: string): Promise<Journey> {
+  return json(await fetch(`${BASE}/api/companies/${id}/journey`, { cache: "no-store" }));
+}
+
 export async function getCaseStudies(id: string): Promise<CaseStudy[]> {
   return json(await fetch(`${BASE}/api/companies/${id}/case-studies`, { cache: "no-store" }));
 }
@@ -88,6 +112,9 @@ export const addEvidence = (id: string, body: object) =>
   post<CompanySnapshot>(id, "evidence", body);
 export const setFounderProfile = (id: string, body: object) =>
   post<CompanySnapshot>(id, "founder-profile", body);
+
+export const saveAssessment = (id: string, phase: number, answers: Record<string, string>) =>
+  post<CompanySnapshot>(id, "assessment", { phase, answers });
 
 export async function askCofounder(id: string, question: string): Promise<AskResponse> {
   const res = await fetch(`${BASE}/api/companies/${id}/ask`, {
@@ -135,5 +162,35 @@ export async function generatePhase(
     `${BASE}/api/companies/${id}/workflows/${code}/phases/${phaseN}/generate`,
     { method: "POST" },
   );
+  return json(res);
+}
+
+export async function fillDocument(
+  id: string,
+  body: { workflow_code: string; phase_n: number; doc_name: string; fields: Record<string, string> },
+): Promise<SubmitResult> {
+  const res = await fetch(`${BASE}/api/companies/${id}/documents/fill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return json(res);
+}
+
+export async function uploadDocument(
+  id: string,
+  body: {
+    workflow_code: string;
+    phase_n: number;
+    doc_name: string;
+    filename: string;
+    content_base64: string;
+  },
+): Promise<SubmitResult> {
+  const res = await fetch(`${BASE}/api/companies/${id}/documents/upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
   return json(res);
 }

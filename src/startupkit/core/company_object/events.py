@@ -47,6 +47,7 @@ class IdeaValidated(BaseModel):
     solution: str
     detected_stage: str
     readiness_score: int
+    cofounder_verdict: str = ""  # strong-go | promising | needs-work | pivot
 
 
 class CompanyProfileSet(BaseModel):
@@ -135,6 +136,21 @@ class EvidenceAdded(BaseModel):
     note: str = ""
 
 
+class FactsRecorded(BaseModel):
+    """Facts the founder told the AI Co-Founder — saved so no later step re-asks them."""
+
+    type: Literal["facts.recorded"] = "facts.recorded"
+    facts: dict[str, str]
+
+
+class AssessmentSaved(BaseModel):
+    """Answers to an early-journey assessment phase (Pre-Founder ... First Revenue)."""
+
+    type: Literal["assessment.saved"] = "assessment.saved"
+    phase: int  # 1..5
+    answers: dict[str, str]  # question id -> answer
+
+
 class IntakeCompleted(BaseModel):
     type: Literal["intake.completed"] = "intake.completed"
 
@@ -159,6 +175,19 @@ class DocumentGenerated(BaseModel):
     status: str  # "pending-review" | "draft"
     body: str
     issues: list[str] = []
+
+
+class DocumentSubmitted(BaseModel):
+    """The founder completed a document — by filling the template fields, or uploading their own."""
+
+    type: Literal["document.submitted"] = "document.submitted"
+    doc_key: str  # stable per (workflow, document) — e.g. "W1-certificate-of-incorporation"
+    workflow_code: str
+    phase_n: int
+    doc_name: str
+    method: str  # "filled" | "uploaded"
+    fields: dict[str, str] = {}
+    filename: str = ""
 
 
 # --- W1+ : Formation and beyond (already present in the spine) -----------------------------------
@@ -198,9 +227,12 @@ CompanyEvent = (
     | IntegrationConnected
     | NoteRecorded
     | EvidenceAdded
+    | FactsRecorded
+    | AssessmentSaved
     | IntakeCompleted
     | WorkflowPhaseCompleted
     | DocumentGenerated
+    | DocumentSubmitted
     | CompanyNamed
     | EntityFormed
     | EinIssued

@@ -28,3 +28,7 @@ class TemplateModelAdapter:
             numbered = "\n".join(f"{i}. {c}" for i, c in enumerate(clauses, 1))
             body += f"\n\n## Standard clauses\n{numbered}"
         return body
+
+    async def complete(self, system: str, prompt: str) -> str:
+        # Offline: no free-form reasoning. The reasoning service assembles a narrative instead.
+        return ""

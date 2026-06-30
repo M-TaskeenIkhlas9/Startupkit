@@ -52,9 +52,11 @@ export default function IntakePage() {
     const raw = sessionStorage.getItem("sk_validation");
     if (!raw) return;
     try {
-      const { answers, assessment } = JSON.parse(raw) as {
+      const { answers, assessment, reasoning, facts } = JSON.parse(raw) as {
         answers: IdeaValidationAnswers;
         assessment: IdeaAssessment;
+        reasoning?: { verdict: string };
+        facts?: Record<string, string>;
       };
       setValidated({ a: answers, r: assessment });
       setForm((f) => ({
@@ -65,6 +67,8 @@ export default function IntakePage() {
         customer: answers.customer,
         solution: answers.solution,
         readiness_score: assessment.readiness_score,
+        cofounder_verdict: reasoning?.verdict ?? null,
+        facts: facts ?? {},
       }));
     } catch {
       /* ignore malformed */
@@ -92,7 +96,7 @@ export default function IntakePage() {
       };
       const { company_id } = await createCompany(payload);
       sessionStorage.removeItem("sk_validation");
-      router.push(`/company/${company_id}`);
+      router.push(`/company/${company_id}/journey`);
     } catch (e) {
       setError(String(e));
       setSubmitting(false);

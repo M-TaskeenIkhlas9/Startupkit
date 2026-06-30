@@ -10,3 +10,9 @@ build/
 .ruff_cache/
 .pytest_cache/
 .DS_Store
+
+# uploaded founder documents (local)
+var/
+
+# TS incremental build cache
+*.tsbuildinfo

@@ -32,11 +32,36 @@ Actor = Literal["startupkit", "provider", "founder"]
 Mode = Literal["automated", "assisted", "manual"]
 
 
+class DocField(BaseModel):
+    """One blank in a document template the founder fills in."""
+
+    key: str
+    label: str
+    placeholder: str = ""
+    kind: Literal["text", "textarea", "date", "number", "money"] = "text"
+    prefill: str = ""  # token resolved from the company, e.g. "company.name" — optional
+
+
 class DocumentDef(BaseModel):
     name: str
     required: bool = True
     critical: bool = False  # irreversible / fuse documents (e.g. 83(b))
     note: str = ""
+    # When present, the document is a fillable template the founder can complete in-app. `template`
+    # is themed markdown with {{field_key}} / {{company.*}} tokens; `fields` are the blanks.
+    fields: list[DocField] = []
+    template: str = ""
+    # When present, this is a guided TASK (e.g. "set up your GitHub org") — themed markdown how-to
+    # steps shown in the modal, completed by "Mark as done" (optionally uploading proof).
+    guidance: str = ""
+
+
+def doc_key(workflow_code: str, name: str) -> str:
+    """Stable id for a (workflow, document) pair — e.g. 'W1-certificate-of-incorporation'."""
+    slug = "".join(c if c.isalnum() else "-" for c in name.lower())
+    while "--" in slug:
+        slug = slug.replace("--", "-")
+    return f"{workflow_code}-{slug.strip('-')}"
 
 
 class Phase(BaseModel):
@@ -592,6 +617,26 @@ W8 = WorkflowDef(
 
 CATALOG: list[WorkflowDef] = [W1, W2, W3, W4, W5, W6, W7, W8]
 _BY_CODE: dict[str, WorkflowDef] = {wf.code: wf for wf in CATALOG}
+
+
+def _attach_templates() -> None:
+    """Enrich documents with their fillable template + fields, or guided-task how-to steps."""
+    from startupkit.workflows.doc_guidance import GUIDANCE
+    from startupkit.workflows.doc_templates import TEMPLATES
+
+    for wf in CATALOG:
+        for phase in wf.phases:
+            for d in phase.documents:
+                key = doc_key(wf.code, d.name)
+                tpl = TEMPLATES.get(key)
+                if tpl is not None:
+                    d.fields, d.template = tpl
+                guide = GUIDANCE.get(key)
+                if guide is not None:
+                    d.guidance = guide
+
+
+_attach_templates()
 
 
 def get_workflow(code: str) -> WorkflowDef | None:

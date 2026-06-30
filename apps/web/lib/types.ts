@@ -30,6 +30,7 @@ export interface IntakeRequest {
   target_round?: string | null;
   target_amount_usd?: number | null;
   founders: FounderIntake[];
+  facts?: Record<string, string>;
   founder_name?: string | null;
   founder_background?: string | null;
   founder_goals?: string | null;
@@ -117,11 +118,14 @@ export interface CompanySnapshot {
   solution: string;
   readiness_score: number;
   documents: DocumentRecord[];
+  submitted_documents: Record<string, SubmittedDoc>;
   founder_profile: FounderProfile;
   milestones: Milestone[];
   integrations: Integration[];
   notes: InputNote[];
   evidence: Evidence[];
+  assessments: Record<string, Record<string, string>>;
+  facts: Record<string, string>;
   founders: FounderView[];
   domains: DomainView[];
   intake_complete: boolean;
@@ -194,6 +198,26 @@ export interface CompanyRisk {
   detail: string;
   mitigation: string;
   workflow: string;
+}
+
+export interface JourneyNode {
+  id: string;
+  label: string;
+  kind: "validate" | "build" | "formalize" | "scale";
+  status: "done" | "current" | "next" | "future";
+  summary: string;
+  your_status: string;
+  next_action: string;
+  winner_move: string;
+  workflow: string;
+  case_study_id: string;
+}
+
+export interface Journey {
+  nodes: JourneyNode[];
+  current_index: number;
+  headline: string;
+  next_action: string;
 }
 
 export interface Recommendation {
@@ -271,11 +295,83 @@ export interface IdeaAssessment {
   recommendation: { action: "validate-more" | "form-now"; headline: string; detail: string };
 }
 
+export interface IdeaReasoning {
+  verdict: "strong-go" | "promising" | "needs-work" | "pivot";
+  headline: string;
+  reasoning: string;
+  strengths: string[];
+  concerns: string[];
+  improvements: string[];
+  should_proceed: boolean;
+  source: "ai" | "engine";
+}
+
+export interface ValidationResult {
+  assessment: IdeaAssessment;
+  reasoning: IdeaReasoning;
+}
+
+export interface ChatTurn {
+  role: "user" | "cofounder";
+  content: string;
+}
+
+export interface ChatExample {
+  company: string;
+  takeaway: string;
+}
+
+export interface ChatSource {
+  title: string;
+  url: string;
+}
+
+export interface IdeaChatResponse {
+  reply: string;
+  facts: Record<string, string>;
+  question: string;
+  next_steps: string[];
+  examples: ChatExample[];
+  sources: ChatSource[];
+  riskiest_assumption: string;
+  refined_problem: string;
+  refined_solution: string;
+  ready: boolean;
+  concluded: boolean;
+  verdict: string;
+}
+
+export interface DocField {
+  key: string;
+  label: string;
+  placeholder: string;
+  kind: "text" | "textarea" | "date" | "number" | "money";
+  prefill: string;
+}
+
 export interface DocumentDef {
   name: string;
   required: boolean;
   critical: boolean;
   note: string;
+  fields: DocField[];
+  template: string;
+  guidance: string;
+}
+
+export interface SubmittedDoc {
+  doc_key: string;
+  workflow_code: string;
+  phase_n: number;
+  doc_name: string;
+  method: "filled" | "uploaded";
+  fields: Record<string, string>;
+  filename: string;
+}
+
+export interface SubmitResult {
+  workflow: WorkflowView;
+  submitted: string[];
 }
 
 export type Actor = "startupkit" | "provider" | "founder";
