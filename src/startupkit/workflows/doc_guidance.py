@@ -117,4 +117,66 @@ Run payroll properly so taxes are withheld and filed for you.
 ## 📤 Mark done
 When payroll is connected to your EIN and bank, and your first employee is added, mark this done.
 """,
+    # ================================ W1 · Federal & Finalize ==================================
+    "W1-ein-confirmation-letter": """\
+# Get your EIN (and store the CP 575)
+Your EIN is the company's federal tax ID — you need it to open a bank account, hire, and file
+taxes. You apply with **IRS Form SS-4**; the IRS then issues the **CP 575 confirmation letter** as
+proof. That letter isn't something you fill in — you receive it and keep it.
+
+## Steps
+- Apply **online** at IRS.gov ("Apply for an EIN online") — fastest; the EIN is issued
+  immediately. The responsible party needs a valid SSN/ITIN. Mail or fax via SS-4 also works, just
+  slower.
+- Have ready (mostly from your Company Object): legal name **{{company.name}}**, entity type
+  {{company.entity}}, state {{company.jurisdiction}}, responsible party name + SSN/ITIN, company
+  mailing & physical address, reason (started a new business), date the business started, expected
+  number of employees, and principal activity.
+- Save the **CP 575** confirmation letter PDF — your bank will ask for it.
+
+## 📤 Mark done
+When the EIN is issued, **upload the CP 575** here (or mark done and add your EIN to the company
+record). Apply / learn more: [IRS Form SS-4](https://www.irs.gov/forms-pubs/about-form-ss-4).
+
+> The CP 575 is issued by the IRS — a document you receive, not a template you fill.
+""",
+    "W1-delaware-franchise-tax-registration": """\
+# Delaware franchise tax & annual report
+Every Delaware corporation owes an annual **franchise tax** and must file an **annual report** by
+**March 1** each year. It's not income tax — it's a flat state fee for being a Delaware corp.
+
+## Steps
+- File and pay online at the **Delaware Division of Corporations** (you'll need your 7-digit
+  business file number from the Certificate of Incorporation).
+- Delaware shows two calculations — **pick the cheaper**:
+- **Authorized Shares Method** — based on your share count. For a startup with 10,000,000
+  authorized shares this can read **$85,000+**. Do NOT just pay this number.
+- **Assumed Par Value Capital Method** — based on issued shares + gross assets. For an early-stage
+  startup this is almost always the **$400–$450 minimum**. Use this one.
+- Pay by **March 1**. Late = a **$200 penalty** plus interest, and eventually loss of good standing.
+
+## 📤 Mark done
+Once you've registered and paid this year's franchise tax, mark done (upload the receipt if you
+like). Portal: [Delaware franchise tax](https://corp.delaware.gov/paytaxes/).
+
+> The giant "authorized shares" figure is the #1 founder trap — the par-value method is the real,
+> much smaller bill.
+""",
+    "W1-delaware-llc-annual-tax": """\
+# Delaware LLC annual tax
+Every Delaware LLC owes a **flat $300 annual tax** — due **June 1** each year. Unlike a
+corporation, there is **no annual report** to file; it's just the payment.
+
+## Steps
+- Pay online at the **Delaware Division of Corporations** (you'll need your LLC file number).
+- The tax is a flat **$300**, regardless of income, size, or units issued.
+- Pay by **June 1**. Late = a **$200 penalty** plus 1.5%/month interest, and eventually loss of
+  good standing.
+
+## 📤 Mark done
+Once this year's $300 tax is paid, mark done (upload the receipt if you like). Portal:
+[Delaware LLC tax](https://corp.delaware.gov/paytaxes/).
+
+> Flat $300, due June 1 — much simpler than a corporation's franchise tax + annual report.
+""",
 }

@@ -9,7 +9,9 @@ from startupkit.core.services.intake import FounderIntake, IntakeRequest
 from startupkit.workflows.catalog import CATALOG, WorkflowView, doc_key, status_for
 
 
-def _intake(formation_status: str, ein: str | None = None) -> IntakeRequest:
+def _intake(
+    formation_status: str, ein: str | None = None, entity_type: str = "c-corp"
+) -> IntakeRequest:
     return IntakeRequest(
         company_name="Acme AI",
         owner_email="m@acme.ai",
@@ -17,7 +19,7 @@ def _intake(formation_status: str, ein: str | None = None) -> IntakeRequest:
         industry="logistics",
         stage="mvp-build",
         jurisdiction="US",
-        entity_type="c-corp",
+        entity_type=entity_type,  # type: ignore[arg-type]
         formation_status=formation_status,  # type: ignore[arg-type]
         ein=ein,
         founders=[FounderIntake(name="M", email="m@acme.ai", role="CEO", equity_pct=100.0)],
@@ -28,6 +30,34 @@ def test_catalog_has_eight_workflows() -> None:
     assert [wf.code for wf in CATALOG] == ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8"]
     for wf in CATALOG:
         assert wf.phases, f"{wf.code} has no phases"
+
+
+def test_llc_gets_a_different_w1_document_set() -> None:
+    from startupkit.workflows.catalog import get_workflow
+
+    llc = get_workflow("W1", "llc")
+    cc = get_workflow("W1", "c-corp")
+    assert llc is not None and cc is not None
+    llc_docs = {d.name for ph in llc.phases for d in ph.documents}
+    cc_docs = {d.name for ph in cc.phases for d in ph.documents}
+    # LLC-specific documents present, C-Corp-specific ones absent
+    assert {"Certificate of Formation", "Operating Agreement", "Membership Ledger"} <= llc_docs
+    assert "Certificate of Incorporation" not in llc_docs
+    assert "Bylaws" not in llc_docs
+    assert "Founder Stock Purchase Agreement (FSPA)" not in llc_docs
+    assert "Certificate of Incorporation" in cc_docs
+    # the LLC formation docs are fillable templates
+    for d in (d for ph in llc.phases for d in ph.documents):
+        if d.name in ("Certificate of Formation", "Operating Agreement", "Membership Ledger"):
+            assert d.template and d.fields, d.name
+
+
+async def test_status_for_serves_the_llc_w1_for_llcs() -> None:
+    svc = CompanyObjectService(InMemoryEventStore())
+    snap = await svc.snapshot(await svc.create_from_intake(_intake("idea", entity_type="llc")))
+    w1 = next(v for v in status_for(snap) if v.definition.code == "W1")
+    names = {d.name for p in w1.definition.phases for d in p.documents}
+    assert "Operating Agreement" in names and "Bylaws" not in names
 
 
 def test_w1_has_the_83b_fuse() -> None:

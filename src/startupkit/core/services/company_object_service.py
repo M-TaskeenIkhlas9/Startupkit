@@ -114,13 +114,15 @@ class CompanyObjectService:
         )
 
         # Seed W1 (Formation) progress from what the founder told us at intake, so an
-        # already-incorporated company doesn't start W1 at 0%.
+        # already-incorporated company doesn't start W1 at 0%. Identity (entity/jurisdiction/name)
+        # is captured at onboarding; W1 phases are: 1 Documents & Filing · 2 Ownership & 83(b) ·
+        # 3 Federal & Finalize.
         if req.formation_status in ("forming", "formed"):
-            events += [WorkflowPhaseCompleted(workflow_code="W1", phase_n=n) for n in (1, 2)]
+            events.append(WorkflowPhaseCompleted(workflow_code="W1", phase_n=1))
         if req.formation_status == "formed":
-            events += [WorkflowPhaseCompleted(workflow_code="W1", phase_n=n) for n in (3, 4)]
+            events.append(WorkflowPhaseCompleted(workflow_code="W1", phase_n=2))
         if req.ein:
-            events.append(WorkflowPhaseCompleted(workflow_code="W1", phase_n=5))
+            events.append(WorkflowPhaseCompleted(workflow_code="W1", phase_n=3))
 
         if req.facts:
             events.append(FactsRecorded(facts=req.facts))

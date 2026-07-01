@@ -10,6 +10,7 @@ export type DocCompany = {
   entity_type: string;
   jurisdiction: string;
   founderName: string;
+  ein: string;
 };
 
 function docKey(code: string, name: string): string {
@@ -228,6 +229,7 @@ export function DocumentTemplate({
   color,
   doc,
   company,
+  facts,
   submitted,
   generated,
   phaseComplete,
@@ -239,6 +241,7 @@ export function DocumentTemplate({
   color: string;
   doc: DocumentDef;
   company: DocCompany;
+  facts?: Record<string, string>;
   submitted?: SubmittedDoc;
   generated?: GeneratedDocument;
   phaseComplete: boolean;
@@ -250,7 +253,11 @@ export function DocumentTemplate({
   const [fields, setFields] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = { ...(submitted?.fields ?? {}) };
     for (const f of doc.fields) {
-      if (!init[f.key] && f.prefill === "founder.name") init[f.key] = company.founderName;
+      if (init[f.key]) continue;
+      // Capture once, never re-enter: pre-fill from the Company Object / Phase-0 answers.
+      if (f.prefill === "founder.name") init[f.key] = company.founderName;
+      else if (f.prefill === "company.ein") init[f.key] = company.ein;
+      else if (facts?.[f.key]) init[f.key] = facts[f.key];
     }
     return init;
   });

@@ -16,3 +16,4 @@ var/
 
 # TS incremental build cache
 *.tsbuildinfo
+/W1/

@@ -26,6 +26,63 @@ export default async function WorkflowDetail({
   const d = view.definition;
   const phasesDone = view.completed_phases.length;
 
+  // Auto-generate the Cap Table + ledger (+ Operating Agreement members) rows from the founders +
+  // share/unit structure, entity-aware, so those documents pre-fill instead of being retyped.
+  const isLLC = snap.entity_type === "llc";
+  const num = (s: string | undefined) => Number(String(s ?? "").replace(/[^0-9.]/g, "")) || 0;
+  const issued = num(isLLC ? snap.facts.units_issued : snap.facts.shares_issued) || num(snap.facts.authorized_shares);
+  const pricePer = (isLLC ? snap.facts.capital_contribution : snap.facts.price_per_share) || snap.facts.par_value || "";
+  const unitWord = isLLC ? "units" : "common";
+  const today = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const amt = (pct: number) => Math.round((pct / 100) * issued);
+  const capTableRows = snap.founders
+    .map((f) => `${f.name} — ${amt(f.equity_pct).toLocaleString()} ${unitWord} — ${f.equity_pct}%`)
+    .join("\n");
+  const memberRows = snap.founders
+    .map((f) => `${f.name} — ${amt(f.equity_pct).toLocaleString()} units`)
+    .join("\n");
+  const ledgerRows = snap.founders
+    .map(
+      (f, i) =>
+        `${f.name} — ${amt(f.equity_pct).toLocaleString()} ${unitWord} — ` +
+        (isLLC ? "" : `Cert C-${i + 1} — `) +
+        `issued ${today} — ${pricePer}${isLLC ? "/unit" : "/share"}`,
+    )
+    .join("\n");
+  // Auto-generate the compliance calendar from entity type + operating state.
+  const state =
+    snap.facts.state_of_operation && snap.facts.state_of_operation !== "Not sure"
+      ? snap.facts.state_of_operation
+      : "";
+  const complianceRows = [
+    isLLC
+      ? "Delaware LLC franchise tax ($300 flat) — due June 1 (annual)"
+      : "Delaware Annual Report + Franchise Tax — due March 1 (annual)",
+    isLLC
+      ? "Federal — pass-through: Schedule K-1 to members with your personal return"
+      : "Federal income tax (Form 1120) — due April 15 (annual)",
+    "Registered agent — renew annually",
+    ...(state && state !== "Delaware"
+      ? [`Foreign qualification + ${state} state tax — register and file in ${state}`]
+      : []),
+    "83(b) election — within 30 days of any restricted-stock grant (one-time, per person)",
+  ]
+    .map((l) => `• ${l}`)
+    .join("\n");
+
+  const docFacts: Record<string, string> = {
+    ...snap.facts,
+    ...(capTableRows ? { cap_table: capTableRows } : {}),
+    ...(ledgerRows ? (isLLC ? { membership_ledger: ledgerRows } : { stock_ledger: ledgerRows }) : {}),
+    ...(isLLC && memberRows ? { members: memberRows } : {}),
+    compliance_calendar: complianceRows,
+    reminder_lead: snap.facts.reminder_lead || "3 weeks before each due date",
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -105,7 +162,9 @@ export default async function WorkflowDetail({
           entity_type: snap.entity_type,
           jurisdiction: snap.jurisdiction,
           founderName: snap.founders[0]?.name ?? snap.founder_profile.name ?? "",
+          ein: snap.ein ?? "",
         }}
+        facts={docFacts}
         submitted={snap.submitted_documents}
       />
     </div>

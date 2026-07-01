@@ -140,7 +140,7 @@ export default function ValidatePage() {
         facts: allFacts,
       }),
     );
-    router.push("/intake");
+    router.push("/onboarding");
   }
 
   const canStart = idea.problem.trim() && idea.customer.trim() && idea.solution.trim();

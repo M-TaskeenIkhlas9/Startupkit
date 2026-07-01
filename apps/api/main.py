@@ -360,7 +360,7 @@ async def complete_phase(company_id: str, code: str, phase_n: int) -> WorkflowVi
     if not snap.company_id:
         raise HTTPException(status_code=404, detail="company not found")
 
-    wf = get_workflow(code.upper())
+    wf = get_workflow(code.upper(), snap.entity_type)
     if wf is None:
         raise HTTPException(status_code=404, detail="workflow not found")
     if not any(p.n == phase_n for p in wf.phases):
@@ -387,7 +387,7 @@ async def generate_phase(company_id: str, code: str, phase_n: int) -> GenerateRe
     snap = await _service.snapshot(company_id)
     if not snap.company_id:
         raise HTTPException(status_code=404, detail="company not found")
-    wf = get_workflow(code.upper())
+    wf = get_workflow(code.upper(), snap.entity_type)
     if wf is None:
         raise HTTPException(status_code=404, detail="workflow not found")
     phase = next((p for p in wf.phases if p.n == phase_n), None)
@@ -455,7 +455,7 @@ async def _record_submission(
     snap = await _service.snapshot(company_id)
     if not snap.company_id:
         raise HTTPException(status_code=404, detail="company not found")
-    wf = get_workflow(code.upper())
+    wf = get_workflow(code.upper(), snap.entity_type)
     if wf is None:
         raise HTTPException(status_code=404, detail="workflow not found")
     phase = next((p for p in wf.phases if p.n == phase_n), None)

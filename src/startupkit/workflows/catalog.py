@@ -118,46 +118,30 @@ W1 = WorkflowDef(
     depends_on=[],
     unlocks=["W2", "W3", "W4", "W5", "W6", "W8"],
     phases=[
+        # Company identity (entity type, jurisdiction, name) is captured during onboarding, so W1
+        # starts at the document work. Spec phases: Documents & Filing -> Ownership & 83(b) ->
+        # Federal & Finalize (which fires entity.formed / ein.received to unlock W2/W3/W6).
         Phase(
             n=1,
-            name="Choose entity",
-            summary="Pick the entity type and jurisdiction (Delaware C-Corp is the VC default).",
+            name="Documents & Filing",
+            summary="Generate the formation documents, get all founders to sign, and file.",
             actor="startupkit",
             mode="assisted",
-            cta="Get recommendation",
-            documents=[DocumentDef(name="Entity selection (C-Corp vs LLC)", note="Decision")],
-        ),
-        Phase(
-            n=2,
-            name="Incorporation",
-            summary="File with the Delaware Secretary of State to bring the entity into existence.",
-            actor="provider",
-            mode="automated",
-            cta="File with state",
+            cta="Generate, sign & file",
             documents=[
                 DocumentDef(name="Certificate of Incorporation"),
                 DocumentDef(name="Incorporator Statement & Organizer Documents"),
-            ],
-        ),
-        Phase(
-            n=3,
-            name="Corporate setup (governance)",
-            summary="Adopt the rules that govern the company and record the board's first actions.",
-            actor="startupkit",
-            mode="assisted",
-            cta="Generate & review",
-            documents=[
                 DocumentDef(name="Bylaws"),
                 DocumentDef(name="Initial Board Consent"),
             ],
         ),
         Phase(
-            n=4,
-            name="Ownership setup",
-            summary="Issue founder shares, record the cap table, and file the 83(b) yourself.",
+            n=2,
+            name="Ownership & 83(b)",
+            summary="Issue founder shares, record the cap table, and file the 83(b) in 30 days.",
             actor="founder",
             mode="manual",
-            cta="Confirm shares & file 83(b)",
+            cta="Issue shares & file 83(b)",
             documents=[
                 DocumentDef(name="Founder Stock Purchase Agreement (FSPA)"),
                 DocumentDef(name="Stock Ledger"),
@@ -170,9 +154,9 @@ W1 = WorkflowDef(
             ],
         ),
         Phase(
-            n=5,
-            name="EIN & finalize",
-            summary="Get the federal tax ID and stand up ongoing compliance.",
+            n=3,
+            name="Federal & Finalize",
+            summary="Get the federal tax ID (EIN) and stand up ongoing compliance.",
             actor="provider",
             mode="automated",
             cta="Apply for EIN",
@@ -615,6 +599,62 @@ W8 = WorkflowDef(
 )
 
 
+# --- W1 · LLC formation variant (served instead of the C-Corp W1 when entity_type == "llc") ------
+# An LLC files a Certificate of Formation (not Incorporation), adopts an Operating Agreement (not
+# Bylaws), and issues membership units (not stock) — so the whole W1 document set differs. Docs
+# shared with the C-Corp W1 (Cap Table, EIN, Registered Agent, Compliance Calendar) keep names.
+W1_LLC = WorkflowDef(
+    code="W1",
+    slug="formation",
+    name="Business Formation",
+    goal="Form the LLC: Certificate of Formation, Operating Agreement, issue units, get an EIN.",
+    color="#185FA5",
+    depends_on=[],
+    unlocks=["W2", "W3", "W4", "W5", "W6", "W8"],
+    phases=[
+        Phase(
+            n=1,
+            name="Documents & Filing",
+            summary="File the Certificate of Formation and adopt the Operating Agreement.",
+            actor="startupkit",
+            mode="assisted",
+            cta="Generate & file",
+            documents=[
+                DocumentDef(name="Certificate of Formation"),
+                DocumentDef(name="Operating Agreement"),
+            ],
+        ),
+        Phase(
+            n=2,
+            name="Ownership",
+            summary="Issue membership units and record the membership ledger and cap table.",
+            actor="founder",
+            mode="manual",
+            cta="Issue units",
+            documents=[
+                DocumentDef(name="Membership Unit Purchase Agreement"),
+                DocumentDef(name="Membership Ledger"),
+                DocumentDef(name="Cap Table"),
+            ],
+        ),
+        Phase(
+            n=3,
+            name="Federal & Finalize",
+            summary="Get the federal tax ID (EIN) and stand up ongoing compliance.",
+            actor="provider",
+            mode="automated",
+            cta="Apply for EIN",
+            documents=[
+                DocumentDef(name="EIN Confirmation Letter"),
+                DocumentDef(name="Registered Agent Agreement"),
+                DocumentDef(name="Delaware LLC Annual Tax"),
+                DocumentDef(name="Compliance Calendar"),
+            ],
+        ),
+    ],
+)
+
+
 CATALOG: list[WorkflowDef] = [W1, W2, W3, W4, W5, W6, W7, W8]
 _BY_CODE: dict[str, WorkflowDef] = {wf.code: wf for wf in CATALOG}
 
@@ -624,7 +664,7 @@ def _attach_templates() -> None:
     from startupkit.workflows.doc_guidance import GUIDANCE
     from startupkit.workflows.doc_templates import TEMPLATES
 
-    for wf in CATALOG:
+    for wf in [*CATALOG, W1_LLC]:
         for phase in wf.phases:
             for d in phase.documents:
                 key = doc_key(wf.code, d.name)
@@ -639,7 +679,10 @@ def _attach_templates() -> None:
 _attach_templates()
 
 
-def get_workflow(code: str) -> WorkflowDef | None:
+def get_workflow(code: str, entity_type: str = "c-corp") -> WorkflowDef | None:
+    """The workflow definition, entity-aware: W1 becomes the LLC formation set for LLCs."""
+    if code.upper() == "W1" and entity_type == "llc":
+        return W1_LLC
     return _BY_CODE.get(code)
 
 
@@ -661,6 +704,8 @@ def status_for(snap: CompanySnapshot) -> list[WorkflowView]:
 
     views: list[WorkflowView] = []
     for wf in CATALOG:
+        if wf.code == "W1" and snap.entity_type == "llc":
+            wf = W1_LLC  # serve the LLC formation document set for LLCs
         total = len(wf.phases)
         c = n_done(wf)
         phases_done = sorted(n for n in completed.get(wf.code, set()) if 1 <= n <= total)

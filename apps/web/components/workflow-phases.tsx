@@ -34,12 +34,14 @@ export function WorkflowPhases({
   view,
   documents,
   company,
+  facts,
   submitted,
 }: {
   companyId: string;
   view: WorkflowView;
   documents: DocumentRecord[];
   company: DocCompany;
+  facts: Record<string, string>;
   submitted: Record<string, SubmittedDoc>;
 }) {
   const router = useRouter();
@@ -105,6 +107,7 @@ export function WorkflowPhases({
                     color={color}
                     doc={doc}
                     company={company}
+                    facts={facts}
                     submitted={submitted[docKey(view.definition.code, doc.name)]}
                     generated={(docs[p.n] ?? []).find((g) => g.doc_type === doc.name)}
                     phaseComplete={complete}
