@@ -39,7 +39,26 @@ function resolveTemplate(
     .replaceAll("{{company.entity}}", ENTITY[company.entity_type] || company.entity_type || "company")
     .replaceAll("{{company.jurisdiction}}", JURISDICTION[company.jurisdiction] || company.jurisdiction)
     .replaceAll("{{company.date}}", today);
-  return body.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => (fields[k]?.trim() ? fields[k] : "__________"));
+  // A token standing alone on its own line with a multi-line value becomes a bullet list, so
+  // user-entered lists render as separate lines (table-row values with "|" pass through intact).
+  return body
+    .split("\n")
+    .map((line) => {
+      const alone = line.trim().match(/^\{\{(\w+)\}\}$/);
+      if (alone) {
+        const v = fields[alone[1]];
+        if (!v?.trim()) return "__________";
+        const vLines = v.split("\n").filter((l) => l.trim());
+        if (vLines.length > 1 && !vLines.some((l) => l.includes("|"))) {
+          return vLines.map((l) => (/^\s*[-•*]/.test(l) ? l : `- ${l.trim()}`)).join("\n");
+        }
+        return v;
+      }
+      return line.replace(/\{\{(\w+)\}\}/g, (_m, k: string) =>
+        fields[k]?.trim() ? fields[k] : "__________",
+      );
+    })
+    .join("\n");
 }
 
 // --- Download: render the filled document to a clean, print-ready HTML file (open → Save as PDF) ---
@@ -155,23 +174,152 @@ function Inline({ text }: { text: string }) {
   return <>{nodes}</>;
 }
 
-/** The one themed renderer for every document body — hand-authored template OR StartupKit draft. */
-function DocBody({ text }: { text: string }) {
+/** The one themed renderer for every document body — hand-authored template OR StartupKit draft.
+ *  In `structured` mode it styles like a formal agreement: centered uppercase title, colored
+ *  section headings, and (for the first block) centered intro text. */
+function splitRow(l: string): string[] {
+  return l
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((s) => s.trim());
+}
+
+function DocBody({
+  text,
+  accent,
+  structured,
+  center,
+}: {
+  text: string;
+  accent?: string;
+  structured?: boolean;
+  center?: boolean;
+}) {
   const lines = text.split("\n");
+  const out: React.ReactNode[] = [];
+  // Consecutive plain-prose lines (the templates hard-wrap at ~100 chars) join into one paragraph;
+  // blank lines and special lines (headings, lists, tables, signatures) end a paragraph.
+  let buf: string[] = [];
+  let pk = 0;
+  const flush = () => {
+    if (buf.length) {
+      out.push(
+        <p key={`p${pk++}`} className="my-1.5">
+          <Inline text={buf.join(" ")} />
+        </p>,
+      );
+      buf = [];
+    }
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.trimEnd();
+    // Markdown table: a "|" header row immediately followed by a |---|--- separator row.
+    if (
+      line.includes("|") &&
+      i + 1 < lines.length &&
+      lines[i + 1].includes("-") &&
+      /^[\s|:-]+$/.test(lines[i + 1].trim())
+    ) {
+      flush();
+      const header = splitRow(line);
+      const rows: string[][] = [];
+      let j = i + 2;
+      while (j < lines.length && lines[j].includes("|") && lines[j].trim() !== "") {
+        rows.push(splitRow(lines[j]));
+        j++;
+      }
+      out.push(
+        <table key={`t${i}`} className="my-3 w-full border-collapse text-left text-[12px]">
+          <thead>
+            <tr>
+              {header.map((h, hi) => (
+                <th
+                  key={hi}
+                  className="border border-line bg-paper px-2 py-1 font-sans font-semibold text-ink"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, ri) => (
+              <tr key={ri}>
+                {r.map((c, ci) => (
+                  <td key={ci} className="border border-line px-2 py-1 align-top">
+                    <Inline text={c} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>,
+      );
+      i = j - 1;
+      continue;
+    }
+    const t = line.trim();
+    const special =
+      t === "---" ||
+      line.startsWith("# ") ||
+      line.startsWith("## ") ||
+      line.startsWith("### ") ||
+      line.startsWith("- ") ||
+      line.startsWith("* ") ||
+      line.startsWith("• ") ||
+      line.startsWith("> ") ||
+      line.startsWith("____");
+    if (t === "") {
+      flush();
+    } else if (special) {
+      flush();
+      out.push(renderLine(line, i, { accent, structured }));
+    } else {
+      buf.push(t);
+    }
+  }
+  flush();
   return (
-    <div className="font-serif text-[13.5px] leading-relaxed text-ink-soft">
-      {lines.map((raw, i) => {
-        const line = raw.trimEnd();
-        if (line.trim() === "---") return <hr key={i} className="my-4 border-line" />;
+    <div
+      className={`font-serif text-[13.5px] leading-relaxed text-ink-soft ${center ? "text-center" : ""}`}
+    >
+      {out}
+    </div>
+  );
+}
+
+/** One non-table markdown line → element. */
+function renderLine(
+  line: string,
+  i: number,
+  { accent, structured }: { accent?: string; structured?: boolean },
+): React.ReactNode {
+  if (line.trim() === "---") return <hr key={i} className="my-4 border-line" />;
         if (line.startsWith("# "))
-          return (
+          return structured ? (
+            <h2
+              key={i}
+              className="mb-3 text-center font-sans text-xl font-extrabold uppercase tracking-tight text-ink"
+            >
+              {line.slice(2)}
+            </h2>
+          ) : (
             <h2 key={i} className="font-sans text-xl font-bold tracking-tight text-ink">
               {line.slice(2)}
             </h2>
           );
         if (line.startsWith("## "))
           return (
-            <h3 key={i} className="mt-3 font-sans text-sm font-bold text-ink">
+            <h3
+              key={i}
+              className={`mt-4 font-sans text-sm font-bold text-ink ${
+                structured ? "uppercase tracking-wide" : ""
+              }`}
+              style={structured && accent ? { color: accent } : undefined}
+            >
               {line.slice(3)}
             </h3>
           );
@@ -181,9 +329,9 @@ function DocBody({ text }: { text: string }) {
               {line.slice(4)}
             </h3>
           );
-        if (line.startsWith("- ") || line.startsWith("* "))
+        if (line.startsWith("- ") || line.startsWith("* ") || line.startsWith("• "))
           return (
-            <p key={i} className="my-0.5 pl-4 -indent-3">
+            <p key={i} className="my-0.5 pl-4 -indent-3 text-left">
               •&nbsp;<Inline text={line.slice(2)} />
             </p>
           );
@@ -191,7 +339,7 @@ function DocBody({ text }: { text: string }) {
           return (
             <p
               key={i}
-              className="my-2 rounded-r-lg border-l-2 border-fuse bg-[#F8EAE8] px-3 py-2 font-sans text-xs text-fuse"
+              className="my-2 rounded-r-lg border-l-2 border-fuse bg-[#F8EAE8] px-3 py-2 text-left font-sans text-xs text-fuse"
             >
               <Inline text={line.slice(2)} />
             </p>
@@ -202,16 +350,601 @@ function DocBody({ text }: { text: string }) {
               {line}
             </p>
           );
-        if (line.trim() === "") return <div key={i} className="h-2" />;
-        return (
-          <p key={i} className="my-1.5">
-            <Inline text={line} />
-          </p>
-        );
-      })}
+  if (line.trim() === "") return <div key={i} className="h-2" />;
+  return (
+    <p key={i} className="my-1.5">
+      <Inline text={line} />
+    </p>
+  );
+}
+
+const SIGNATURE_FONT = '"Segoe Script","Bradley Hand","Snell Roundhand","Brush Script MT",cursive';
+
+// --- Structured-agreement layout: per-document party / signature / key-terms config -------------
+//
+// A source string is a field key, or a token: "@name" (company name), "@type" (company entity +
+// state, e.g. "Delaware C-Corporation"), "@date" (effective date). Labels may embed "@NAME"
+// (company name, upper) or "@F:key" (a field value, upper). This lets every document map its
+// exact party boxes / signatures without touching the renderer.
+
+type Row = [string, string];
+type Card = { label: string; rows: Row[] };
+type SignCard = { label: string; sig: string; rows: Row[] };
+type KeyTerm = { icon: string; label: string; src?: string; text?: string; suffix?: string };
+type DocLayout = { left: Card; right: Card; signLeft: SignCard; signRight: SignCard; keyTerms?: KeyTerm[] };
+
+type PartyCtx = {
+  fields: Record<string, string>;
+  company: DocCompany;
+  color: string;
+  companyType: string; // e.g. "Delaware C-Corporation"
+  dateVal: string;
+  role: string; // generic-fallback counterparty role
+  prefix: string; // generic-fallback counterparty field prefix
+  layout?: DocLayout;
+};
+
+const COMPANY_ROWS: Row[] = [
+  ["Name", "@name"],
+  ["Type", "@type"],
+  ["Address", "company_address"],
+  ["Email", "company_email"],
+];
+const COMPANY_SIGN: SignCard = {
+  label: "Company: @NAME",
+  sig: "signatory_name",
+  rows: [
+    ["Name", "signatory_name"],
+    ["Title", "signatory_title"],
+    ["Date", "@date"],
+  ],
+};
+
+function srcVal(src: string, ctx: PartyCtx): string {
+  if (src === "@name") return ctx.company.name || "";
+  if (src === "@type") return ctx.companyType;
+  if (src === "@date") return ctx.dateVal;
+  return ctx.fields[src] ?? "";
+}
+function labelVal(label: string, ctx: PartyCtx): string {
+  return label
+    .replace("@NAME", (ctx.company.name || "").toUpperCase())
+    .replace(/@F:(\w+)/g, (_m, k: string) => (ctx.fields[k] || "").toUpperCase());
+}
+
+function LabeledRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex gap-2 py-0.5 text-[13px]">
+      <span className="w-20 shrink-0 font-sans text-muted">{k}</span>
+      <span className="whitespace-pre-line text-ink">{v || "—"}</span>
     </div>
   );
 }
+
+function PartyCardView({ card, ctx }: { card: Card; ctx: PartyCtx }) {
+  return (
+    <div className="rounded-xl border border-line p-4">
+      <p
+        className="mb-1.5 font-sans text-[11px] font-bold uppercase tracking-wide"
+        style={{ color: ctx.color }}
+      >
+        {labelVal(card.label, ctx)}
+      </p>
+      {card.rows.map(([k, s]) => (
+        <LabeledRow key={k} k={k} v={srcVal(s, ctx)} />
+      ))}
+    </div>
+  );
+}
+
+function SignCardView({ card, ctx }: { card: SignCard; ctx: PartyCtx }) {
+  return (
+    <div>
+      <p
+        className="mb-2 font-sans text-[11px] font-bold uppercase tracking-wide"
+        style={{ color: ctx.color }}
+      >
+        {labelVal(card.label, ctx)}
+      </p>
+      <div className="mb-2 flex items-end gap-2 text-[13px]">
+        <span className="text-muted">Signature:</span>
+        <span
+          className="inline-block min-h-[24px] min-w-[150px] border-b border-ink/50 pb-0.5 text-lg text-ink"
+          style={{ fontFamily: SIGNATURE_FONT }}
+        >
+          {srcVal(card.sig, ctx)}
+        </span>
+      </div>
+      {card.rows.map(([k, s]) => (
+        <LabeledRow key={k} k={k} v={srcVal(s, ctx)} />
+      ))}
+    </div>
+  );
+}
+
+/** Generic fallback when a document has no explicit layout: counterparty | company. */
+function fallbackLayout(ctx: PartyCtx): DocLayout {
+  const p = ctx.prefix;
+  return {
+    left: {
+      label: ctx.role,
+      rows: [
+        ["Full Name", `${p}_name`],
+        ["Address", `${p}_address`],
+        ["Email", `${p}_email`],
+        ["Role", `${p}_role`],
+      ],
+    },
+    right: { label: "Company", rows: COMPANY_ROWS },
+    signLeft: {
+      label: ctx.role,
+      sig: `${p}_name`,
+      rows: [
+        ["Name", `${p}_name`],
+        ["Date", "@date"],
+      ],
+    },
+    signRight: COMPANY_SIGN,
+  };
+}
+
+function PartiesGrid({ ctx }: { ctx: PartyCtx }) {
+  const L = ctx.layout ?? fallbackLayout(ctx);
+  return (
+    <div className="my-4 grid gap-3 text-left sm:grid-cols-2">
+      <PartyCardView card={L.left} ctx={ctx} />
+      <PartyCardView card={L.right} ctx={ctx} />
+    </div>
+  );
+}
+
+function SignatureGrid({ ctx }: { ctx: PartyCtx }) {
+  const L = ctx.layout ?? fallbackLayout(ctx);
+  return (
+    <div className="mt-6 grid gap-6 text-left sm:grid-cols-2">
+      <SignCardView card={L.signLeft} ctx={ctx} />
+      <SignCardView card={L.signRight} ctx={ctx} />
+    </div>
+  );
+}
+
+/** Renders an agreement body that carries [[PARTIES]] / [[SIGNATURES]] markers as structured
+ *  party cards + signature blocks, with the clause text (and any tables) between them. */
+function StructuredDoc({ body, ctx }: { body: string; ctx: PartyCtx }) {
+  const cardBody = body.split("## 📤")[0].trimEnd();
+  const parts = cardBody.split(/(\[\[PARTIES\]\]|\[\[SIGNATURES\]\])/);
+  let firstText = true;
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part === "[[PARTIES]]") return <PartiesGrid key={i} ctx={ctx} />;
+        if (part === "[[SIGNATURES]]") return <SignatureGrid key={i} ctx={ctx} />;
+        if (!part.trim()) return null;
+        const center = firstText;
+        firstText = false;
+        return <DocBody key={i} text={part} accent={ctx.color} structured center={center} />;
+      })}
+    </>
+  );
+}
+
+const cRows = COMPANY_ROWS;
+/** Per-document structured layouts, keyed by the catalog document name. */
+const DOC_LAYOUTS: Record<string, DocLayout> = {
+  "Technology Assignment Agreement (TAA)": {
+    left: {
+      label: "Assignor",
+      rows: [
+        ["Full Name", "assignor_name"],
+        ["Address", "assignor_address"],
+      ],
+    },
+    right: {
+      label: "Company",
+      rows: [
+        ["Name", "@name"],
+        ["Type", "@type"],
+        ["Address", "company_address"],
+      ],
+    },
+    signLeft: {
+      label: "Assignor",
+      sig: "assignor_name",
+      rows: [
+        ["Name", "assignor_name"],
+        ["Address", "assignor_address"],
+        ["Date", "@date"],
+      ],
+    },
+    signRight: COMPANY_SIGN,
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "🧠", label: "Assigned Technology", src: "technology_description" },
+      { icon: "⚖️", label: "Governing Law", src: "governing_law_state" },
+    ],
+  },
+  "Proprietary Information & Inventions Agreement (PIIA)": {
+    left: {
+      label: "Company",
+      rows: [
+        ["Name", "@name"],
+        ["Type", "@type"],
+        ["Address", "company_address"],
+        ["Email", "hr_email"],
+      ],
+    },
+    right: {
+      label: "Employee",
+      rows: [
+        ["Name", "employee_name"],
+        ["Email", "employee_email"],
+        ["Address", "employee_address"],
+        ["Role", "job_title"],
+      ],
+    },
+    signLeft: {
+      label: "Employee",
+      sig: "employee_name",
+      rows: [
+        ["Name", "employee_name"],
+        ["Date", "@date"],
+      ],
+    },
+    signRight: COMPANY_SIGN,
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "🚫", label: "Non-Solicit", src: "non_solicit_months", suffix: " months" },
+      { icon: "⚖️", label: "Governing Law", src: "governing_state" },
+    ],
+  },
+  "NDA — One-Way": {
+    left: { label: "Disclosing Party", rows: cRows },
+    right: {
+      label: "Receiving Party",
+      rows: [
+        ["Name", "receiving_name"],
+        ["Type", "receiving_type"],
+        ["Address", "receiving_address"],
+        ["Email", "receiving_email"],
+      ],
+    },
+    signLeft: { label: "Disclosing Party", sig: "signatory_name", rows: COMPANY_SIGN.rows },
+    signRight: {
+      label: "Receiving Party",
+      sig: "receiving_signatory_name",
+      rows: [
+        ["Name", "receiving_signatory_name"],
+        ["Title", "receiving_signatory_title"],
+        ["Date", "@date"],
+      ],
+    },
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "⏳", label: "Term", text: "5 years · 30 days' notice to end" },
+      { icon: "🔒", label: "Survival", text: "Obligations survive termination" },
+      { icon: "⚖️", label: "Governing Law", src: "governing_state" },
+    ],
+  },
+  "NDA — Mutual": {
+    left: { label: "Party A", rows: cRows },
+    right: {
+      label: "Party B",
+      rows: [
+        ["Name", "receiving_name"],
+        ["Type", "receiving_type"],
+        ["Address", "receiving_address"],
+        ["Email", "receiving_email"],
+      ],
+    },
+    signLeft: { label: "Party A", sig: "signatory_name", rows: COMPANY_SIGN.rows },
+    signRight: {
+      label: "Party B",
+      sig: "receiving_signatory_name",
+      rows: [
+        ["Name", "receiving_signatory_name"],
+        ["Title", "receiving_signatory_title"],
+        ["Date", "@date"],
+      ],
+    },
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "⏳", label: "Term", text: "5 years · 30 days' notice to end" },
+      { icon: "🔒", label: "Survival", text: "7 years (trade secrets indefinitely)" },
+      { icon: "⚖️", label: "Governing Law", src: "governing_state" },
+    ],
+  },
+  "Founders' Agreement": {
+    left: { label: "Company", rows: cRows },
+    right: {
+      label: "Founders",
+      rows: [
+        ["Lead", "founder_name"],
+        ["Role", "founder_role"],
+        ["Email", "founder_email"],
+        ["Address", "founder_address"],
+      ],
+    },
+    signLeft: { label: "The Company: @NAME", sig: "signatory_name", rows: COMPANY_SIGN.rows },
+    signRight: {
+      label: "Founder: @F:founder_name",
+      sig: "founder_name",
+      rows: [
+        ["Name", "founder_name"],
+        ["Role/Title", "founder_role"],
+        ["Date", "@date"],
+      ],
+    },
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "⏳", label: "Vesting", src: "vesting_period" },
+      { icon: "🪜", label: "Cliff", src: "cliff_pct", suffix: "% at 1st anniversary" },
+      { icon: "📊", label: "Option Pool", src: "option_pool_pct", suffix: "%" },
+      { icon: "🗳", label: "Major Decisions", src: "decision_standard" },
+      { icon: "⚖️", label: "Dispute Forum", src: "dispute_forum" },
+    ],
+  },
+  "MSA — Client-Facing": {
+    left: { label: "Company", rows: cRows },
+    right: {
+      label: "Customer",
+      rows: [
+        ["Name", "client_name"],
+        ["Type", "client_type"],
+        ["Address", "client_address"],
+        ["Email", "client_email"],
+      ],
+    },
+    signLeft: { label: "@NAME", sig: "signatory_name", rows: COMPANY_SIGN.rows },
+    signRight: {
+      label: "@F:client_name",
+      sig: "client_signatory_name",
+      rows: [
+        ["Name", "client_signatory_name"],
+        ["Title", "client_signatory_title"],
+        ["Date", "@date"],
+      ],
+    },
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "⏳", label: "Initial Term", src: "term_length" },
+      { icon: "🔁", label: "Auto-Renewal", text: "1 Year" },
+      { icon: "💳", label: "Payment Terms", src: "payment_terms" },
+      { icon: "🛡", label: "Limitation of Liability", src: "liability_cap" },
+      { icon: "🚪", label: "Termination Notice", src: "termination_notice" },
+      { icon: "⚖️", label: "Governing Law", src: "governing_state" },
+    ],
+  },
+  "MSA — Vendor-Facing": {
+    left: { label: "Company", rows: cRows },
+    right: {
+      label: "Vendor",
+      rows: [
+        ["Name", "vendor_name"],
+        ["Type", "vendor_type"],
+        ["Address", "vendor_address"],
+        ["Email", "vendor_email"],
+      ],
+    },
+    signLeft: { label: "@NAME", sig: "signatory_name", rows: COMPANY_SIGN.rows },
+    signRight: {
+      label: "@F:vendor_name",
+      sig: "vendor_signatory_name",
+      rows: [
+        ["Name", "vendor_signatory_name"],
+        ["Title", "vendor_signatory_title"],
+        ["Date", "@date"],
+      ],
+    },
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "⏳", label: "Initial Term", src: "term_length" },
+      { icon: "💳", label: "Payment Terms", src: "payment_terms" },
+      { icon: "🛡", label: "Liability Cap", src: "liability_cap" },
+      { icon: "🚪", label: "Termination Notice", src: "termination_notice" },
+      { icon: "⚖️", label: "Governing Law", src: "governing_state" },
+    ],
+  },
+  "Statement of Work (SOW)": {
+    left: {
+      label: "Service Provider (Company)",
+      rows: [
+        ["Name", "@name"],
+        ["Address", "company_address"],
+        ["Email", "company_email"],
+        ["Contact", "signatory_name"],
+      ],
+    },
+    right: {
+      label: "Customer",
+      rows: [
+        ["Name", "client_name"],
+        ["Address", "client_address"],
+        ["Email", "client_email"],
+        ["Contact", "client_signatory_name"],
+      ],
+    },
+    signLeft: { label: "@NAME", sig: "signatory_name", rows: COMPANY_SIGN.rows },
+    signRight: {
+      label: "@F:client_name",
+      sig: "client_signatory_name",
+      rows: [
+        ["Name", "client_signatory_name"],
+        ["Title", "client_signatory_title"],
+        ["Date", "@date"],
+      ],
+    },
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "💵", label: "Total Fee", src: "total_fee" },
+      { icon: "💳", label: "Payment", src: "payment_structure" },
+      { icon: "✅", label: "Acceptance", src: "acceptance_days", suffix: " business days" },
+      { icon: "⚖️", label: "Governing Law", src: "governing_state" },
+    ],
+  },
+  "Service Level Agreement (SLA)": {
+    left: {
+      label: "Provider (Company)",
+      rows: [
+        ["Name", "@name"],
+        ["Address", "company_address"],
+        ["Email", "company_email"],
+        ["Contact", "signatory_name"],
+      ],
+    },
+    right: {
+      label: "Customer",
+      rows: [
+        ["Name", "client_name"],
+        ["Address", "client_address"],
+        ["Email", "client_email"],
+        ["Contact", "client_signatory_name"],
+      ],
+    },
+    signLeft: { label: "@NAME", sig: "signatory_name", rows: COMPANY_SIGN.rows },
+    signRight: {
+      label: "@F:client_name",
+      sig: "client_signatory_name",
+      rows: [
+        ["Name", "client_signatory_name"],
+        ["Title", "client_signatory_title"],
+        ["Date", "@date"],
+      ],
+    },
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "📶", label: "Uptime Target", src: "uptime_target" },
+      { icon: "🎫", label: "Credit Cap", src: "credit_cap" },
+      { icon: "🔧", label: "Maintenance", src: "maintenance_window" },
+    ],
+  },
+  "Advisor Agreement": {
+    left: { label: "Company", rows: cRows },
+    right: {
+      label: "Advisor",
+      rows: [
+        ["Name", "advisor_name"],
+        ["Address", "advisor_address"],
+        ["Email", "advisor_email"],
+        ["Level", "service_level"],
+      ],
+    },
+    signLeft: COMPANY_SIGN,
+    signRight: {
+      label: "Advisor: @F:advisor_name",
+      sig: "advisor_name",
+      rows: [
+        ["Name", "advisor_name"],
+        ["Level", "service_level"],
+        ["Date", "@date"],
+      ],
+    },
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "🎯", label: "Level", src: "service_level" },
+      { icon: "📈", label: "Equity", src: "equity_pct", suffix: "% (FAST grid)" },
+      { icon: "⏳", label: "Vesting", text: "2 yrs monthly · 3-mo cliff · sale acceleration" },
+      { icon: "💵", label: "Cash Fee", src: "cash_fee" },
+    ],
+  },
+  "AI Addendum": {
+    left: {
+      label: "Provider",
+      rows: [
+        ["Name", "@name"],
+        ["Type", "@type"],
+        ["Address", "company_address"],
+      ],
+    },
+    right: {
+      label: "Customer",
+      rows: [
+        ["Name", "customer_name"],
+        ["Type", "customer_type"],
+        ["Address", "customer_address"],
+      ],
+    },
+    signLeft: { label: "Provider: @NAME", sig: "signatory_name", rows: COMPANY_SIGN.rows },
+    signRight: {
+      label: "Customer: @F:customer_name",
+      sig: "customer_signatory_name",
+      rows: [
+        ["Name", "customer_signatory_name"],
+        ["Title", "customer_signatory_title"],
+        ["Date", "@date"],
+      ],
+    },
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "🚫", label: "Training", text: "No training on Input/Output" },
+      { icon: "🗄", label: "Monitoring Retention", text: "30 days, isolated" },
+      { icon: "©", label: "Output", text: "Customer owns · copyright indemnity" },
+    ],
+  },
+  "Independent Contractor Agreement (ICA)": {
+    left: { label: "Company", rows: cRows },
+    right: {
+      label: "Contractor",
+      rows: [
+        ["Name", "contractor_name"],
+        ["Type", "contractor_type"],
+        ["Address", "contractor_address"],
+        ["Email", "contractor_email"],
+      ],
+    },
+    signLeft: { label: "@NAME", sig: "signatory_name", rows: COMPANY_SIGN.rows },
+    signRight: {
+      label: "@F:contractor_name",
+      sig: "contractor_name",
+      rows: [
+        ["Name", "contractor_name"],
+        ["Title", "contractor_role"],
+        ["Date", "@date"],
+      ],
+    },
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "💵", label: "Rate", src: "rate" },
+      { icon: "💳", label: "Payment Terms", src: "payment_terms" },
+      { icon: "🔑", label: "IP Ownership", text: "Company owns all work product" },
+      { icon: "⚖️", label: "Governing Law", src: "governing_state" },
+    ],
+  },
+  "Data Processing Addendum (DPA)": {
+    left: {
+      label: "Provider (Data Importer)",
+      rows: [
+        ["Name", "@name"],
+        ["Type", "@type"],
+        ["Address", "company_address"],
+        ["Contact", "security_contact"],
+      ],
+    },
+    right: {
+      label: "Customer (Data Exporter)",
+      rows: [
+        ["Name", "customer_name"],
+        ["Address", "customer_address"],
+        ["Contact", "customer_contact"],
+      ],
+    },
+    signLeft: { label: "Provider: @NAME", sig: "signatory_name", rows: COMPANY_SIGN.rows },
+    signRight: {
+      label: "Customer: @F:customer_name",
+      sig: "customer_signatory_name",
+      rows: [
+        ["Name", "customer_signatory_name"],
+        ["Title", "customer_signatory_title"],
+        ["Date", "@date"],
+      ],
+    },
+    keyTerms: [
+      { icon: "📅", label: "Effective Date", src: "@date" },
+      { icon: "🚨", label: "Breach Notice", text: "Within 72 hours" },
+      { icon: "🔄", label: "Subprocessor Notice", text: "10 business days" },
+      { icon: "⚖️", label: "Governing Law", src: "governing_state" },
+    ],
+  },
+};
 
 async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -220,6 +953,52 @@ async function fileToBase64(file: File): Promise<string> {
     r.onerror = reject;
     r.readAsDataURL(file);
   });
+}
+
+// --- Workspace sidebar / party primitives (visual) ----------------------------------------------
+
+function PartyBox({
+  role,
+  name,
+  lines,
+  color,
+}: {
+  role: string;
+  name: string;
+  lines: (string | undefined)[];
+  color: string;
+}) {
+  return (
+    <div className="rounded-xl border border-line bg-white p-3.5">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide" style={{ color }}>
+        {role}
+      </p>
+      <p className="font-semibold text-ink">{name || "—"}</p>
+      {lines.filter(Boolean).map((l, i) => (
+        <p key={i} className="whitespace-pre-line text-xs text-muted">
+          {l}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function SideSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+function OverviewRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1">
+      <span className="text-xs text-muted">{k}</span>
+      <span className="text-right text-sm font-medium text-ink">{v}</span>
+    </div>
+  );
 }
 
 export function DocumentTemplate({
@@ -270,6 +1049,8 @@ export function DocumentTemplate({
     : generated?.body ?? (hasGuidance ? resolveTemplate(doc.guidance, company, {}) : "");
   const isDone = Boolean(done) || (phaseComplete && Boolean(body && !hasGuidance));
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"document" | "details" | "audit">("document");
+  const [signerNote, setSignerNote] = useState("");
 
   // Modal: close on Escape, lock background scroll while it's open.
   useEffect(() => {
@@ -303,6 +1084,7 @@ export function DocumentTemplate({
         fields,
         filename: "",
       });
+      setTab("document"); // show the finished document once fields are saved
       onSubmitted(r);
     } finally {
       setBusy("");
@@ -386,55 +1168,141 @@ export function DocumentTemplate({
     </>
   );
 
-  const actions = (
-    <div className="flex flex-wrap items-center gap-3">
-      {hasTemplate && doc.fields.length > 0 && (
-        <button onClick={save} disabled={busy !== ""} className="btn-primary text-sm">
-          {busy === "fill" ? "Saving…" : done ? "Update & keep complete ✓" : "Save & mark complete ✓"}
-        </button>
-      )}
-      {hasGuidance && (
-        <button onClick={save} disabled={busy !== ""} className="btn-primary text-sm">
-          {busy === "fill" ? "Saving…" : done ? "Done ✓" : "✓ Mark as done"}
-        </button>
-      )}
-      {body && !hasGuidance && (
-        <button
-          onClick={() => downloadDoc(doc.name, body, color)}
-          disabled={busy !== ""}
-          className="rounded-lg border border-line bg-paper px-3.5 py-2 text-sm font-medium text-ink-soft transition hover:border-seal hover:text-seal-ink"
-        >
-          ⬇ Download to sign
-        </button>
-      )}
-      <label
-        className={`cursor-pointer rounded-lg border border-line bg-paper px-3.5 py-2 text-sm font-medium text-ink-soft transition hover:border-seal hover:text-seal-ink ${
-          busy !== "" ? "pointer-events-none opacity-60" : ""
-        }`}
-      >
-        {busy === "upload"
-          ? "Uploading…"
-          : hasGuidance
-            ? "⬆ Upload proof (optional)"
-            : generated && !hasTemplate
-              ? "⬆ Upload signed copy"
-              : "⬆ Upload your copy"}
-        <input
-          type="file"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void upload(f);
-          }}
-        />
-      </label>
-      {done && (
-        <span className="text-xs font-medium text-teal">
-          ✓ Done{" "}
-          {done.method === "uploaded" ? `(uploaded ${done.filename})` : hasGuidance ? "" : "(filled)"}
-        </span>
-      )}
-    </div>
+  // --- Derived workspace data (visual) — populated generically from the document's own fields ----
+  const todayStr = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const shortType = doc.name.match(/\(([^)]+)\)/)?.[1] ?? doc.name;
+  const companyType = ENTITY[company.entity_type] || company.entity_type || "Company";
+  const jurisdiction = JURISDICTION[company.jurisdiction]
+    ? `${JURISDICTION[company.jurisdiction]}, USA`
+    : company.jurisdiction;
+
+  // The "other side" of the document, inferred from whichever party field the template carries.
+  const NAME_ROLES: Array<[string, string]> = [
+    ["assignor_name", "Assignor"],
+    ["employee_name", "Employee"],
+    ["founder_name", "Founder"],
+    ["signer_name", "Signer"],
+    ["contractor_name", "Contractor"],
+    ["creator_name", "Creator"],
+    ["client_name", "Client"],
+    ["customer_name", "Customer"],
+    ["vendor_name", "Vendor"],
+    ["receiving_name", "Receiving Party"],
+    ["receiving_party", "Recipient"],
+    ["counterparty", "Counterparty"],
+    ["advisor_name", "Advisor"],
+    ["member_name", "Member"],
+    ["grantee_name", "Grantee"],
+    ["candidate_name", "Employee"],
+    ["investor_name", "Investor"],
+  ];
+  const cp = NAME_ROLES.find(([k]) => fields[k]?.trim());
+  const counterparty = cp ? { role: cp[1], name: fields[cp[0]].trim() } : null;
+  const cpKey = cp ? cp[0] : "";
+  const prefix = cpKey.endsWith("_name") ? cpKey.slice(0, -5) : cpKey;
+  const role = cp ? cp[1] : "Counterparty";
+  const jurState = JURISDICTION[company.jurisdiction] || company.jurisdiction;
+  const dateVal =
+    fields.effective_date || fields.start_date || fields.grant_date || fields.transfer_date || "";
+  const isStructured = /\[\[PARTIES\]\]|\[\[SIGNATURES\]\]/.test(doc.template || "");
+  const partyCtx: PartyCtx = {
+    fields,
+    company,
+    color,
+    role,
+    prefix,
+    companyType: `${jurState} ${companyType}`.trim(),
+    dateVal,
+    layout: DOC_LAYOUTS[doc.name],
+  };
+  const layout = partyCtx.layout ?? fallbackLayout(partyCtx);
+  // For the downloaded copy: turn the [[PARTIES]] / [[SIGNATURES]] markers into plain text.
+  const cardToText = (c: Card) =>
+    `**${labelVal(c.label, partyCtx)}**\n` +
+    c.rows.map(([k, s]) => `${k}: ${srcVal(s, partyCtx) || "__________"}`).join("\n");
+  const signToText = (c: SignCard) =>
+    `**${labelVal(c.label, partyCtx)}**\n_________________________\n` +
+    c.rows.map(([k, s]) => `${k}: ${srcVal(s, partyCtx) || "__________"}`).join("\n");
+  const resolveMarkers = (b: string) =>
+    b
+      .replace("[[PARTIES]]", `${cardToText(layout.left)}\n\n${cardToText(layout.right)}`)
+      .replace("[[SIGNATURES]]", `${signToText(layout.signLeft)}\n\n${signToText(layout.signRight)}`);
+  const cpAddrKey = Object.keys(fields).find((k) => k.endsWith("_address") && fields[k]?.trim());
+  const cpAddress = cpAddrKey ? fields[cpAddrKey].trim() : "";
+  // Exhibits = only fields the template explicitly labels "(Exhibit A)", "(Exhibit B)", …
+  const exhibits = doc.fields
+    .filter((f) => /\(Exhibit [A-Z]\)/.test(f.label) && fields[f.key]?.trim())
+    .map((f) => {
+      const m = f.label.match(/\(Exhibit ([A-Z])\)/);
+      return {
+        tag: m ? `Exhibit ${m[1]}` : "Exhibit",
+        label: f.label.replace(/\s*\(Exhibit [A-Z]\)\s*$/, ""),
+        count: fields[f.key].split("\n").filter((l) => l.trim()).length,
+      };
+    });
+  const parties = [
+    ...(counterparty ? [{ role: counterparty.role, name: counterparty.name, sub: cpAddress }] : []),
+    { role: "Company", name: company.name || "—", sub: companyType },
+  ];
+  const initials = (s: string) =>
+    s
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase())
+      .join("") || "?";
+  const statusBadge = done
+    ? { label: done.method === "uploaded" ? "Uploaded" : "Completed", fg: "#0F7A57", bg: "#E5F3EC" }
+    : body && !hasGuidance
+      ? { label: "Ready to sign", fg: "#0F7A57", bg: "#E5F3EC" }
+      : hasGuidance
+        ? { label: "To do", fg: "#8A5A12", bg: "#FBF0DD" }
+        : { label: "Upload to complete", fg: "#6B746C", bg: "#EFF1ED" };
+  const auditSteps = [
+    { label: "Document generated by StartupKit", meta: `${todayStr} · StartupKit AI`, on: true },
+    {
+      label: done
+        ? done.method === "uploaded"
+          ? "Signed copy uploaded"
+          : "Filled & marked complete"
+        : "Awaiting completion",
+      meta: done ? done.filename || "by you" : "— pending",
+      on: Boolean(done),
+    },
+    { label: "Sent for e-signature", meta: "— not sent", on: false },
+  ];
+
+  const saveBtn =
+    hasTemplate && doc.fields.length > 0 ? (
+      <button onClick={save} disabled={busy !== ""} className="btn-primary text-sm">
+        {busy === "fill" ? "Saving…" : done ? "Update ✓" : "Save & mark complete ✓"}
+      </button>
+    ) : hasGuidance ? (
+      <button onClick={save} disabled={busy !== ""} className="btn-primary text-sm">
+        {busy === "fill" ? "Saving…" : done ? "Done ✓" : "✓ Mark as done"}
+      </button>
+    ) : null;
+
+  const uploadBtn = (
+    <label
+      className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-paper px-3.5 py-2 text-sm font-medium text-ink-soft transition hover:border-seal hover:text-seal-ink ${
+        busy !== "" ? "pointer-events-none opacity-60" : ""
+      }`}
+    >
+      ⬆ {busy === "upload" ? "Uploading…" : hasGuidance ? "Upload proof" : "Upload signed copy"}
+      <input
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void upload(f);
+        }}
+      />
+    </label>
   );
 
   return (
@@ -476,52 +1344,335 @@ export function DocumentTemplate({
         typeof document !== "undefined" &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 p-4 backdrop-blur-md sm:p-8"
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 p-3 backdrop-blur-md sm:p-6"
             onClick={() => setOpen(false)}
           >
             <div
-              className="my-auto w-full max-w-2xl animate-fade-up rounded-2xl border border-line bg-panel shadow-lift"
+              className="my-auto w-full max-w-6xl animate-fade-up overflow-hidden rounded-2xl border border-line bg-panel shadow-lift"
               onClick={(e) => e.stopPropagation()}
             >
               {/* header */}
-              <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span>{isDone ? "✅" : doc.critical ? "🔴" : "📄"}</span>
-                  <h3 className="truncate font-semibold text-ink">{doc.name}</h3>
-                  {tag && (
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${tag.cls}`}>
-                      {tag.label}
+              <div className="border-b border-line px-6 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div
+                      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-lg"
+                      style={{ backgroundColor: `${color}14` }}
+                    >
+                      {isDone ? "✅" : doc.critical ? "🔴" : "📄"}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-lg font-bold text-ink">{doc.name}</h3>
+                      <p className="truncate text-sm text-muted">{doc.note || "StartupKit document"}</p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span
+                      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+                      style={{ color: statusBadge.fg, backgroundColor: statusBadge.bg }}
+                    >
+                      <span
+                        className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full"
+                        style={{ backgroundColor: statusBadge.fg }}
+                      />
+                      {statusBadge.label}
                     </span>
+                    <button
+                      onClick={() => setOpen(false)}
+                      aria-label="Close"
+                      className="rounded-lg px-2 py-1 text-muted transition hover:bg-paper hover:text-ink"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+                {/* tabs + header actions */}
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex gap-5">
+                    {(
+                      [
+                        ["document", "Document"],
+                        ["details", "Details"],
+                        ["audit", "Audit Trail"],
+                      ] as const
+                    ).map(([t, label]) => (
+                      <button
+                        key={t}
+                        onClick={() => setTab(t)}
+                        className={`border-b-2 pb-1.5 text-sm font-medium transition ${
+                          tab === t ? "text-ink" : "border-transparent text-muted hover:text-ink-soft"
+                        }`}
+                        style={tab === t ? { borderColor: color } : undefined}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {body && !hasGuidance && (
+                      <button
+                        onClick={() =>
+                          downloadDoc(doc.name, isStructured ? resolveMarkers(body) : body, color)
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-sm font-medium text-ink-soft transition hover:border-seal hover:text-seal-ink"
+                      >
+                        ⬇ Download PDF
+                      </button>
+                    )}
+                    <button
+                      onClick={() =>
+                        setSignerNote(
+                          "E-signature routing is coming soon — for now, Download to sign or Upload a signed copy.",
+                        )
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition hover:opacity-90"
+                      style={{ backgroundColor: color }}
+                    >
+                      ⇅ Send to signers
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* two-pane body */}
+              <div className="grid max-h-[80vh] overflow-y-auto lg:grid-cols-[1fr_300px]">
+                {/* left — content by tab */}
+                <div className="min-w-0 p-6 lg:border-r lg:border-line">
+                  {tab === "document" &&
+                    (body ? (
+                      <>
+                        {/* inline inputs — the document fills in live as the founder types */}
+                        {hasTemplate && doc.fields.length > 0 && !isDone && (
+                          <div className="mb-5 rounded-xl border border-line bg-paper/60 p-4">
+                            <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                              <span style={{ color }}>✎</span> Fill in the details — the document
+                              updates live below
+                            </p>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              {doc.fields.map((f) => (
+                                <label key={f.key} className="block">
+                                  <span className="mb-1 block text-xs font-medium text-ink-soft">
+                                    {f.label}
+                                  </span>
+                                  {f.kind === "textarea" ? (
+                                    <textarea
+                                      className="field-input min-h-[52px] resize-none text-sm"
+                                      value={fields[f.key] ?? ""}
+                                      placeholder={f.placeholder}
+                                      onChange={(e) =>
+                                        setFields((s) => ({ ...s, [f.key]: e.target.value }))
+                                      }
+                                    />
+                                  ) : (
+                                    <input
+                                      className="field-input text-sm"
+                                      type={
+                                        f.kind === "date"
+                                          ? "date"
+                                          : f.kind === "number"
+                                            ? "number"
+                                            : "text"
+                                      }
+                                      value={fields[f.key] ?? ""}
+                                      placeholder={f.placeholder}
+                                      onChange={(e) =>
+                                        setFields((s) => ({ ...s, [f.key]: e.target.value }))
+                                      }
+                                    />
+                                  )}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {isStructured ? (
+                          <div
+                            className="rounded-xl border border-line bg-white p-6 shadow-sm sm:p-8"
+                            style={{ borderTop: `3px solid ${color}` }}
+                          >
+                            <StructuredDoc body={body} ctx={partyCtx} />
+                          </div>
+                        ) : (
+                          <>
+                            {counterparty && (
+                              <div className="mb-5 grid gap-3 sm:grid-cols-2">
+                                <PartyBox
+                                  role={counterparty.role}
+                                  name={counterparty.name}
+                                  lines={[cpAddress]}
+                                  color={color}
+                                />
+                                <PartyBox
+                                  role="Company"
+                                  name={company.name}
+                                  lines={[
+                                    companyType,
+                                    jurisdiction,
+                                    company.ein ? `EIN ${company.ein}` : "",
+                                  ]}
+                                  color={color}
+                                />
+                              </div>
+                            )}
+                            <div
+                              className="rounded-xl border border-line bg-white p-6 shadow-sm"
+                              style={{ borderTop: `3px solid ${color}` }}
+                            >
+                              <DocBody text={body} />
+                            </div>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-sm text-ink-soft">
+                        {doc.note || "Complete this document, then upload your copy to mark it done."}
+                      </p>
+                    ))}
+                  {tab === "details" &&
+                    (hasTemplate && doc.fields.length > 0 ? (
+                      fieldsForm
+                    ) : (
+                      <p className="text-sm text-ink-soft">
+                        This document has no editable fields —{" "}
+                        {generated ? "review the StartupKit draft" : "upload your copy"} to complete it.
+                      </p>
+                    ))}
+                  {tab === "audit" && (
+                    <ol className="relative ml-1 space-y-5 border-l border-line pl-5">
+                      {auditSteps.map((s, i) => (
+                        <li key={i} className="relative">
+                          <span
+                            className={`absolute -left-[26px] top-0.5 grid h-4 w-4 place-items-center rounded-full text-[9px] ${
+                              s.on ? "text-white" : "bg-paper text-muted ring-1 ring-line"
+                            }`}
+                            style={s.on ? { backgroundColor: color } : undefined}
+                          >
+                            {s.on ? "✓" : ""}
+                          </span>
+                          <p className={`text-sm font-medium ${s.on ? "text-ink" : "text-muted"}`}>
+                            {s.label}
+                          </p>
+                          <p className="text-xs text-muted">{s.meta}</p>
+                        </li>
+                      ))}
+                    </ol>
                   )}
                 </div>
+
+                {/* right — metadata sidebar */}
+                <aside className="space-y-6 bg-paper/40 p-5">
+                  <SideSection title="Document overview">
+                    <OverviewRow k="Document type" v={shortType} />
+                    <OverviewRow k="Status" v={statusBadge.label} />
+                    <OverviewRow k="Version" v="1.0" />
+                    <OverviewRow k="Created" v={todayStr} />
+                    <OverviewRow k="Created by" v="StartupKit AI" />
+                    <OverviewRow k="Jurisdiction" v={jurisdiction} />
+                  </SideSection>
+
+                  <SideSection title={`Parties (${parties.length})`}>
+                    <div className="space-y-2.5">
+                      {parties.map((p, i) => (
+                        <div key={i} className="flex items-start gap-2.5">
+                          <span
+                            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold text-white"
+                            style={{ backgroundColor: color }}
+                          >
+                            {initials(p.name)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-ink">{p.name || "—"}</p>
+                            <p className="truncate text-xs text-muted">
+                              {p.role}
+                              {p.sub ? ` · ${p.sub}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </SideSection>
+
+                  {partyCtx.layout?.keyTerms && (
+                    <SideSection title="Key terms">
+                      <div className="space-y-2">
+                        {partyCtx.layout.keyTerms.map((t) => {
+                          const v = t.text ?? `${srcVal(t.src ?? "", partyCtx)}${t.suffix ?? ""}`;
+                          return (
+                            <div key={t.label} className="flex items-start gap-2">
+                              <span className="mt-0.5 text-xs">{t.icon}</span>
+                              <div className="min-w-0">
+                                <p className="text-xs text-muted">{t.label}</p>
+                                <p className="text-sm font-medium text-ink">{v.trim() || "—"}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </SideSection>
+                  )}
+
+                  {exhibits.length > 0 && (
+                    <SideSection title={`Exhibits (${exhibits.length})`}>
+                      <div className="space-y-2">
+                        {exhibits.map((x, i) => (
+                          <div key={i} className="rounded-lg border border-line bg-panel px-3 py-2">
+                            <p className="text-sm font-medium text-ink">{x.tag}</p>
+                            <p className="truncate text-xs text-muted">{x.label}</p>
+                            <p className="mt-0.5 text-[11px] text-muted">
+                              {x.count} item{x.count === 1 ? "" : "s"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </SideSection>
+                  )}
+
+                  <SideSection title="Required actions">
+                    <ul className="space-y-1.5 text-sm">
+                      {[
+                        "Review the document",
+                        "All parties must sign",
+                        "Download or send for e-signature",
+                      ].map((a) => (
+                        <li key={a} className="flex items-center gap-2 text-ink-soft">
+                          <span style={{ color }}>◯</span>
+                          {a}
+                        </li>
+                      ))}
+                    </ul>
+                  </SideSection>
+
+                  <div className="rounded-xl border border-line bg-panel p-3">
+                    <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                      🛡 Research-backed template
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      Modeled on standard startup forms (Cooley GO, Common Paper, IRS). A draft for
+                      review — have counsel review before signing.
+                    </p>
+                  </div>
+                </aside>
+              </div>
+
+              {/* footer */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-6 py-4">
                 <button
                   onClick={() => setOpen(false)}
-                  aria-label="Close"
-                  className="rounded-lg px-2 py-1 text-muted transition hover:bg-paper hover:text-ink"
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:text-ink"
                 >
-                  ✕
+                  ← Back to workflow
                 </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {signerNote && <span className="mr-1 text-xs text-muted">{signerNote}</span>}
+                  {done && (
+                    <span className="mr-1 text-xs font-medium text-teal">
+                      ✓ {done.method === "uploaded" ? `Uploaded ${done.filename}` : "Completed"}
+                    </span>
+                  )}
+                  {uploadBtn}
+                  {saveBtn}
+                </div>
               </div>
-
-              {/* scrollable body: the document + the inputs */}
-              <div className="max-h-[72vh] overflow-y-auto px-5 py-4">
-                {body ? (
-                  <div
-                    className="mb-4 rounded-xl border border-line bg-white p-6 shadow-sm"
-                    style={{ borderTop: `3px solid ${color}` }}
-                  >
-                    <DocBody text={body} />
-                  </div>
-                ) : (
-                  <p className="mb-3 text-sm text-ink-soft">
-                    {doc.note || "Complete this document, then upload your copy to mark it done."}
-                  </p>
-                )}
-                {fieldsForm}
-              </div>
-
-              {/* sticky footer actions */}
-              <div className="border-t border-line px-5 py-3.5">{actions}</div>
             </div>
           </div>,
           document.body,

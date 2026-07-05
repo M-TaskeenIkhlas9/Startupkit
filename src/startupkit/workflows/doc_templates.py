@@ -548,8 +548,11 @@ federal return are the ones founders miss most.
 
 
 # doc_key -> (fields, template). Keyed exactly like catalog.doc_key(workflow, name).
-# W1 (C-Corp) lives here; W2–W8 forms in doc_templates_w2_w8; LLC W1 forms in doc_templates_llc.
+# W1 (C-Corp) lives here; W2–W8 forms in doc_templates_w2_w8; LLC W1 forms in doc_templates_llc;
+# the spec-standardized W2 IP documents (TAA C-Corp/LLC + PIIA) in doc_templates_w2_ip.
 from startupkit.workflows.doc_templates_llc import LLC_TEMPLATES  # noqa: E402
+from startupkit.workflows.doc_templates_w2_founders import FOUNDERS_TEMPLATES  # noqa: E402
+from startupkit.workflows.doc_templates_w2_ip import IP_TEMPLATES  # noqa: E402
 from startupkit.workflows.doc_templates_w2_w8 import MORE_TEMPLATES  # noqa: E402
 
 TEMPLATES: dict[str, tuple[list[DocField], str]] = {
@@ -570,4 +573,6 @@ TEMPLATES: dict[str, tuple[list[DocField], str]] = {
     "W1-founder-stock-purchase-agreement-fspa": (FSPA_FIELDS, FSPA_TEMPLATE),
     **LLC_TEMPLATES,
     **MORE_TEMPLATES,
+    **IP_TEMPLATES,  # last so the spec-standardized TAA + PIIA win over older W2 entries
+    **FOUNDERS_TEMPLATES,  # Founders' Agreement (C-Corp + "-llc" variant)
 }

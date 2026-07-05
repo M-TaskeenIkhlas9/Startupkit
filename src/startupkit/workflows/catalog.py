@@ -176,59 +176,97 @@ W2 = WorkflowDef(
     code="W2",
     slug="ip-legal",
     name="IP & Legal Contracts",
-    goal="Protect the company's IP and put the commercial + confidentiality contracts in place.",
+    goal="Own your IP, then put the confidentiality and commercial contract framework in place.",
     color="#534AB7",
     depends_on=["W1"],
     unlocks=["W6"],
     phases=[
+        # Journey (w2-legal-journey.md): you cannot protect what you have not claimed, and you
+        # cannot engage others before your own house is in order. Internal IP ownership first,
+        # then confidentiality, then third-party engagement, then conditional/compliance docs.
         Phase(
             n=1,
-            name="Assign founder IP",
-            summary="Make sure every founder's pre-incorporation work belongs to the company.",
+            name="Establish IP ownership",
+            summary="Authorize the IP framework, then transfer each founder's past & future work.",
             actor="startupkit",
             mode="assisted",
-            cta="Generate PIIA & TAA",
+            cta="Generate & sign IP documents",
             documents=[
-                DocumentDef(name="Technology Assignment Agreement (TAA)"),
+                DocumentDef(
+                    name="Founders' Agreement",
+                    note="Roles, equity, vesting, decision-making, and founder departures.",
+                ),
+                DocumentDef(
+                    name="Technology Assignment Agreement (TAA)",
+                    note="Assigns pre-incorporation intellectual property to the company.",
+                ),
                 DocumentDef(
                     name="Proprietary Information & Inventions Agreement (PIIA)",
-                    note="Gates the first hire.",
+                    note="Covers future work; gates the first hire. Reused by every hire.",
                 ),
             ],
         ),
         Phase(
             n=2,
-            name="Confidentiality",
-            summary="Protect confidential information shared with third parties.",
+            name="Confirm IP ownership",
+            summary="A clean, data-room-ready record of exactly what the company now owns.",
             actor="startupkit",
             mode="automated",
-            cta="Generate NDA",
-            documents=[DocumentDef(name="Non-Disclosure Agreement (NDA)")],
+            cta="Generate confirmation letter",
+            documents=[
+                DocumentDef(name="Invention Assignment Confirmation Letter"),
+            ],
         ),
         Phase(
             n=3,
-            name="Commercial contracts",
-            summary="The agreements you sign with customers, vendors, and partners.",
+            name="Confidentiality framework",
+            summary="Reusable NDAs for confidential information shared with third parties.",
             actor="startupkit",
-            mode="assisted",
-            cta="Generate contracts",
+            mode="automated",
+            cta="Generate NDA templates",
             documents=[
-                DocumentDef(name="Master Service Agreement (MSA)"),
-                DocumentDef(name="Statement of Work (SOW)"),
-                DocumentDef(name="Data Processing Addendum (DPA)", required=False),
-                DocumentDef(name="AI Addendum", required=False),
+                DocumentDef(name="NDA — One-Way"),
+                DocumentDef(name="NDA — Mutual"),
             ],
         ),
         Phase(
             n=4,
-            name="Advisors & contractors",
-            summary="Lock down IP and terms for everyone who contributes.",
+            name="Third-party engagement",
+            summary="The contracts you deploy to engage contractors, creatives, clients, vendors.",
             actor="founder",
-            mode="manual",
-            cta="Add & send for signature",
+            mode="assisted",
+            cta="Generate engagement templates",
             documents=[
-                DocumentDef(name="Advisor Agreement", required=False),
                 DocumentDef(name="Independent Contractor Agreement (ICA)"),
+                DocumentDef(name="MSA — Client-Facing"),
+                DocumentDef(name="MSA — Vendor-Facing"),
+                DocumentDef(name="Statement of Work (SOW)"),
+                DocumentDef(
+                    name="Service Level Agreement (SLA)",
+                    required=False,
+                    note="Attach when you commit to uptime or support targets.",
+                ),
+                DocumentDef(name="Advisor Agreement", required=False),
+            ],
+        ),
+        Phase(
+            n=5,
+            name="Conditional & compliance",
+            summary="Add these when they apply: AI use and processing personal data.",
+            actor="startupkit",
+            mode="assisted",
+            cta="Generate applicable documents",
+            documents=[
+                DocumentDef(
+                    name="AI Addendum",
+                    required=False,
+                    note="If the company builds with or ships AI.",
+                ),
+                DocumentDef(
+                    name="Data Processing Addendum (DPA)",
+                    required=False,
+                    note="If you process another party's personal data.",
+                ),
             ],
         ),
     ],
@@ -679,10 +717,32 @@ def _attach_templates() -> None:
 _attach_templates()
 
 
+def _build_w2_llc() -> WorkflowDef:
+    """W2 for LLCs: same stages/documents, but any doc with a '<doc_key>-llc' template registered
+    (today: the Technology Assignment Agreement — units/IRC §721 instead of shares/IRC §351) gets
+    the LLC variant swapped in."""
+    from startupkit.workflows.doc_templates import TEMPLATES
+
+    wf = W2.model_copy(deep=True)
+    for phase in wf.phases:
+        for d in phase.documents:
+            llc = TEMPLATES.get(doc_key(wf.code, d.name) + "-llc")
+            if llc is not None:
+                d.fields, d.template = llc
+    return wf
+
+
+W2_LLC = _build_w2_llc()
+
+
 def get_workflow(code: str, entity_type: str = "c-corp") -> WorkflowDef | None:
-    """The workflow definition, entity-aware: W1 becomes the LLC formation set for LLCs."""
-    if code.upper() == "W1" and entity_type == "llc":
-        return W1_LLC
+    """The workflow definition, entity-aware: W1 formation and the W2 founder-IP documents differ
+    for LLCs (Certificate of Formation / units & §721 TAA instead of stock & §351)."""
+    if entity_type == "llc":
+        if code.upper() == "W1":
+            return W1_LLC
+        if code.upper() == "W2":
+            return W2_LLC
     return _BY_CODE.get(code)
 
 
@@ -704,8 +764,11 @@ def status_for(snap: CompanySnapshot) -> list[WorkflowView]:
 
     views: list[WorkflowView] = []
     for wf in CATALOG:
-        if wf.code == "W1" and snap.entity_type == "llc":
-            wf = W1_LLC  # serve the LLC formation document set for LLCs
+        if snap.entity_type == "llc":
+            if wf.code == "W1":
+                wf = W1_LLC  # the LLC formation document set
+            elif wf.code == "W2":
+                wf = W2_LLC  # the LLC founder-IP variant (units/§721 TAA)
         total = len(wf.phases)
         c = n_done(wf)
         phases_done = sorted(n for n in completed.get(wf.code, set()) if 1 <= n <= total)

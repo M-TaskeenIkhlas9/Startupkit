@@ -52,6 +52,45 @@ def test_llc_gets_a_different_w1_document_set() -> None:
             assert d.template and d.fields, d.name
 
 
+def test_llc_gets_the_units_721_taa_in_w2() -> None:
+    from startupkit.workflows.catalog import DocumentDef, WorkflowDef, get_workflow
+
+    def wf_for(entity: str) -> WorkflowDef:
+        wf = get_workflow("W2", entity)
+        assert wf is not None
+        return wf
+
+    def taa(wf: WorkflowDef) -> DocumentDef:
+        return next(d for ph in wf.phases for d in ph.documents if "TAA" in d.name)
+
+    cc_wf, llc_wf = wf_for("c-corp"), wf_for("llc")
+    cc, llc = taa(cc_wf), taa(llc_wf)
+    # C-Corp: shares + IRC §351; LLC: membership units + IRC §721 + Operating Agreement section
+    assert "Section 351" in cc.template and "{{share_number}}" in cc.template
+    assert "Section 721" in llc.template and "{{unit_number}}" in llc.template
+    assert "Relationship to Operating Agreement" in llc.template
+    assert {f.key for f in llc.fields} >= {"membership_percentage", "membership_agreement_type"}
+    # the Founders' Agreement is also entity-conditional: stock/repurchase vs units/redemption
+    def fa(wf: WorkflowDef) -> DocumentDef:
+        return next(d for ph in wf.phases for d in ph.documents if d.name == "Founders' Agreement")
+
+    fa_cc, fa_llc = fa(cc_wf), fa(llc_wf)
+    assert "Repurchase Right" in fa_cc.template and "Delaware corporation" in fa_cc.template
+    assert "Redemption Right" in fa_llc.template and "Percentage Interest" in fa_llc.template
+    assert {f.key for f in fa_llc.fields} >= {"management_structure", "fmv_determiner"}
+    # the Advisor Agreement forks too: FAST NSO grid (C-Corp) vs profits interest (LLC)
+    def adv(wf: WorkflowDef) -> DocumentDef:
+        return next(d for ph in wf.phases for d in ph.documents if d.name == "Advisor Agreement")
+
+    assert "Non-Qualified Stock Options" in adv(cc_wf).template
+    assert "profits interest" in adv(llc_wf).template.lower()
+    assert {f.key for f in adv(llc_wf).fields} >= {"pi_grant", "liquidation_threshold"}
+    # everything else in W2 stays identical between the two variants
+    cc_docs = {d.name for ph in cc_wf.phases for d in ph.documents}
+    llc_docs = {d.name for ph in llc_wf.phases for d in ph.documents}
+    assert cc_docs == llc_docs
+
+
 async def test_status_for_serves_the_llc_w1_for_llcs() -> None:
     svc = CompanyObjectService(InMemoryEventStore())
     snap = await svc.snapshot(await svc.create_from_intake(_intake("idea", entity_type="llc")))
@@ -180,9 +219,10 @@ async def test_completing_phases_advances_progress_and_unlocks() -> None:
     assert before["W2"].status == "available"
     assert before["W6"].status == "locked"  # needs W2
 
-    # complete all 4 phases of W2
-    for n in range(1, 5):
-        await svc.complete_phase(cid, "W2", n)
+    # complete all phases of W2 (5 stages: IP ownership → confirm → NDAs → engagement → conditional)
+    w2 = next(wf for wf in CATALOG if wf.code == "W2")
+    for phase in w2.phases:
+        await svc.complete_phase(cid, "W2", phase.n)
 
     after = {v.definition.code: v for v in status_for(await svc.snapshot(cid))}
     assert after["W2"].status == "complete"
