@@ -11,6 +11,22 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from startupkit.core.company_object.brand_types import BrandCore, PresenceItem, VisualSystem
+from startupkit.core.company_object.gtm_types import (
+    Campaign,
+    Connection,
+    ContentIdea,
+    DesignPartner,
+    Experiment,
+    GtmInputs,
+    GtmStrategy,
+    LostDeal,
+    Pricing,
+    Sequence,
+    TargetAccount,
+    Task,
+)
+from startupkit.core.company_object.people_types import Employee, HiringRole
 from startupkit.domain import EntityType
 
 # --- Phase 1: Foundation (intake) ---------------------------------------------------------------
@@ -217,6 +233,56 @@ class StockIssued(BaseModel):
     issued_at: str
 
 
+class BrandStateSet(BaseModel):
+    """W5 · Brand & Product Foundation — the living Brand Core, visual system, and presence state.
+
+    Replaces the brand state wholesale (last-write-wins): the founder generates it from the Company
+    Object, then edits, and the site/deck/one-pager all read from this single source of truth.
+    """
+
+    type: Literal["brand.state.set"] = "brand.state.set"
+    core: BrandCore
+    visual: VisualSystem = Field(default_factory=VisualSystem)
+    presence: list[PresenceItem] = Field(default_factory=list)
+    site_template: str = "minimal"
+    steps_done: list[str] = Field(default_factory=list)
+
+
+class PeopleStateSet(BaseModel):
+    """W6 · People & HR — the hiring plan, employee roster, and step progress.
+
+    Replaces the people state wholesale (last-write-wins), same as the brand state.
+    """
+
+    type: Literal["people.state.set"] = "people.state.set"
+    roles: list[HiringRole] = Field(default_factory=list)
+    employees: list[Employee] = Field(default_factory=list)
+    done_steps: list[int] = Field(default_factory=list)
+
+
+class GtmStateSet(BaseModel):
+    """W7 · Go-To-Market — the revenue engine: motion, pricing, accounts, sequences, connections.
+
+    Replaces the GTM state wholesale (last-write-wins), same as the brand state. W7 never
+    duplicates W5: the ICP/positioning/deck are read from the Brand Core, not stored again here.
+    """
+
+    type: Literal["gtm.state.set"] = "gtm.state.set"
+    inputs: GtmInputs = Field(default_factory=GtmInputs)
+    strategy: GtmStrategy = Field(default_factory=GtmStrategy)
+    pricing: Pricing = Field(default_factory=Pricing)
+    accounts: list[TargetAccount] = Field(default_factory=list)
+    sequences: list[Sequence] = Field(default_factory=list)
+    connections: list[Connection] = Field(default_factory=list)
+    lost_deals: list[LostDeal] = Field(default_factory=list)
+    campaigns: list[Campaign] = Field(default_factory=list)
+    tasks: list[Task] = Field(default_factory=list)
+    partners: list[DesignPartner] = Field(default_factory=list)
+    content: list[ContentIdea] = Field(default_factory=list)
+    experiments: list[Experiment] = Field(default_factory=list)
+    steps_done: list[str] = Field(default_factory=list)
+
+
 CompanyEvent = (
     CompanyObjectCreated
     | IdeaValidated
@@ -237,6 +303,9 @@ CompanyEvent = (
     | EntityFormed
     | EinIssued
     | StockIssued
+    | BrandStateSet
+    | PeopleStateSet
+    | GtmStateSet
 )
 
 

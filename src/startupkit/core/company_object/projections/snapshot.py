@@ -10,7 +10,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from startupkit.core.company_object.brand_types import BrandState
 from startupkit.core.company_object.events import EventEnvelope
+from startupkit.core.company_object.gtm_types import GtmState
+from startupkit.core.company_object.people_types import PeopleState
 
 Domain = Literal[
     "legal",
@@ -156,6 +159,9 @@ class CompanySnapshot(BaseModel):
     evidence: list[Evidence] = Field(default_factory=list)
     assessments: dict[str, dict[str, str]] = Field(default_factory=dict)  # phase -> {qid: answer}
     facts: dict[str, str] = Field(default_factory=dict)  # AI Co-Founder memory — never re-ask
+    brand: BrandState = Field(default_factory=BrandState)  # W5 living Brand Core
+    people: PeopleState = Field(default_factory=PeopleState)  # W6 hiring plan + roster
+    gtm: GtmState = Field(default_factory=GtmState)  # W7 revenue engine
     intake_complete: bool = False
     version: int = 0  # = number of events folded; every edit bumps this (the 'versioned' twin)
 
@@ -299,6 +305,49 @@ def project_snapshot(events: list[EventEnvelope]) -> CompanySnapshot:
             bucket.update(e.answers)
         elif e.type == "facts.recorded":
             snap.facts.update(e.facts)
+        elif e.type == "brand.state.set":
+            snap.brand = BrandState(
+                core=e.core,
+                visual=e.visual,
+                presence=e.presence,
+                site_template=e.site_template,
+                steps_done=e.steps_done,
+            )
+            fields["brand"].update(
+                positioning=e.core.positioning, tagline=e.core.tagline, play=e.core.play_name
+            )
+        elif e.type == "people.state.set":
+            snap.people = PeopleState(
+                roles=e.roles, employees=e.employees, done_steps=e.done_steps
+            )
+            fields["people"]["hires_planned"] = str(len(e.roles))
+            fields["people"]["employees"] = str(len(e.employees))
+        elif e.type == "gtm.state.set":
+            snap.gtm = GtmState(
+                inputs=e.inputs,
+                strategy=e.strategy,
+                pricing=e.pricing,
+                accounts=e.accounts,
+                sequences=e.sequences,
+                connections=e.connections,
+                lost_deals=e.lost_deals,
+                campaigns=e.campaigns,
+                tasks=e.tasks,
+                partners=e.partners,
+                content=e.content,
+                experiments=e.experiments,
+                steps_done=e.steps_done,
+            )
+            if e.strategy.motion:
+                fields["gtm"]["motion"] = e.strategy.motion
+            if e.strategy.channels:
+                fields["gtm"]["channels"] = ", ".join(e.strategy.channels)
+            if e.pricing.model:
+                fields["gtm"]["pricing_model"] = e.pricing.model
+            if e.accounts:
+                fields["gtm"]["target_accounts"] = str(len(e.accounts))
+            if e.campaigns:
+                fields["gtm"]["campaigns"] = str(len(e.campaigns))
         elif e.type == "intake.completed":
             snap.intake_complete = True
 

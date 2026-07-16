@@ -12,9 +12,128 @@ cases) plus a few obvious tasks in W3/W6; extend by adding more keys.
 
 from __future__ import annotations
 
-# ================================ W4 · Technical ===============================================
+# ================================ W3 · Financial ===============================================
 
 GUIDANCE: dict[str, str] = {
+    "W3-business-banking": """\
+# Business Banking
+**Why it matters:** a business bank account keeps company money separate from your personal money.
+That separation is what protects your personal liability shield — mixing funds can undo it.
+
+## Already have a business account?
+Just confirm below (add the bank name if you like). Nothing else to do.
+
+## Need to open one?
+- **Already on file** — StartupKit has these ready: legal name, EIN, entity type, state and
+  formation date, business address, and your **Certificate of Incorporation** (downloadable).
+- **You'll bring** — a government ID, home address, and date of birth for each founder owning
+  **more than 25%**.
+- **Where** — **Mercury** and **Relay** are built for startups and usually approve same-day:
+  Mercury (mercury.com), Relay (relayfi.com).
+
+## 📤 Mark done
+Open the account with your chosen provider, then mark this done. StartupKit records that banking is
+set up — it never asks for or stores your account or routing numbers.
+""",
+    "W3-corporate-card": """\
+# Corporate Card
+**Why it matters:** a corporate card lets the company spend without a personal guarantee and keeps
+expenses cleanly on the business.
+
+## Already have one? Confirm below.
+
+## Need one?
+- **Already on file** — legal name, EIN, entity type, and your connected business bank account.
+- **You'll bring** — an estimate of monthly spend, IDs for each cardholder, and your current bank
+  balance (the real gating factor for these cards).
+- **Where** — **Ramp** and **Brex** set limits off your bank balance with no personal credit check;
+  Ramp is generally more accessible early. **Divvy** has a lower bar below that: Ramp (ramp.com),
+  Brex (brex.com), Divvy (getdivvy.com).
+
+## 📤 Mark done
+Once you've got the card, mark done. No card numbers or limits are stored.
+""",
+    "W3-accounting-setup": """\
+# Accounting Setup
+**Why it matters:** bookkeeping from day one makes taxes and investor diligence easy instead of a
+painful reconstruction later.
+
+## Already using QuickBooks or Xero? Confirm below.
+
+## Need to set it up?
+- **Already on file** — legal name, EIN, entity type, connected bank account, and a suggested chart
+  of accounts (see the Configure step) to start from.
+- **Where** — **QuickBooks** and **Xero** are both built for small businesses and connect straight
+  to your bank: QuickBooks (quickbooks.intuit.com), Xero (xero.com).
+
+## 📤 Mark done
+Set it up with your provider, then mark done. StartupKit reads reports later; it never becomes your
+ledger.
+""",
+    "W3-payment-processing": """\
+# Payment Processing
+**Why it matters:** this is how revenue actually arrives — and it unblocks your first customer
+payment in W7.
+
+## Already have Stripe or another processor? Confirm below.
+
+## Need to set it up?
+- **Already on file** — legal name, EIN, entity type, business address, connected bank account.
+- **You'll bring** — your website URL, a short description of what you sell, and a government ID for
+  whoever applies plus any 25%+ owner (Stripe verifies beneficial owners).
+- **Where** — **Stripe** is what most startups use and pays out straight to your bank:
+  Stripe (stripe.com).
+
+## 📤 Mark done
+Once payments are live, mark done. No processor credentials or webhooks are stored.
+""",
+    "W3-tax-setup": """\
+# Tax Setup
+No signup needed — StartupKit builds your tax profile from what it already knows and adds every
+deadline to your compliance calendar.
+
+## What gets set up
+- **Federal** — C-Corporation files **Form 1120**, annual return due **April 15**.
+- **Estimated quarterly** — **Apr 15, Jun 15, Sep 15, Dec 15** (placeholders even if nothing's owed
+  yet).
+- **Delaware Franchise Tax + Annual Report** — due **March 1** every year regardless of revenue
+  (**$175 minimum + $50 report**); your registered agent from W1 usually files it.
+- **State registration** — added only for what applies: do you have employees in a state, sell
+  there, or have a physical office there? Nothing is assumed.
+
+## 📤 Mark done
+Review and confirm your tax profile. Every figure is an estimate, not a filed bill — precision items
+route to a CPA partner.
+""",
+    "W3-chart-of-accounts": """\
+# Chart of Accounts
+The standard startup account structure your bookkeeper and investors expect — start your books from
+this so everything reconciles.
+
+## The starting set
+- **Assets** — 1000 Cash, 1200 Accounts Receivable
+- **Liabilities** — 2000 Accounts Payable, 2100 Accrued Liabilities
+- **Equity** — 3000 Common Stock, 3100 Additional Paid-in Capital, 3900 Retained Earnings
+- **Revenue** — 4000 Revenue
+- **Expenses** — 6000 Payroll, 6100 Software/SaaS, 6200 Marketing, 6300 Professional Fees,
+  6900 Other Operating
+
+## 📤 Mark done
+Import or recreate this in QuickBooks/Xero, then mark done.
+""",
+    "W3-opening-balance-sheet": """\
+# Opening Balance Sheet
+Your day-one books, auto-built from your cap table. When founders bought their stock, that cash came
+into the company against equity.
+
+## The opening entry
+- **Assets — Cash** — total the founders paid for their shares.
+- **Equity — Common Stock + Paid-in Capital** — the same amount.
+- **Assets = Equity** — the books balance on day one.
+
+## 📤 Mark done
+Post this opening entry in your accounting tool (or hand it to your bookkeeper), then mark done.
+""",
     "W4-domain-registration": """\
 # Register your domain
 Your domain is your home on the internet and the base of your email — lock it down early.

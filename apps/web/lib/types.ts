@@ -126,6 +126,9 @@ export interface CompanySnapshot {
   evidence: Evidence[];
   assessments: Record<string, Record<string, string>>;
   facts: Record<string, string>;
+  brand?: BrandState;
+  people?: PeopleState;
+  gtm?: GtmState;
   founders: FounderView[];
   domains: DomainView[];
   intake_complete: boolean;
@@ -424,4 +427,387 @@ export type DocumentRecord = GeneratedDocument;
 export interface GenerateResult {
   documents: GeneratedDocument[];
   workflow: WorkflowView;
+}
+
+// --- W5 · Brand & Product Foundation -----------------------------------------------------------
+
+export interface PlayMatch {
+  play_id: string;
+  name: string;
+  move: string;
+  examples: string[];
+  rationale: string;
+  score: number;
+}
+
+export interface BrandCore {
+  play_id: string;
+  play_name: string;
+  play_rationale: string;
+  examples: string[];
+  mission: string;
+  vision: string;
+  values: string[];
+  icp: string;
+  category: string;
+  positioning: string;
+  voice: string;
+  tagline: string;
+  pitch: string;
+  pillars: string[];
+  sources: string[];
+  source: string;
+}
+
+export interface ColorSwatch {
+  name: string;
+  hex: string;
+  role: string;
+}
+
+export interface VisualSystem {
+  palette: ColorSwatch[];
+  type_display: string;
+  type_body: string;
+  logo_direction: string;
+}
+
+export interface PresenceItem {
+  kind: string;
+  handle: string;
+  status: string;
+  detail: string;
+}
+
+export interface BrandState {
+  core: BrandCore;
+  visual: VisualSystem;
+  presence: PresenceItem[];
+  site_template: string;
+  steps_done: string[];
+}
+
+export interface ChatReply {
+  reply: string;
+  source: string;
+}
+
+export interface HiringRole {
+  id: string;
+  title: string;
+  dept: string;
+  reports_to: string;
+  priority: string;
+  goal: string;
+  why_not_founders: string;
+  hours_lost: string;
+  revenue_unlocked: string;
+  hire_type: string;
+  full_time: string;
+  remote: string;
+  budget: string;
+  start_date: string;
+}
+
+export interface Employee {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  start_date: string;
+  docs_generated: boolean;
+  onboarding_sent: boolean;
+  onboarding_complete: boolean;
+  tier: string;
+  access_granted: boolean;
+}
+
+export interface PeopleState {
+  roles: HiringRole[];
+  employees: Employee[];
+  done_steps: number[];
+}
+
+// --- W7 · Go-To-Market -------------------------------------------------------------------------
+// W5 produces the file; W7 produces the reply, the payment, and the evidence. W7 never re-stores
+// the ICP/positioning/deck — those are read from the Brand Core as inherited context.
+
+export interface GtmStrategy {
+  motion: string; // outbound | plg | hybrid
+  motion_rationale: string;
+  objective: string; // first_customers | waitlist | launch | fundraise
+  channels: string[];
+  summary: string;
+}
+
+export interface PricingTier {
+  name: string;
+  price: string;
+  unit: string;
+  features: string[];
+}
+
+export interface Pricing {
+  model: string; // freemium | flat | seat | usage | tiered
+  tiers: PricingTier[];
+  pilot: string;
+  locked: boolean;
+}
+
+export interface TargetAccount {
+  name: string;
+  domain: string;
+  size: string;
+  trigger: string;
+  stage: string; // prospect | contacted | replied | demo | pilot | won | lost
+  owner: string; // who on YOUR side owns this
+  contact: string; // the human at THEIR side
+  email: string; // their address — you paste it; we don't enrich
+}
+
+export interface Sequence {
+  name: string;
+  channel: string; // email | linkedin
+  steps: string[];
+  approved: boolean;
+}
+
+export interface Connection {
+  kind: string; // crm | analytics | email | payments
+  provider: string;
+  status: string; // off | connected | verified
+  detail: string;
+}
+
+export interface LostDeal {
+  account: string;
+  reason: string;
+  note: string;
+}
+
+export interface PriceComp {
+  name: string;
+  price: string;
+  note: string;
+  url: string;
+}
+
+export interface PricingRead {
+  comps: PriceComp[];
+  tiers: PricingTier[];
+  model: string;
+  rationale: string;
+  sources: string[];
+  source: string;
+  note: string;
+}
+
+export interface MotionSignal {
+  value: string;
+  evidence: string;
+  known: boolean;
+}
+
+export interface MotionRead {
+  acv: MotionSignal;
+  self_serve: MotionSignal;
+  committee: MotionSignal;
+  motion: string;
+  motion_why: string;
+  source: string;
+}
+
+export interface Discovery {
+  accounts: TargetAccount[];
+  query: string;
+  sources: string[];
+  source: string; // engine | ai
+  note: string;
+}
+
+export interface GtmDimension {
+  name: string;
+  score: number;
+  hint: string;
+}
+
+export interface GtmHealth {
+  score: number;
+  label: string;
+  dimensions: GtmDimension[];
+}
+
+export interface GtmDoc {
+  key: string;
+  name: string;
+}
+
+export interface Campaign {
+  id: string;
+  name: string;
+  goal: string;
+  channel: string; // outbound | content | launch | referral
+  start: string;
+  end: string;
+  status: string; // draft | planning | active | done
+  accounts: string[];
+  sequence: string;
+}
+
+export interface Task {
+  text: string;
+  link: string;
+  due: string;
+  priority: string; // high | medium | low
+  done: boolean;
+}
+
+export interface GtmDraft {
+  strategy: GtmStrategy;
+  triggers: string[];
+  disqualifiers: string;
+  sequences: Sequence[];
+  objections: string[];
+  campaigns: Campaign[];
+  tasks: Task[];
+  source: string; // engine | ai
+}
+
+export interface GtmInputs {
+  acv: string;
+  self_serve: string;
+  committee: string;
+  size_band: string;
+  triggers: string[];
+  disqualifiers: string;
+  tier_counts: number[];
+  wtp: number[]; // Van Westendorp: [too_cheap, bargain, expensive, too_expensive, n]
+  capture_fields: string[];
+  thanks: string;
+  utm_source: string;
+  utm_medium: string;
+  utm_campaign: string;
+  crm_model: string;
+  payment_link: string; // the founder's own checkout URL — we never take the money
+}
+
+export interface DesignPartner {
+  name: string;
+  contact: string;
+  email: string;
+  stage: string; // identified | pitched | agreed | onboarded | feedback | reference | paying
+  notes: string;
+}
+
+export interface ContentIdea {
+  title: string;
+  platform: string; // blog | linkedin | x
+  week: number;
+  done: boolean;
+}
+
+export interface DnsCheck {
+  name: string;
+  status: string; // pass | fail | unknown
+  detail: string;
+}
+
+export interface Deliverability {
+  domain: string;
+  checks: DnsCheck[];
+  ready: boolean;
+  note: string;
+  warmup: string[];
+}
+
+export interface ContentPlanDraft {
+  ideas: ContentIdea[];
+  source: string;
+  note: string;
+}
+
+export interface Experiment {
+  id: string;
+  hypothesis: string;
+  metric: string; // the ONE number that settles it
+  result: string;
+  status: string; // running | proved | disproved
+  decision: string; // keep | kill | scale
+}
+
+export interface ChannelVerdict {
+  channel: string;
+  verdict: string; // bet | support | ignore
+  why: string;
+}
+
+export interface ChannelMatrix {
+  motion: string;
+  verdicts: ChannelVerdict[];
+  note: string;
+}
+
+export interface GtmGuardrail {
+  severity: string; // stop | warn
+  text: string;
+  link: string; // the W7 module the warning opens
+}
+
+export interface TriggerStat {
+  trigger: string;
+  accounts: number;
+  contacted: number;
+  replied: number;
+  won: number;
+}
+
+export interface Attribution {
+  rows: TriggerStat[];
+  best: string;
+  note: string;
+}
+
+export interface GtmState {
+  inputs: GtmInputs;
+  strategy: GtmStrategy;
+  pricing: Pricing;
+  accounts: TargetAccount[];
+  sequences: Sequence[];
+  connections: Connection[];
+  lost_deals: LostDeal[];
+  campaigns: Campaign[];
+  tasks: Task[];
+  partners: DesignPartner[];
+  content: ContentIdea[];
+  experiments: Experiment[];
+  steps_done: string[];
+}
+
+export interface BrandCase {
+  brand: string;
+  play_id: string;
+  steps: string[];
+  move: string;
+  takeaway: string;
+}
+
+export interface CoachTip {
+  step: string;
+  headline: string;
+  guidance: string;
+  watch_out: string;
+  cases: BrandCase[];
+  source: string;
+}
+
+export interface BrandDimension {
+  name: string;
+  score: number;
+  hint: string;
+}
+
+export interface BrandHealth {
+  score: number;
+  label: string;
+  dimensions: BrandDimension[];
 }

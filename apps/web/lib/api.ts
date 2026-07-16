@@ -1,9 +1,27 @@
 import type {
   AskResponse,
+  Attribution,
+  BrandHealth,
+  BrandState,
+  ChannelMatrix,
+  ChatReply,
+  CoachTip,
   CaseStudy,
+  ContentPlanDraft,
+  Deliverability,
+  Discovery,
+  GtmGuardrail,
+  GtmDoc,
+  GtmDraft,
+  GtmHealth,
+  GtmState,
+  MotionRead,
+  PricingRead,
+  PeopleState,
   CompanyRisk,
   CompanySnapshot,
   ComplianceItem,
+  PlayMatch,
   GenerateResult,
   SubmitResult,
   GuardrailAction,
@@ -191,6 +209,160 @@ export async function uploadDocument(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+  return json(res);
+}
+
+// --- W5 · Brand & Product Foundation -----------------------------------------------------------
+
+export async function getBrandPlays(id: string): Promise<PlayMatch[]> {
+  return json(await fetch(`${BASE}/api/companies/${id}/brand/plays`));
+}
+
+export async function generateBrand(id: string, playId: string): Promise<BrandState> {
+  const res = await fetch(`${BASE}/api/companies/${id}/brand/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ play_id: playId }),
+  });
+  return json(res);
+}
+
+export async function saveBrand(id: string, state: BrandState): Promise<CompanySnapshot> {
+  const res = await fetch(`${BASE}/api/companies/${id}/brand`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(state),
+  });
+  return json(res);
+}
+
+export async function getBrandHealth(id: string): Promise<BrandHealth> {
+  return json(await fetch(`${BASE}/api/companies/${id}/brand/health`));
+}
+
+/** W5 production layer — public URLs served by the API (real files / a hosted page). */
+export const brandWordmarkUrl = (id: string) => `${BASE}/api/companies/${id}/brand/wordmark.svg`;
+export const brandFaviconUrl = (id: string) => `${BASE}/api/companies/${id}/brand/favicon.svg`;
+export const publishedSiteUrl = (id: string) => `${BASE}/site/${id}`;
+
+export async function brandChat(
+  id: string,
+  message: string,
+  history: string[],
+): Promise<ChatReply> {
+  const res = await fetch(`${BASE}/api/companies/${id}/brand/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history }),
+  });
+  return json(res);
+}
+
+// --- W7 · Go-To-Market ---------------------------------------------------------------------------
+
+export async function getDeliverability(id: string, domain = ""): Promise<Deliverability> {
+  const q = domain ? `?domain=${encodeURIComponent(domain)}` : "";
+  return json(await fetch(`${BASE}/api/companies/${id}/gtm/deliverability${q}`, { cache: "no-store" }));
+}
+
+export async function generateContent(id: string): Promise<ContentPlanDraft> {
+  const res = await fetch(`${BASE}/api/companies/${id}/gtm/content/generate`, { method: "POST" });
+  return json(res);
+}
+
+/** Research what comparable companies charge and propose tiers. Does not persist. */
+export async function researchPricing(id: string): Promise<PricingRead> {
+  const res = await fetch(`${BASE}/api/companies/${id}/gtm/pricing`, { method: "POST" });
+  return json(res);
+}
+
+/** Infer the motion signals from the Company Object — don't ask what we already know. */
+export async function readMotion(id: string): Promise<MotionRead> {
+  const res = await fetch(`${BASE}/api/companies/${id}/gtm/motion`, { method: "POST" });
+  return json(res);
+}
+
+/** Research the market from the ICP and propose real accounts. Does not persist. */
+export async function discoverAccounts(id: string, trigger = "funding"): Promise<Discovery> {
+  const res = await fetch(`${BASE}/api/companies/${id}/gtm/discover?trigger=${trigger}`, {
+    method: "POST",
+  });
+  return json(res);
+}
+
+export async function getGtmHealth(id: string): Promise<GtmHealth> {
+  return json(await fetch(`${BASE}/api/companies/${id}/gtm/health`, { cache: "no-store" }));
+}
+
+/** Every channel ranked for this motion: 2 bets, the rest ignored with a reason. */
+export async function getChannelMatrix(id: string, motion = ""): Promise<ChannelMatrix> {
+  const q = motion ? `?motion=${encodeURIComponent(motion)}` : "";
+  return json(await fetch(`${BASE}/api/companies/${id}/gtm/channels${q}`, { cache: "no-store" }));
+}
+
+/** The pipeline talks back — warnings computed from real account stages. */
+export async function getGtmGuardrails(id: string): Promise<GtmGuardrail[]> {
+  return json(await fetch(`${BASE}/api/companies/${id}/gtm/guardrails`, { cache: "no-store" }));
+}
+
+/** Which trigger is producing conversations, computed from real stages. */
+export async function getGtmAttribution(id: string): Promise<Attribution> {
+  return json(await fetch(`${BASE}/api/companies/${id}/gtm/attribution`, { cache: "no-store" }));
+}
+
+/** GTM Q&A grounded in the founder's own pipeline numbers. */
+export async function gtmChat(id: string, message: string, history: string[]): Promise<ChatReply> {
+  const res = await fetch(`${BASE}/api/companies/${id}/gtm/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history }),
+  });
+  return json(res);
+}
+
+export async function getGtmDocs(id: string): Promise<GtmDoc[]> {
+  return json(await fetch(`${BASE}/api/companies/${id}/gtm/docs`, { cache: "no-store" }));
+}
+
+/** W7 orchestrates — it hands the decision to the tool that executes it. */
+export const gtmExportUrl = (id: string, kind: string) =>
+  `${BASE}/api/companies/${id}/gtm/export/${kind}.csv`;
+export const gtmDocUrl = (id: string, key: string) =>
+  `${BASE}/api/companies/${id}/gtm/docs/${key}.md`;
+
+export async function generateGtm(id: string): Promise<GtmDraft> {
+  const res = await fetch(`${BASE}/api/companies/${id}/gtm/generate`, { method: "POST" });
+  return json(res);
+}
+
+export async function saveGtm(id: string, state: GtmState): Promise<CompanySnapshot> {
+  const res = await fetch(`${BASE}/api/companies/${id}/gtm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(state),
+  });
+  return json(res);
+}
+
+export async function savePeople(id: string, state: PeopleState): Promise<CompanySnapshot> {
+  const res = await fetch(`${BASE}/api/companies/${id}/people`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(state),
+  });
+  return json(res);
+}
+
+export async function getBrandCoach(
+  id: string,
+  step: string,
+  playId: string,
+): Promise<CoachTip> {
+  const res = await fetch(`${BASE}/api/companies/${id}/brand/coach`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ step, play_id: playId }),
   });
   return json(res);
 }

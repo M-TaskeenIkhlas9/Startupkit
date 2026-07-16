@@ -554,6 +554,7 @@ from startupkit.workflows.doc_templates_llc import LLC_TEMPLATES  # noqa: E402
 from startupkit.workflows.doc_templates_w2_founders import FOUNDERS_TEMPLATES  # noqa: E402
 from startupkit.workflows.doc_templates_w2_ip import IP_TEMPLATES  # noqa: E402
 from startupkit.workflows.doc_templates_w2_w8 import MORE_TEMPLATES  # noqa: E402
+from startupkit.workflows.doc_templates_w3 import W3_TEMPLATES  # noqa: E402
 
 TEMPLATES: dict[str, tuple[list[DocField], str]] = {
     "W1-certificate-of-incorporation": (
@@ -575,4 +576,5 @@ TEMPLATES: dict[str, tuple[list[DocField], str]] = {
     **MORE_TEMPLATES,
     **IP_TEMPLATES,  # last so the spec-standardized TAA + PIIA win over older W2 entries
     **FOUNDERS_TEMPLATES,  # Founders' Agreement (C-Corp + "-llc" variant)
+    **W3_TEMPLATES,  # W3 Generate: YC SAFEs, board consent, side letter, financial policy
 }

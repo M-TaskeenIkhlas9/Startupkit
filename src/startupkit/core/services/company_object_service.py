@@ -13,8 +13,10 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
+from startupkit.core.company_object.brand_types import BrandState
 from startupkit.core.company_object.events import (
     AssessmentSaved,
+    BrandStateSet,
     CompanyEvent,
     CompanyObjectCreated,
     CompanyProfileSet,
@@ -25,13 +27,17 @@ from startupkit.core.company_object.events import (
     FactsRecorded,
     FounderAdded,
     FounderProfileSet,
+    GtmStateSet,
     IdeaValidated,
     IntakeCompleted,
     IntegrationConnected,
     MilestoneLogged,
     NoteRecorded,
+    PeopleStateSet,
     WorkflowPhaseCompleted,
 )
+from startupkit.core.company_object.gtm_types import GtmState
+from startupkit.core.company_object.people_types import PeopleState
 from startupkit.core.company_object.projections.health_score import (
     HealthScore,
     project_health_score,
@@ -204,6 +210,46 @@ class CompanyObjectService:
     async def record_facts(self, company_id: str, facts: dict[str, str]) -> None:
         if facts:
             await self._append(company_id, FactsRecorded(facts=facts))
+
+    async def set_brand(self, company_id: str, state: BrandState) -> None:
+        await self._append(
+            company_id,
+            BrandStateSet(
+                core=state.core,
+                visual=state.visual,
+                presence=state.presence,
+                site_template=state.site_template,
+                steps_done=state.steps_done,
+            ),
+        )
+
+    async def set_people(self, company_id: str, state: PeopleState) -> None:
+        await self._append(
+            company_id,
+            PeopleStateSet(
+                roles=state.roles, employees=state.employees, done_steps=state.done_steps
+            ),
+        )
+
+    async def set_gtm(self, company_id: str, state: GtmState) -> None:
+        await self._append(
+            company_id,
+            GtmStateSet(
+                inputs=state.inputs,
+                strategy=state.strategy,
+                pricing=state.pricing,
+                accounts=state.accounts,
+                sequences=state.sequences,
+                connections=state.connections,
+                lost_deals=state.lost_deals,
+                campaigns=state.campaigns,
+                tasks=state.tasks,
+                partners=state.partners,
+                content=state.content,
+                experiments=state.experiments,
+                steps_done=state.steps_done,
+            ),
+        )
 
     async def snapshot(self, company_id: str) -> CompanySnapshot:
         return project_snapshot(await self._store.load(company_id))

@@ -1,7 +1,109 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* W5 · Brand Studio — the finalized prototype's design, scoped under .w5-studio. Category-colored
+   35-tool hub. Fonts (Inter + JetBrains Mono) already match the app. */
+.w5-studio {
+  --w5: #d85a30; --w5-soft: #fbf0ea; --w5-ink: #8a3212;
+  --s-ink: #171a21; --s-ink-soft: #3a414d; --s-muted: #727c8a; --s-faint: #9aa3b0;
+  --s-panel: #fff; --s-surface2: #f5f6f4; --s-line: #eceeea; --s-line2: #e2e5e0;
+  --pos: #7c3aed; --idn: #d85a30; --web: #2536e8; --ast: #0f6e56; --mkt: #c6428a; --intel: #0a7ea4;
+  --s-ok: #1e9e63;
+  --shadow: 0 1px 2px rgba(23, 26, 33, 0.03);
+  --shadow-h: 0 6px 24px -14px rgba(23, 26, 33, 0.18);
+  color: var(--s-ink);
+}
+.w5-studio .mono { font-family: "JetBrains Mono", monospace; }
+.w5-studio .s-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+.w5-studio .s-code { font-family: "JetBrains Mono", monospace; font-size: 11.5px; font-weight: 600; letter-spacing: 0.14em; color: var(--w5); }
+.w5-studio .s-title { margin: 5px 0 0; font-size: 30px; font-weight: 800; letter-spacing: -0.025em; }
+.w5-studio .s-sub { margin: 8px 0 0; max-width: 560px; color: var(--s-muted); font-size: 14px; }
+.w5-studio .ask { margin-top: 20px; display: flex; align-items: center; gap: 12px; background: var(--s-panel); border: 1px solid var(--s-line2); border-radius: 14px; padding: 12px 16px; box-shadow: var(--shadow); }
+.w5-studio .ask .spark { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--pos), var(--w5)); display: grid; place-items: center; color: #fff; flex: none; font-size: 14px; }
+.w5-studio .ask input { flex: 1; border: 0; outline: 0; font-family: inherit; font-size: 14.5px; color: var(--s-ink); background: none; }
+.w5-studio .ask input::placeholder { color: var(--s-faint); }
+.w5-studio .ask kbd { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--s-muted); border: 1px solid var(--s-line2); border-radius: 6px; padding: 2px 7px; background: var(--s-surface2); }
+.w5-studio .cofb { margin-top: 16px; display: flex; align-items: center; gap: 18px; border-radius: 16px; padding: 18px 22px; width: 100%; text-align: left; border: 0; cursor: pointer; background: linear-gradient(120deg, #1b1f2a 0%, #22182a 55%, #2a1b14 100%); color: #fff; position: relative; overflow: hidden; box-shadow: var(--shadow-h); }
+.w5-studio .cofb::after { content: ""; position: absolute; inset: 0; background: radial-gradient(700px 200px at 12% -40%, rgba(124, 58, 237, 0.35), transparent 60%), radial-gradient(600px 200px at 88% 140%, rgba(216, 90, 48, 0.35), transparent 60%); pointer-events: none; }
+.w5-studio .cofb .cspark { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, var(--pos), var(--w5)); display: grid; place-items: center; font-size: 22px; flex: none; box-shadow: 0 8px 24px -8px rgba(124, 58, 237, 0.6); position: relative; z-index: 1; }
+.w5-studio .cofb .ctxt { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.w5-studio .cofb .ceyebrow { font-family: "JetBrains Mono", monospace; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #c9b6f0; font-weight: 600; }
+.w5-studio .cofb .ctxt h3 { margin: 3px 0; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.w5-studio .cofb .ctxt p { margin: 0; font-size: 12.5px; color: #b9c0cd; max-width: 560px; }
+.w5-studio .cofb .cqs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
+.w5-studio .cofb .cqs span { font-size: 10.5px; color: #e7e4f2; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 999px; padding: 3px 10px; }
+.w5-studio .cofb .cgo { position: relative; z-index: 1; flex: none; background: #fff; color: var(--s-ink); border: 0; border-radius: 11px; padding: 11px 18px; font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+.w5-studio .snap { margin-top: 16px; display: flex; align-items: center; gap: 16px; background: var(--s-panel); border: 1px solid var(--s-line); border-radius: 16px; padding: 16px 20px; flex-wrap: wrap; box-shadow: var(--shadow); }
+.w5-studio .snap .logo { width: 46px; height: 46px; border-radius: 12px; background: linear-gradient(135deg, var(--w5), #f0a06b); display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 20px; font-family: "JetBrains Mono", monospace; flex: none; }
+.w5-studio .snap .nm { font-weight: 800; font-size: 16px; letter-spacing: -0.01em; }
+.w5-studio .snap .nm small { display: block; font-size: 11.5px; color: var(--s-muted); font-weight: 500; }
+.w5-studio .snap .pal { display: flex; gap: 5px; }
+.w5-studio .snap .pal i { width: 16px; height: 16px; border-radius: 5px; display: block; }
+.w5-studio .snap .sep { width: 1px; height: 34px; background: var(--s-line2); }
+.w5-studio .snap .stat { display: flex; flex-direction: column; gap: 2px; }
+.w5-studio .snap .stat b { font-size: 15px; font-weight: 700; }
+.w5-studio .snap .stat span { font-size: 10.5px; color: var(--s-muted); }
+.w5-studio .snap .live { display: inline-flex; align-items: center; gap: 6px; background: #eaf7ef; color: #1e7a3d; border: 1px solid #d3ecdd; border-radius: 999px; padding: 4px 11px; font-size: 11.5px; font-weight: 600; }
+.w5-studio .snap .grow { flex: 1; }
+.w5-studio .ctx { margin-top: 14px; display: flex; gap: 7px; flex-wrap: wrap; }
+.w5-studio .ctx .c { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--s-muted); background: var(--s-surface2); border: 1px solid var(--s-line); border-radius: 999px; padding: 4px 11px; }
+.w5-studio .ctx .c b { color: var(--s-ink-soft); font-weight: 600; }
+.w5-studio .filters { margin: 26px 0 6px; display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+.w5-studio .filters .lbl { font-size: 11px; color: var(--s-faint); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-right: 4px; }
+.w5-studio .fchip { border: 1px solid var(--s-line2); background: var(--s-panel); border-radius: 999px; padding: 6px 13px; font-size: 12.5px; font-weight: 600; color: var(--s-muted); cursor: pointer; font-family: inherit; transition: 0.12s; }
+.w5-studio .fchip:hover { border-color: var(--s-faint); color: var(--s-ink); }
+.w5-studio .fchip.on { background: var(--s-ink); border-color: var(--s-ink); color: #fff; }
+.w5-studio .fchip .ct { font-family: "JetBrains Mono", monospace; font-size: 10px; opacity: 0.7; margin-left: 3px; }
+.w5-studio .section { margin-top: 30px; }
+.w5-studio .sec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.w5-studio .sec-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.w5-studio .sec-head h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.w5-studio .sec-head .cnt { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--s-faint); }
+.w5-studio .sec-head .desc { font-size: 12px; color: var(--s-faint); margin-left: auto; text-align: right; max-width: 360px; }
+.w5-studio .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 1040px) { .w5-studio .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .w5-studio .grid { grid-template-columns: 1fr; } }
+.w5-studio .mod { background: var(--s-panel); border: 1px solid var(--s-line); border-radius: 14px; padding: 16px; cursor: pointer; transition: 0.14s; display: flex; flex-direction: column; min-height: 132px; box-shadow: var(--shadow); text-align: left; width: 100%; }
+.w5-studio .mod:hover { border-color: var(--s-line2); box-shadow: var(--shadow-h); transform: translateY(-2px); }
+.w5-studio .mod-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; }
+.w5-studio .mod-ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; }
+.w5-studio .mod-ic svg { width: 18px; height: 18px; stroke-width: 1.8; fill: none; }
+.w5-studio .mod-status { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--s-line2); }
+.w5-studio .mod-status.done { background: var(--s-ok); }
+.w5-studio .mod-status.ready { background: var(--web); }
+.w5-studio .mod-status.avail { background: var(--s-faint); }
+.w5-studio .mod h4 { margin: 0; font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
+.w5-studio .mod p { margin: 4px 0 0; font-size: 12px; color: var(--s-muted); line-height: 1.45; flex: 1; }
+.w5-studio .mod-ref { margin-top: 10px; font-size: 10.5px; color: var(--s-faint); display: flex; align-items: center; gap: 5px; }
+.w5-studio .mod-ref .b { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--s-faint); border-right-color: transparent; flex: none; transform: rotate(-20deg); }
+.w5-studio .cat-positioning .mod-ic { background: #f1e9fe; color: var(--pos); }
+.w5-studio .dot-positioning { background: var(--pos); }
+.w5-studio .cat-identity .mod-ic { background: var(--w5-soft); color: var(--idn); }
+.w5-studio .dot-identity { background: var(--idn); }
+.w5-studio .cat-website .mod-ic { background: #e7e9fc; color: var(--web); }
+.w5-studio .dot-website { background: var(--web); }
+.w5-studio .cat-assets .mod-ic { background: #e4f1eb; color: var(--ast); }
+.w5-studio .dot-assets { background: var(--ast); }
+.w5-studio .cat-marketing .mod-ic { background: #fbe9f2; color: var(--mkt); }
+.w5-studio .dot-marketing { background: var(--mkt); }
+.w5-studio .cat-intel .mod-ic { background: #e2f1f7; color: var(--intel); }
+.w5-studio .dot-intel { background: var(--intel); }
+
+/* W6 · People & HR uses the finalized prototype's typography (Fraunces + IBM Plex). Scoped so it
+   doesn't affect the rest of the app. */
+.w6-root {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+.w6-root .w6-display {
+  font-family: "Fraunces", Georgia, serif;
+  letter-spacing: -0.01em;
+}
+.w6-root .w6-mono {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
 
 @layer base {
   body {

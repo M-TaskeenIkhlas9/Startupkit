@@ -3,6 +3,11 @@ import { notFound } from "next/navigation";
 import { getCompany, getCompanyWorkflows } from "@/lib/api";
 import { StatusBadge } from "@/components/workflow-ui";
 import { WorkflowPhases } from "@/components/workflow-phases";
+import { W3Workflow } from "@/components/w3-workflow";
+import { W5Workflow } from "@/components/w5-workflow";
+import { W6Workflow } from "@/components/w6-workflow";
+import { W7Workflow } from "@/components/w7-workflow";
+import { W8Workflow } from "@/components/w8-workflow";
 
 export default async function WorkflowDetail({
   params,
@@ -92,7 +97,11 @@ export default async function WorkflowDetail({
         >
           ← All workflows · {snap.name}
         </Link>
-        <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-panel shadow-card">
+        <div
+          className={`mt-3 overflow-hidden rounded-2xl border border-line bg-panel shadow-card ${
+            d.code === "W5" || d.code === "W7" || d.code === "W8" ? "hidden" : ""
+          }`}
+        >
           <div className="flex items-start gap-5 border-l-4 p-7" style={{ borderLeftColor: d.color }}>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
@@ -124,8 +133,13 @@ export default async function WorkflowDetail({
               </p>
             </div>
           </div>
-          {/* segmented phase tracker — the phases are a real ordered sequence */}
-          <div className="flex gap-1.5 border-t border-line bg-paper/60 px-7 py-4">
+          {/* segmented phase tracker — the phases are a real ordered sequence.
+              W3 has its own Connect/Configure/Generate tracker in its custom view. */}
+          <div
+            className={`flex gap-1.5 border-t border-line bg-paper/60 px-7 py-4 ${
+              d.code === "W3" || d.code === "W5" || d.code === "W6" || d.code === "W7" ? "hidden" : ""
+            }`}
+          >
             {d.phases.map((p) => {
               const complete = view.completed_phases.includes(p.n);
               const current =
@@ -153,20 +167,54 @@ export default async function WorkflowDetail({
         </div>
       </div>
 
-      <WorkflowPhases
-        companyId={params.id}
-        view={view}
-        documents={snap.documents.filter((d) => d.workflow_code === view.definition.code)}
-        company={{
-          name: snap.name,
-          entity_type: snap.entity_type,
-          jurisdiction: snap.jurisdiction,
-          founderName: snap.founders[0]?.name ?? snap.founder_profile.name ?? "",
-          ein: snap.ein ?? "",
-        }}
-        facts={docFacts}
-        submitted={snap.submitted_documents}
-      />
+      {(() => {
+        const wfProps = {
+          companyId: params.id,
+          view,
+          documents: snap.documents.filter((doc) => doc.workflow_code === view.definition.code),
+          company: {
+            name: snap.name,
+            entity_type: snap.entity_type,
+            jurisdiction: snap.jurisdiction,
+            founderName: snap.founders[0]?.name ?? snap.founder_profile.name ?? "",
+            ein: snap.ein ?? "",
+          },
+          facts: docFacts,
+          submitted: snap.submitted_documents,
+        };
+        if (view.definition.code === "W3") return <W3Workflow {...wfProps} />;
+        if (view.definition.code === "W6")
+          return (
+            <W6Workflow
+              companyId={params.id}
+              companyName={snap.name}
+              initialPeople={snap.people}
+              view={view}
+            />
+          );
+        if (view.definition.code === "W5")
+          return (
+            <W5Workflow
+              companyId={params.id}
+              companyName={snap.name}
+              initialBrand={snap.brand}
+              view={view}
+            />
+          );
+        if (view.definition.code === "W7")
+          return (
+            <W7Workflow
+              companyId={params.id}
+              companyName={snap.name}
+              initialGtm={snap.gtm}
+              initialBrand={snap.brand}
+              view={view}
+            />
+          );
+        if (view.definition.code === "W8")
+          return <W8Workflow companyId={params.id} snapshot={snap} view={view} />;
+        return <WorkflowPhases {...wfProps} />;
+      })()}
     </div>
   );
 }

@@ -1,0 +1,2772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StartupKit — W6 People & HR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#17222B;
+    --ink-soft:#4B5A66;
+    --ink-faint:#8B96A0;
+    --paper:#F1F3EE;
+    --card:#FFFFFF;
+    --teal:#0E7C6B;
+    --teal-deep:#0A5F52;
+    --teal-soft:#E1F1EE;
+    --amber:#B8802A;
+    --amber-soft:#FBF0DD;
+    --line:#E1E0D6;
+    --line-soft:#EAEAE2;
+    --font-display:'Fraunces', serif;
+    --font-body:'IBM Plex Sans', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+  }
+
+  .app{
+    max-width:1120px;
+    margin:0 auto;
+    padding:28px 24px 80px;
+  }
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    padding-bottom:22px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:28px;
+    flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:baseline; gap:10px;}
+  .brand-mark{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:1.35rem;
+    letter-spacing:-0.01em;
+  }
+  .brand-mod{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    color:var(--teal-deep);
+    background:var(--teal-soft);
+    padding:3px 9px;
+    border-radius:20px;
+    letter-spacing:0.02em;
+  }
+  .topbar-meta{display:flex; align-items:center; gap:18px;}
+  .trigger-chip{font-family:var(--font-mono); font-size:0.7rem; color:var(--ink-faint);}
+  .trigger-chip b{color:var(--ink-soft); font-weight:500;}
+  .progress-wrap{display:flex; align-items:center; gap:8px;}
+  .progress-track{
+    width:120px; height:6px;
+    background:var(--line-soft);
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .progress-fill{
+    height:100%;
+    background:var(--teal);
+    width:0%;
+    border-radius:4px;
+    transition:width .35s ease;
+  }
+  .progress-label{font-family:var(--font-mono); font-size:0.72rem; color:var(--ink-soft);}
+
+  h1{
+    font-family:var(--font-display);
+    font-weight:500;
+    font-size:1.9rem;
+    letter-spacing:-0.01em;
+    margin:0 0 6px;
+  }
+  .subhead{
+    color:var(--ink-soft);
+    font-size:0.98rem;
+    margin:0 0 30px;
+    max-width:640px;
+  }
+
+  /* ---------- Layout ---------- */
+  .shell{
+    display:grid;
+    grid-template-columns:250px 1fr;
+    gap:32px;
+    align-items:start;
+  }
+
+  /* ---------- Rail ---------- */
+  .rail{position:relative; padding-left:22px;}
+  .rail::before{
+    content:"";
+    position:absolute;
+    left:5px; top:8px; bottom:8px;
+    width:2px;
+    background:var(--line);
+  }
+  .rail-node{
+    position:relative;
+    display:block;
+    width:100%;
+    text-align:left;
+    background:none;
+    border:none;
+    padding:0 0 26px 22px;
+    cursor:pointer;
+    font-family:var(--font-body);
+  }
+  .rail-node:last-child{padding-bottom:0;}
+  .rail-dot{
+    position:absolute;
+    left:-22px; top:2px;
+    width:12px; height:12px;
+    border-radius:50%;
+    background:var(--card);
+    border:2px solid var(--line);
+    transition:all .2s ease;
+  }
+  .rail-node.done .rail-dot{background:var(--teal); border-color:var(--teal);}
+  .rail-node.active .rail-dot{border-color:var(--teal); box-shadow:0 0 0 4px var(--teal-soft);}
+  .rail-title{display:block; font-size:0.92rem; font-weight:500; color:var(--ink-soft); margin-bottom:3px;}
+  .rail-node.active .rail-title{color:var(--ink);}
+  .rail-event{
+    display:block;
+    font-family:var(--font-mono);
+    font-size:0.68rem;
+    color:var(--ink-faint);
+    letter-spacing:0.01em;
+  }
+  .rail-node.done .rail-event::before{content:"✓ ";}
+
+  /* ---------- Panels ---------- */
+  .panel{display:none;}
+  .panel.active{display:block; animation:fadeIn .25s ease;}
+  @keyframes fadeIn{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
+
+  .panel-head{
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:16px; margin-bottom:6px; flex-wrap:wrap;
+  }
+  .panel-title{
+    font-family:var(--font-display);
+    font-size:1.5rem;
+    font-weight:500;
+    margin:0;
+  }
+  .badge-row{display:flex; gap:6px; flex-wrap:wrap;}
+  .badge{
+    font-family:var(--font-mono);
+    font-size:0.66rem;
+    padding:4px 9px;
+    border-radius:20px;
+    white-space:nowrap;
+    letter-spacing:0.01em;
+  }
+  .badge.ai{background:var(--amber-soft); color:var(--amber);}
+  .badge.confirm{background:var(--teal-soft); color:var(--teal-deep);}
+  .badge.wait{background:#EAF2F8; color:#2C6E9E;}
+
+  .panel-desc{
+    color:var(--ink-soft);
+    font-size:0.95rem;
+    max-width:640px;
+    margin:0 0 26px;
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:22px 24px;
+    margin-bottom:18px;
+  }
+  .card h3{
+    font-family:var(--font-body);
+    font-size:0.82rem;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:var(--ink-soft);
+    margin:0 0 14px;
+  }
+
+  .row{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px; padding:10px 0; border-bottom:1px solid var(--line-soft);
+    font-size:0.9rem;
+  }
+  .row:last-child{border-bottom:none; padding-bottom:0;}
+  .row-label{color:var(--ink);}
+  .row-sub{font-family:var(--font-mono); font-size:0.72rem; color:var(--ink-faint);}
+  .status-pill{
+    font-size:0.72rem; font-family:var(--font-mono);
+    color:var(--teal-deep); background:var(--teal-soft);
+    padding:3px 10px; border-radius:20px; white-space:nowrap;
+  }
+  .status-pill.wait{color:#2C6E9E; background:#EAF2F8;}
+
+  .role-select{
+    font-family:var(--font-body);
+    font-size:0.92rem;
+    color:var(--ink);
+    width:100%;
+    padding:10px 12px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    background:#fff;
+    cursor:pointer;
+  }
+  .role-select:focus{outline:none; border-color:var(--teal);}
+  .role-input{
+    display:none;
+    font-family:var(--font-body);
+    font-size:0.92rem;
+    color:var(--ink);
+    width:100%;
+    padding:10px 12px;
+    margin-top:10px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+  }
+  .role-input.shown{display:block;}
+  .role-input:focus{outline:none; border-color:var(--teal);}
+  .text-input{
+    font-family:var(--font-body);
+    font-size:0.92rem;
+    color:var(--ink);
+    width:100%;
+    padding:10px 12px;
+    margin-bottom:10px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+  }
+  .text-input:focus{outline:none; border-color:var(--teal);}
+  .emp-card-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px;}
+  .emp-card-head h3{margin:0;}
+  .remove-link{
+    font-family:var(--font-mono); font-size:0.72rem;
+    color:var(--ink-faint); background:none; border:none;
+    cursor:pointer; text-decoration:underline; padding:0;
+  }
+  .remove-link:hover{color:#B8433A;}
+  .empty-state{
+    font-size:0.85rem; color:var(--ink-faint);
+    padding:16px 4px; text-align:center;
+  }
+  .delivery-choice{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px;}
+  .delivery-card{
+    border:1.5px solid var(--line);
+    border-radius:12px;
+    padding:16px 18px;
+    cursor:pointer;
+    background:#fff;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .delivery-card:hover{border-color:var(--ink-faint);}
+  .delivery-name{font-weight:600; font-size:0.9rem; margin-bottom:4px; color:var(--ink);}
+  .delivery-desc{font-size:0.8rem; color:var(--ink-soft); line-height:1.4;}
+  .delivery-active{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px; margin-top:18px;
+  }
+  .delivery-active-label{
+    font-family:var(--font-mono); font-size:0.72rem;
+    color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.03em;
+  }
+  .change-link{
+    font-family:var(--font-mono); font-size:0.72rem;
+    color:var(--teal-deep); background:none; border:none;
+    cursor:pointer; text-decoration:underline; padding:0;
+  }
+  @media (max-width:760px){
+    .delivery-choice{grid-template-columns:1fr;}
+  }
+  .doc-block{border-top:1px dashed var(--line); padding-top:18px; margin-top:18px;}
+  .doc-block-first{border-top:none; margin-top:0; padding-top:0;}
+  .reminder-subhead{
+    font-family:var(--font-body); font-size:0.78rem; font-weight:600;
+    text-transform:uppercase; letter-spacing:0.04em;
+    color:var(--ink-soft); margin:14px 0 6px;
+  }
+  .second-label{margin-top:20px !important;}
+  .optional-tag{
+    font-family:var(--font-mono);
+    font-size:0.64rem;
+    font-weight:400;
+    text-transform:none;
+    letter-spacing:0;
+    color:var(--ink-faint);
+    background:var(--line-soft);
+    padding:2px 7px;
+    border-radius:10px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
+  .role-textarea{
+    font-family:var(--font-body);
+    font-size:0.92rem;
+    color:var(--ink);
+    width:100%;
+    min-height:76px;
+    padding:10px 12px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    resize:vertical;
+  }
+  .role-textarea:focus{outline:none; border-color:var(--teal);}
+  .field-hint{
+    font-size:0.78rem;
+    color:var(--ink-faint);
+    margin:8px 0 0;
+  }
+  .link-box{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 14px;
+    margin:12px 0;
+  }
+  .link-url{
+    font-family:var(--font-mono);
+    font-size:0.76rem;
+    color:var(--teal-deep);
+    overflow-wrap:anywhere;
+  }
+  .view-toggle{
+    display:flex;
+    gap:8px;
+    margin:0 0 18px;
+    flex-wrap:wrap;
+  }
+  .view-btn{
+    font-family:var(--font-body);
+    font-size:0.86rem;
+    font-weight:600;
+    color:var(--ink-soft);
+    background:#fff;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    padding:9px 14px;
+    cursor:pointer;
+  }
+  .view-btn.active{
+    color:var(--teal-deep);
+    border-color:var(--teal);
+    background:var(--teal-soft);
+  }
+  .onboarding-console{display:grid; gap:16px;}
+  .hire-list{display:grid; gap:0;}
+  .hire-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    padding:14px 0;
+    border-bottom:1px solid var(--line-soft);
+    cursor:pointer;
+  }
+  .hire-row.selected{
+    background:var(--paper);
+    margin:0 -12px;
+    padding-left:12px;
+    padding-right:12px;
+    border-radius:8px;
+  }
+  .hire-row:last-child{border-bottom:none;}
+  .hire-row-main{display:flex; align-items:center; gap:12px; min-width:0;}
+  .hire-name{font-weight:600; color:var(--ink); font-size:0.92rem;}
+  .hire-meta{
+    font-family:var(--font-mono);
+    font-size:0.74rem;
+    color:var(--ink-faint);
+    margin-top:2px;
+  }
+  .send-choice{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin:14px 0;
+  }
+  .send-choice-card{
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    padding:13px 14px;
+    background:#fff;
+    cursor:pointer;
+  }
+  .send-choice-card.selected{
+    border-color:var(--teal);
+    background:var(--teal-soft);
+  }
+  .employee-preview{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:18px;
+  }
+  .preview-head{display:flex; align-items:center; gap:12px; margin-bottom:14px;}
+  .preview-title{font-weight:600; color:var(--ink);}
+  .preview-sub{font-size:0.82rem; color:var(--ink-soft);}
+  .onboarding-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:12px;
+  }
+  .mini-field{
+    background:#fff;
+    border:1px solid var(--line-soft);
+    border-radius:8px;
+    padding:9px 10px;
+  }
+  .mini-label{
+    display:block;
+    font-family:var(--font-mono);
+    font-size:0.62rem;
+    color:var(--ink-faint);
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+    margin-bottom:3px;
+  }
+  .mini-value{font-size:0.84rem; color:var(--ink);}
+  .payroll-status{
+    display:grid;
+    gap:10px;
+  }
+  .payroll-person{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:11px 0;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .payroll-person:last-child{border-bottom:none;}
+  .payroll-person-main{display:flex; align-items:center; gap:10px; min-width:0;}
+  @media (max-width:760px){
+    .onboarding-grid{grid-template-columns:1fr;}
+    .link-box,.payroll-person{align-items:flex-start; flex-direction:column;}
+    .hire-row{align-items:flex-start; flex-direction:column;}
+    .send-choice{grid-template-columns:1fr;}
+  }
+
+  /* ---------- Tabs ---------- */
+  .tabs{display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:16px;}
+  .tab-btn{
+    font-family:var(--font-body);
+    font-size:0.82rem; font-weight:500;
+    color:var(--ink-faint);
+    background:none; border:none;
+    padding:9px 4px 11px; margin-right:20px;
+    cursor:pointer; position:relative;
+  }
+  .tab-btn.active{color:var(--ink);}
+  .tab-btn.active::after{
+    content:""; position:absolute; left:0; right:0; bottom:-1px;
+    height:2px; background:var(--teal);
+  }
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+  .draft-box{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px 18px;
+    font-size:0.88rem;
+    color:var(--ink-soft);
+    white-space:pre-line;
+  }
+  .draft-box strong{color:var(--ink);}
+
+  /* ---------- Hiring poster ---------- */
+  .poster-workbench{
+    display:grid;
+    grid-template-columns:minmax(260px, 360px) 1fr;
+    gap:18px;
+    align-items:start;
+  }
+  .poster-preview{
+    aspect-ratio:4/5;
+    border-radius:12px;
+    border:1px solid var(--line);
+    background:#17222B;
+    color:#fff;
+    padding:28px;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    min-height:420px;
+    overflow:hidden;
+    position:relative;
+  }
+  .poster-preview::after{
+    content:"";
+    position:absolute;
+    inset:auto -20% -18% 34%;
+    height:44%;
+    border-radius:50%;
+    background:rgba(14,124,107,.24);
+  }
+  .poster-brand{
+    font-family:var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    opacity:.78;
+    position:relative;
+    z-index:1;
+  }
+  .poster-role{
+    font-family:var(--font-display);
+    font-size:2.35rem;
+    line-height:1.02;
+    font-weight:600;
+    margin:22px 0 12px;
+    position:relative;
+    z-index:1;
+  }
+  .poster-tagline{
+    font-size:1rem;
+    line-height:1.45;
+    color:rgba(255,255,255,.82);
+    position:relative;
+    z-index:1;
+  }
+  .poster-meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    position:relative;
+    z-index:1;
+  }
+  .poster-chip{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    color:#fff;
+    border:1px solid rgba(255,255,255,.28);
+    border-radius:20px;
+    padding:5px 9px;
+    background:rgba(255,255,255,.08);
+  }
+  .poster-cta{
+    font-family:var(--font-mono);
+    font-size:0.82rem;
+    color:#fff;
+    position:relative;
+    z-index:1;
+  }
+  .poster-form-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .poster-form-grid .wide{grid-column:1 / -1;}
+  .poster-theme-row{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 14px;}
+  .theme-btn{
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    border:2px solid var(--line);
+    cursor:pointer;
+  }
+  .theme-btn.selected{border-color:var(--ink); box-shadow:0 0 0 3px var(--teal-soft);}
+  .theme-teal{background:linear-gradient(135deg,#17222B,#0E7C6B);}
+  .theme-amber{background:linear-gradient(135deg,#2A2318,#B8802A);}
+  .theme-blue{background:linear-gradient(135deg,#17222B,#2C6E9E);}
+  .poster-ai-row{display:flex; gap:10px; align-items:flex-start;}
+  .poster-ai-row .role-textarea{min-height:88px;}
+  .poster-canvas{display:none;}
+  @media (max-width:860px){
+    .poster-workbench{grid-template-columns:1fr;}
+    .poster-preview{max-width:420px;}
+  }
+  @media (max-width:760px){
+    .poster-form-grid{grid-template-columns:1fr;}
+  }
+
+  /* ---------- Plan your hiring (Step 1) ---------- */
+  .plan-field-label{
+    display:block;
+    font-size:0.85rem;
+    color:var(--ink-soft);
+    margin:0 0 8px;
+  }
+
+  /* Bottleneck decision options */
+  .bottleneck-options{display:flex; flex-direction:column; gap:8px;}
+  .bottleneck-option{
+    display:flex; align-items:center; gap:12px;
+    padding:13px 16px;
+    border:1.5px solid var(--line);
+    border-radius:10px;
+    cursor:pointer;
+    font-size:0.9rem;
+    color:var(--ink);
+    transition:border-color .15s;
+  }
+  .bottleneck-option:hover{border-color:var(--ink-faint);}
+  .bottleneck-option.selected{border-color:var(--teal); background:var(--teal-soft);}
+  .opt-dot{
+    width:16px; height:16px; border-radius:50%;
+    border:1.5px solid var(--ink-faint);
+    flex-shrink:0; position:relative;
+  }
+  .bottleneck-option.selected .opt-dot{border-color:var(--teal);}
+  .bottleneck-option.selected .opt-dot::after{
+    content:''; position:absolute; inset:3px;
+    border-radius:50%; background:var(--teal);
+  }
+
+  /* AI recommendation card */
+  .ai-rec-card{
+    border:1.5px solid var(--teal);
+    background:var(--teal-soft);
+    border-radius:12px;
+    padding:20px 22px;
+    margin-top:18px;
+  }
+  .ai-rec-head{margin-bottom:10px;}
+  .ai-rec-role-row{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
+  .ai-rec-check{color:var(--teal-deep); font-weight:700; font-size:1.1rem;}
+  .ai-rec-role-input{
+    font-family:var(--font-display); font-size:1.15rem; font-weight:500;
+    color:var(--ink); background:transparent; border:none;
+    border-bottom:1.5px dashed var(--teal-deep);
+    padding:2px 2px 4px; flex:1; min-width:0;
+  }
+  .ai-rec-role-input:focus{outline:none; border-bottom-style:solid;}
+  .ai-rec-reason{font-size:0.87rem; color:var(--ink-soft); line-height:1.55; margin:0 0 18px; max-width:640px;}
+
+  .score-grid{display:flex; flex-direction:column; gap:10px; margin-bottom:16px;}
+  .score-row{display:grid; grid-template-columns:128px 1fr 40px; align-items:center; gap:10px;}
+  .score-label{font-size:0.76rem; color:var(--ink-soft); font-family:var(--font-mono);}
+  .score-bar{height:8px; background:#fff; border-radius:6px; overflow:hidden; border:1px solid var(--line);}
+  .score-fill{height:100%; background:var(--teal); border-radius:6px; width:0%; transition:width .3s ease;}
+  .score-fill-inverse{background:var(--amber);}
+  .score-val{font-family:var(--font-mono); font-size:0.76rem; color:var(--ink-soft); text-align:right;}
+
+  .ai-rec-meta{
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;
+    padding:14px 0; margin-bottom:14px;
+    border-top:1px solid rgba(14,124,107,0.22);
+  }
+  .ai-rec-meta-label{
+    display:block; font-family:var(--font-mono); font-size:0.66rem;
+    text-transform:uppercase; letter-spacing:0.03em;
+    color:var(--teal-deep); margin-bottom:3px;
+  }
+  .ai-rec-meta span:last-child{font-size:0.88rem; color:var(--ink);}
+  @media (max-width:640px){.ai-rec-meta{grid-template-columns:1fr;}}
+
+  /* Hiring order roadmap */
+  .roadmap-flow{display:flex; flex-direction:column;}
+  .roadmap-node{
+    display:flex; align-items:center; gap:12px;
+    padding:10px 14px; border-radius:10px;
+    font-size:0.89rem; color:var(--ink-faint);
+    border:1.5px solid transparent;
+  }
+  .rn-dot{width:10px; height:10px; border-radius:50%; background:var(--line); flex-shrink:0;}
+  .roadmap-node.current{color:var(--ink); font-weight:600;}
+  .roadmap-node.current .rn-dot{background:var(--ink);}
+  .roadmap-node.recommended{
+    border-color:var(--teal); background:var(--teal-soft);
+    color:var(--teal-deep); font-weight:600;
+  }
+  .roadmap-node.recommended .rn-dot{background:var(--teal);}
+  .roadmap-node.selected{
+    border-color:var(--amber); background:var(--amber-soft);
+    color:var(--amber); font-weight:600;
+  }
+  .roadmap-node.selected .rn-dot{background:var(--amber);}
+  .roadmap-node-tags{margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:4px;}
+  .roadmap-node-tag{
+    font-family:var(--font-mono); font-size:0.66rem;
+    padding:3px 9px; border-radius:20px;
+    background:rgba(255,255,255,0.6);
+  }
+  .roadmap-node-tag.tag-amber{color:var(--amber);}
+  .roadmap-connector{width:1.5px; height:14px; background:var(--line); margin-left:19px;}
+
+  /* Role cards (decision matrix) */
+  .role-card{border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin-bottom:14px;}
+  .role-card:last-child{margin-bottom:0;}
+  .role-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 16px;}
+  .role-card-grid .full{grid-column:1/-1;}
+  .role-card-grid label{
+    display:block; font-size:0.7rem; color:var(--ink-faint);
+    margin-bottom:4px; font-family:var(--font-mono);
+    text-transform:uppercase; letter-spacing:0.02em;
+  }
+  .role-card-grid .text-input, .role-card-grid .role-textarea{margin-bottom:0;}
+  .role-card-grid .role-textarea{min-height:64px;}
+  @media (max-width:640px){.role-card-grid{grid-template-columns:1fr;}}
+
+  /* Hiring sequence */
+  .sequence-item{display:flex; gap:14px; padding:14px 0; border-bottom:1px solid var(--line-soft);}
+  .sequence-item:last-child{border-bottom:none; padding-bottom:0;}
+  .sequence-num{
+    width:26px; height:26px; border-radius:50%;
+    background:var(--teal-soft); color:var(--teal-deep);
+    font-family:var(--font-mono); font-size:0.78rem;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .sequence-role{font-weight:600; font-size:0.92rem; margin-bottom:3px;}
+  .sequence-timing{font-size:0.82rem; color:var(--ink-soft);}
+
+  /* Estimated cost */
+  .cost-row{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--line-soft); font-size:0.9rem;}
+  .cost-row:last-child{border-bottom:none;}
+  .cost-role{color:var(--ink);}
+  .cost-amount{font-family:var(--font-mono); color:var(--ink-soft);}
+  .cost-total{
+    display:flex; justify-content:space-between; align-items:baseline;
+    padding-top:14px; margin-top:4px; border-top:1.5px solid var(--line);
+    font-weight:600; font-size:1rem;
+  }
+  .cost-total span:last-child{font-family:var(--font-mono);}
+  .cost-burn{font-family:var(--font-mono); font-size:0.78rem; color:var(--ink-faint); margin:8px 0 0;}
+
+  .plan-continue-row{
+    display:flex; align-items:center; gap:14px;
+    margin-top:14px; flex-wrap:wrap;
+  }
+  .plan-continue-row .send-confirm{margin:0;}
+
+  /* ---------- Provider table ---------- */
+  .ptable{width:100%; border-collapse:collapse; font-size:0.88rem;}
+  .ptable th{
+    text-align:left; font-family:var(--font-body);
+    font-size:0.72rem; font-weight:600;
+    text-transform:uppercase; letter-spacing:0.03em;
+    color:var(--ink-faint);
+    padding:0 0 10px; border-bottom:1px solid var(--line);
+  }
+  .ptable td{padding:13px 0; border-bottom:1px solid var(--line-soft); vertical-align:top;}
+  .ptable tr:last-child td{border-bottom:none;}
+  .p-name{font-weight:600; color:var(--ink);}
+  .p-note{color:var(--ink-soft); font-size:0.84rem;}
+  .p-link{
+    font-family:var(--font-mono); font-size:0.78rem;
+    color:var(--teal-deep); text-decoration:none; white-space:nowrap;
+  }
+  .p-link:hover{text-decoration:underline;}
+
+  .guidance-note{
+    background:var(--amber-soft);
+    border-radius:10px;
+    padding:13px 16px;
+    font-size:0.85rem;
+    color:#7A5A1E;
+    margin-top:16px;
+  }
+  .guidance-note b{color:#5C4416;}
+
+  .ref-note{
+    background:var(--teal-soft);
+    border-radius:10px;
+    padding:13px 16px;
+    font-size:0.85rem;
+    color:var(--teal-deep);
+    margin-bottom:18px;
+  }
+  .ref-note b{color:var(--ink);}
+
+  /* ---------- Checklist ---------- */
+  .checklist{list-style:none; margin:0; padding:0;}
+  .checklist li{display:flex; align-items:flex-start; gap:10px; padding:7px 0; font-size:0.89rem;}
+  .checklist .tick{color:var(--teal); font-weight:600; flex-shrink:0; width:16px;}
+  .checklist .todo-dot{color:var(--ink-faint); flex-shrink:0; width:16px;}
+  .checklist .fieldval{color:var(--ink-faint); font-family:var(--font-mono); font-size:0.78rem;}
+
+  /* ---------- Self-attest ---------- */
+  .attest{
+    display:flex; align-items:center; gap:10px;
+    padding:16px 18px;
+    border:1px dashed var(--line);
+    border-radius:12px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .attest input{width:18px; height:18px; accent-color:var(--teal); cursor:pointer;}
+  .attest span{font-size:0.9rem; color:var(--ink);}
+  .attest.checked{border-style:solid; border-color:var(--teal); background:var(--teal-soft);}
+
+  .ghost-btn{
+    font-family:var(--font-body);
+    font-size:0.85rem;
+    font-weight:500;
+    color:var(--teal-deep);
+    background:var(--teal-soft);
+    border:none;
+    padding:9px 16px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+  .ghost-btn:hover{background:var(--teal); color:#fff;}
+
+  .offer-doc{
+    font-family:var(--font-mono);
+    font-size:0.86rem;
+    line-height:1.7;
+    color:var(--ink);
+    background:var(--paper);
+    border:1.5px dashed var(--line);
+    border-radius:10px;
+    padding:22px 24px;
+    white-space:pre-wrap;
+    min-height:220px;
+  }
+  .offer-doc:focus{outline:none; border-color:var(--teal); border-style:solid;}
+  .offer-actions{
+    display:flex;
+    gap:10px;
+    margin-top:16px;
+  }
+  .reminder-options{
+    display:flex;
+    gap:8px;
+    margin-bottom:18px;
+    flex-wrap:wrap;
+  }
+  .reminder-btn{
+    font-family:var(--font-mono);
+    font-size:0.82rem;
+    color:var(--ink-soft);
+    background:#fff;
+    border:1.5px solid var(--line);
+    padding:9px 16px;
+    border-radius:20px;
+    cursor:pointer;
+  }
+  .reminder-btn:hover{border-color:var(--ink-faint);}
+  .reminder-btn.selected{
+    border-color:var(--teal);
+    background:var(--teal-soft);
+    color:var(--teal-deep);
+  }
+  .send-btn{background:var(--teal); color:#fff;}
+  .send-btn:hover{background:var(--teal-deep);}
+  .send-confirm{
+    font-size:0.85rem;
+    color:var(--teal-deep);
+    margin:12px 0 0;
+    min-height:1.2em;
+  }
+  .upload-input{display:none;}
+  .uploaded-file{
+    font-family:var(--font-mono);
+    font-size:0.74rem;
+    color:var(--teal-deep);
+    background:var(--teal-soft);
+    border-radius:8px;
+    padding:8px 10px;
+    margin-top:10px;
+    overflow-wrap:anywhere;
+  }
+
+  /* ---------- Access tiers ---------- */
+  .tiers{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .tier-card{
+    border:1.5px solid var(--line);
+    border-radius:12px;
+    padding:16px 18px;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .tier-card:hover{border-color:var(--ink-faint);}
+  .tier-card.selected{border-color:var(--teal); background:var(--teal-soft);}
+  .tier-name{font-weight:600; font-size:0.92rem; margin-bottom:4px;}
+  .tier-desc{font-size:0.82rem; color:var(--ink-soft); line-height:1.45;}
+
+  .mock-employee{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px;
+    background:var(--paper);
+    border-radius:10px;
+    margin-top:16px;
+    font-size:0.88rem;
+  }
+  .mock-employee-name{display:flex; align-items:center; gap:10px;}
+  .avatar{
+    width:28px; height:28px; border-radius:50%;
+    background:var(--ink); color:#fff;
+    font-family:var(--font-mono); font-size:0.7rem;
+    display:flex; align-items:center; justify-content:center;
+  }
+  select.tier-select{
+    font-family:var(--font-mono); font-size:0.76rem;
+    padding:5px 10px; border-radius:20px;
+    border:1px solid var(--line); background:#fff; color:var(--ink);
+  }
+
+  .footnote{margin-top:26px; font-size:0.8rem; color:var(--ink-faint); max-width:640px;}
+
+  @media (max-width:760px){
+    .shell{grid-template-columns:1fr;}
+    .rail{padding-left:0; display:flex; overflow-x:auto; gap:20px; padding-bottom:12px;}
+    .rail::before{display:none;}
+    .rail-node{padding:0; width:auto; flex-shrink:0;}
+    .rail-dot{position:static; display:inline-block; margin-right:6px;}
+    .tiers{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-mark">StartupKit</span>
+      <span class="brand-mod">W6 · People &amp; HR</span>
+    </div>
+    <div class="topbar-meta">
+      <span class="trigger-chip">unlocked by <b>entity.formed</b></span>
+      <div class="progress-wrap">
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <span class="progress-label" id="progressLabel">0 / 6</span>
+      </div>
+    </div>
+  </div>
+
+  <h1>Build your team</h1>
+  <p class="subhead">From here, we'll guide you through planning who to hire, finding your first hire, getting their paperwork and payroll sorted, and deciding what they can see inside StartupKit — you stay in control, we just make sure nothing gets missed.</p>
+
+  <div class="shell">
+
+    <!-- RAIL -->
+    <nav class="rail" id="rail">
+      <button class="rail-node active" data-step="1">
+        <span class="rail-dot"></span>
+        <span class="rail-title">Plan your hiring</span>
+        <span class="rail-event">plan.mapped</span>
+      </button>
+      <button class="rail-node" data-step="2">
+        <span class="rail-dot"></span>
+        <span class="rail-title">Find candidates</span>
+        <span class="rail-event">sourcing.started</span>
+      </button>
+      <button class="rail-node" data-step="3">
+        <span class="rail-dot"></span>
+        <span class="rail-title">Make an offer</span>
+        <span class="rail-event">offer.sent</span>
+      </button>
+      <button class="rail-node" data-step="4">
+        <span class="rail-dot"></span>
+        <span class="rail-title">Employee onboarding</span>
+        <span class="rail-event">onboarding.received</span>
+      </button>
+      <button class="rail-node" data-step="5">
+        <span class="rail-dot"></span>
+        <span class="rail-title">Set up payroll</span>
+        <span class="rail-event">payroll.configured</span>
+      </button>
+      <button class="rail-node" data-step="6">
+        <span class="rail-dot"></span>
+        <span class="rail-title">Employee access</span>
+        <span class="rail-event">access.assigned</span>
+      </button>
+    </nav>
+
+    <!-- PANELS -->
+    <div class="panels">
+
+      <!-- STEP 1 -->
+      <section class="panel active" id="panel-1">
+        <div class="panel-head">
+          <h2 class="panel-title">Plan your hiring</h2>
+          <div class="badge-row">
+            <span class="badge ai">AI-drafted</span>
+            <span class="badge confirm">You confirm</span>
+          </div>
+        </div>
+        <p class="panel-desc">Before you post a single job, figure out exactly who you need and why. This takes 10 minutes and saves you from hiring the wrong role — or the right role too early.</p>
+
+        <div class="card">
+          <h3>1. What's slowing you down the most?</h3>
+          <p class="field-hint" style="margin:0 0 16px;">Pick the one that's closest — we'll use it to point you toward the role that actually fixes it.</p>
+
+          <div class="bottleneck-options" id="bottleneckOptions"></div>
+
+          <div id="somethingElseWrap" style="display:none; margin-top:14px;">
+            <label class="plan-field-label">Describe it in your own words</label>
+            <textarea class="role-textarea" id="planBottleneckOther" placeholder="e.g. our onboarding flow confuses new users and we don't know why..." oninput="onOtherBottleneckInput()" style="margin-bottom:0;"></textarea>
+          </div>
+
+          <div class="ai-rec-card" id="aiRecCard" style="display:none;">
+            <div class="ai-rec-head"><span class="badge ai">AI recommendation</span></div>
+            <div class="ai-rec-role-row">
+              <span class="ai-rec-check">✓</span>
+              <input type="text" class="ai-rec-role-input" id="aiRecRoleInput" oninput="onAiRecRoleEdit()">
+            </div>
+            <p class="ai-rec-reason" id="aiRecReason"></p>
+
+            <div class="score-grid" id="scoreGrid">
+              <div class="score-row">
+                <span class="score-label">Urgency</span>
+                <div class="score-bar"><div class="score-fill" id="scoreUrgencyFill"></div></div>
+                <span class="score-val" id="scoreUrgencyVal"></span>
+              </div>
+              <div class="score-row">
+                <span class="score-label">Business impact</span>
+                <div class="score-bar"><div class="score-fill" id="scoreImpactFill"></div></div>
+                <span class="score-val" id="scoreImpactVal"></span>
+              </div>
+              <div class="score-row">
+                <span class="score-label">Founders could do it</span>
+                <div class="score-bar"><div class="score-fill score-fill-inverse" id="scoreFoundersFill"></div></div>
+                <span class="score-val" id="scoreFoundersVal"></span>
+              </div>
+            </div>
+
+            <div class="ai-rec-meta">
+              <div><span class="ai-rec-meta-label">Recommended timing</span><span id="aiRecTiming"></span></div>
+              <div><span class="ai-rec-meta-label">Est. market salary</span><span id="aiRecSalary"></span></div>
+              <div><span class="ai-rec-meta-label">Suggested equity</span><span id="aiRecEquity"></span></div>
+            </div>
+
+            <button class="ghost-btn" onclick="addAiRecToMatrix()">Add to hiring plan ↓</button>
+            <p class="send-confirm" id="aiRecAddedConfirm"></p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>2. Typical startup hiring order</h3>
+          <p class="field-hint" style="margin:0 0 16px;">Founders don't need org theory — just a sense of what usually comes next. Hiring out of order is one of the most common early mistakes.</p>
+          <div class="roadmap-flow" id="roadmapFlow"></div>
+        </div>
+
+        <div class="card">
+          <div class="emp-card-head">
+            <h3 style="margin:0;">3. Map out each role</h3>
+            <button class="ghost-btn" onclick="addMatrixRole()">Add role</button>
+          </div>
+          <p class="field-hint" style="margin:0 0 16px;">The questions founders actually struggle with — not just title and budget.</p>
+          <div id="matrixRoleList"></div>
+          <div class="matrix-confirm-row" id="matrixConfirmRow" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--line-soft); align-items:center; gap:12px; flex-wrap:wrap;">
+            <button class="ghost-btn" onclick="confirmMatrixRoles()">Confirm roles &amp; send to Find candidates →</button>
+            <p class="send-confirm" id="matrixConfirmMsg" style="margin:0;"></p>
+          </div>
+        </div>
+
+        <div class="card" id="roadmapSummaryCard" style="display:none;">
+          <h3>Recommended hiring sequence</h3>
+          <div class="sequence-list" id="hiringSequence"></div>
+        </div>
+
+        <div class="card" id="costCard" style="display:none;">
+          <h3>Estimated hiring cost</h3>
+          <div id="costBreakdown"></div>
+          <div class="cost-total" id="costTotal"></div>
+          <p class="cost-burn" id="costBurn"></p>
+        </div>
+
+        <label class="attest" id="attest-1">
+          <input type="checkbox" onchange="toggleAttest(this, 1)">
+          <span>I've mapped my hiring plan</span>
+        </label>
+        <div class="plan-continue-row" id="planContinueRow" style="display:none;">
+          <p class="send-confirm" id="planLinkedConfirm"></p>
+          <button class="ghost-btn" onclick="goToStep(2)">Continue to Find candidates →</button>
+        </div>
+      </section>
+
+      <!-- STEP 2 -->
+      <section class="panel" id="panel-2">
+        <div class="panel-head">
+          <h2 class="panel-title">Find candidates</h2>
+          <div class="badge-row">
+            <span class="badge ai">AI-drafted</span>
+            <span class="badge confirm">You confirm</span>
+          </div>
+        </div>
+        <p class="panel-desc">We'll draft your job post in the format each platform actually expects, then point you to where to post it. StartupKit doesn't run the search for you — you stay in control of who you talk to.</p>
+
+        <div class="card">
+          <h3>Which role are you hiring for?</h3>
+          <div class="guidance-note" id="planSyncBanner" style="display:none; margin:0 0 16px;"></div>
+          <select class="role-select" id="roleSelect" onchange="onRoleChange()">
+            <option value="Founding Engineer">Founding Engineer</option>
+            <option value="Product Designer">Product Designer</option>
+            <option value="Growth Marketer">Growth Marketer</option>
+            <option value="custom">Custom role…</option>
+          </select>
+          <input type="text" class="role-input" id="customRoleInput" placeholder="Enter role title" oninput="onCustomRoleInput()">
+
+          <h3 class="second-label">Anything specific about this role? <span class="optional-tag">optional</span></h3>
+          <textarea class="role-textarea" id="jobDescInput" placeholder="e.g. must have shipped a production app before, prior startup experience preferred, needs to be onsite 2 days/week in SF..." oninput="onDescriptionInput()"></textarea>
+          <p class="field-hint">We'll work whatever you add in here into the drafts below — no need to write full bullet points, a few notes is enough.</p>
+        </div>
+
+        <div class="card">
+          <h3>Job post drafts — <span id="draftRoleTitle">Founding Engineer</span></h3>
+          <div class="tabs">
+            <button class="tab-btn active" data-tab="li">LinkedIn</button>
+            <button class="tab-btn" data-tab="wf">Wellfound</button>
+            <button class="tab-btn" data-tab="sf">Short-form</button>
+          </div>
+          <div class="tab-panel active" id="tab-li">
+            <div class="draft-box" id="draftLi"></div>
+          </div>
+          <div class="tab-panel" id="tab-wf">
+            <div class="draft-box" id="draftWf"></div>
+          </div>
+          <div class="tab-panel" id="tab-sf">
+            <div class="draft-box" id="draftSf"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Social hiring poster</h3>
+          <p class="field-hint" style="margin:0 0 16px;">Generate a shareable hiring poster for LinkedIn, X, Instagram, or your founder socials. Use AI edits for quick changes, or manually tune the copy yourself.</p>
+          <div class="poster-workbench">
+            <div>
+              <div class="poster-preview" id="posterPreview">
+                <div>
+                  <div class="poster-brand" id="posterBrand">Loopwell is hiring</div>
+                  <div class="poster-role" id="posterRole">Founding Engineer</div>
+                  <div class="poster-tagline" id="posterTagline">Join us early and shape the product with the founding team.</div>
+                </div>
+                <div>
+                  <div class="poster-meta">
+                    <span class="poster-chip" id="posterEquity">0.5-1.5% equity</span>
+                    <span class="poster-chip" id="posterLocation">Remote-friendly</span>
+                    <span class="poster-chip" id="posterStage">Pre-seed</span>
+                  </div>
+                  <div class="poster-cta" id="posterCta" style="margin-top:18px;">DM us or apply at startupkit.app/jobs</div>
+                </div>
+              </div>
+              <canvas class="poster-canvas" id="posterCanvas" width="1200" height="1500"></canvas>
+              <div class="offer-actions">
+                <button class="ghost-btn send-btn" onclick="generatePoster()">Generate poster</button>
+                <button class="ghost-btn" onclick="downloadPoster()">Download poster</button>
+              </div>
+              <p class="send-confirm" id="posterConfirm"></p>
+            </div>
+            <div>
+              <h4 class="reminder-subhead">AI edit</h4>
+              <div class="poster-ai-row">
+                <textarea class="role-textarea" id="posterPrompt" placeholder="e.g. make it more founder-led, more design-forward, shorter for Instagram, emphasize equity, mention remote..."></textarea>
+                <button class="ghost-btn" onclick="applyPosterPrompt()">Apply</button>
+              </div>
+
+              <h4 class="reminder-subhead">Manual edit</h4>
+              <div class="poster-theme-row">
+                <button class="theme-btn theme-teal selected" title="Teal" onclick="setPosterTheme('teal', this)"></button>
+                <button class="theme-btn theme-amber" title="Amber" onclick="setPosterTheme('amber', this)"></button>
+                <button class="theme-btn theme-blue" title="Blue" onclick="setPosterTheme('blue', this)"></button>
+              </div>
+              <div class="poster-form-grid">
+                <input type="text" class="text-input" id="posterBrandInput" placeholder="Poster eyebrow" oninput="manualPosterEdit()" value="Loopwell is hiring">
+                <input type="text" class="text-input" id="posterRoleInput" placeholder="Role title" oninput="manualPosterEdit()" value="Founding Engineer">
+                <textarea class="role-textarea wide" id="posterTaglineInput" placeholder="Short poster message" oninput="manualPosterEdit()">Join us early and shape the product with the founding team.</textarea>
+                <input type="text" class="text-input" id="posterEquityInput" placeholder="Equity / comp" oninput="manualPosterEdit()" value="0.5-1.5% equity">
+                <input type="text" class="text-input" id="posterLocationInput" placeholder="Location" oninput="manualPosterEdit()" value="Remote-friendly">
+                <input type="text" class="text-input" id="posterStageInput" placeholder="Stage" oninput="manualPosterEdit()" value="Pre-seed">
+                <input type="text" class="text-input wide" id="posterCtaInput" placeholder="Call to action" oninput="manualPosterEdit()" value="DM us or apply at startupkit.app/jobs">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Where to post</h3>
+          <table class="ptable">
+            <tr><th>Platform</th><th>Best for</th><th></th></tr>
+            <tr>
+              <td class="p-name">LinkedIn</td>
+              <td class="p-note">Broad reach, any role</td>
+              <td><a class="p-link" href="#">Open ↗</a></td>
+            </tr>
+            <tr>
+              <td class="p-name">Wellfound</td>
+              <td class="p-note">Startup-native candidates, comfortable with equity</td>
+              <td><a class="p-link" href="#">Open ↗</a></td>
+            </tr>
+            <tr>
+              <td class="p-name">Braintrust</td>
+              <td class="p-note">Vetted contractor &amp; freelance talent</td>
+              <td><a class="p-link" href="#">Open ↗</a></td>
+            </tr>
+            <tr>
+              <td class="p-name">Want a human to run this?</td>
+              <td class="p-note">Connect with a recruiter from our partner network</td>
+              <td><a class="p-link" href="#">Connect ↗</a></td>
+            </tr>
+          </table>
+          <div class="guidance-note"><b>Good to know —</b> Wellfound candidates already expect early-stage comp structures, so it's a strong fit if equity is a meaningful part of the offer.</div>
+        </div>
+
+        <label class="attest" id="attest-2">
+          <input type="checkbox" onchange="toggleAttest(this, 2)">
+          <span>I've started sourcing candidates</span>
+        </label>
+      </section>
+
+      <!-- STEP 3 -->
+      <section class="panel" id="panel-3">
+        <div class="panel-head">
+          <h2 class="panel-title">Make an offer</h2>
+          <div class="badge-row"><span class="badge ai">AI-drafted</span></div>
+        </div>
+        <p class="panel-desc">Once you've got someone in mind, we generate the offer letter — role and equity pulled straight from your cap table — for you to review, edit, and send.</p>
+
+        <div class="ref-note"><b>Vesting —</b> new hires inherit your company's standard 4yr vesting / 1yr cliff / double-trigger acceleration terms, already set on your cap table.</div>
+
+        <div class="card" id="preGenerateCard">
+          <h3>Offer letter</h3>
+          <p class="field-hint" style="margin:0 0 14px;">We'll pull in the role, equity, and vesting terms automatically — you can edit anything before it goes out.</p>
+          <button class="ghost-btn" onclick="generateOffer()">Generate offer letter for <span id="genRoleLabel">Founding Engineer</span></button>
+        </div>
+
+        <div class="card" id="offerCard" style="display:none;">
+          <h3>Review &amp; edit <span class="optional-tag">click text to edit</span></h3>
+          <div class="offer-doc" id="offerDoc" contenteditable="true"></div>
+
+          <div class="offer-actions">
+            <button class="ghost-btn" onclick="downloadOffer()">Download offer letter</button>
+          </div>
+        </div>
+
+        <div class="card" id="reminderCard" style="display:none;">
+          <h3>Set a signature reminder</h3>
+          <p class="field-hint" style="margin:0 0 14px;">If your candidate hasn't signed by then, we'll nudge them automatically.</p>
+          <div class="reminder-options" id="reminderOptions">
+            <button class="reminder-btn" data-hours="24" onclick="selectReminder(this)">24 hours</button>
+            <button class="reminder-btn selected" data-hours="48" onclick="selectReminder(this)">48 hours</button>
+            <button class="reminder-btn" data-hours="0" onclick="selectReminder(this)">Don't remind me</button>
+          </div>
+          <button class="ghost-btn send-btn" onclick="sendOffer()">Send to candidate</button>
+          <p class="send-confirm" id="sendConfirm"></p>
+        </div>
+      </section>
+
+      <!-- STEP 4 -->
+      <section class="panel" id="panel-4">
+        <div class="panel-head">
+          <h2 class="panel-title">Employee onboarding</h2>
+          <div class="badge-row"><span class="badge ai">Auto-generated</span></div>
+        </div>
+        <p class="panel-desc">Add each employee once their offer is signed. We'll generate their legal docs and a personalized self-onboarding link so they enter W-4 elections, I-9 basics, and direct deposit details themselves.</p>
+
+        <div class="card">
+          <h3>Add an employee</h3>
+          <input type="text" class="text-input" id="newEmpName" placeholder="Employee full name">
+          <input type="email" class="text-input" id="newEmpEmail" placeholder="Employee email (needed if you want us to send it for you)">
+          <select class="role-select" id="newEmpRole" onchange="onNewEmpRoleChange()">
+            <option value="Founding Engineer">Founding Engineer</option>
+            <option value="Product Designer">Product Designer</option>
+            <option value="Growth Marketer">Growth Marketer</option>
+            <option value="custom">Custom role…</option>
+          </select>
+          <input type="text" class="role-input" id="newEmpCustomRole" placeholder="Enter role title">
+          <button class="ghost-btn" style="margin-top:12px;" onclick="addEmployee()">Add employee</button>
+          <p class="field-hint" id="addEmpHint"></p>
+        </div>
+
+        <div id="employeeList"></div>
+      </section>
+
+      <!-- STEP 5 -->
+      <section class="panel" id="panel-5">
+        <div class="panel-head">
+          <h2 class="panel-title">Set up payroll</h2>
+          <div class="badge-row"><span class="badge confirm">You confirm</span></div>
+        </div>
+        <p class="panel-desc">Payroll providers handle the actual state tax registration and withholding — that's their job, not ours. Here's what you'll need and who we'd suggest.</p>
+
+        <div class="card">
+          <h3>What you'll need</h3>
+          <ul class="checklist">
+            <li><span class="tick">✓</span> Legal business name <span class="fieldval">— already on file</span></li>
+            <li><span class="tick">✓</span> EIN <span class="fieldval">— already on file</span></li>
+            <li><span class="tick">✓</span> Entity type &amp; state <span class="fieldval">— C-Corp, Delaware</span></li>
+            <li><span class="tick">✓</span> Bank account for direct deposit <span class="fieldval">— confirmed in W3</span></li>
+            <li><span class="todo-dot">○</span> State(s) where employees actually work <span class="fieldval">— collected from onboarding links</span></li>
+            <li id="payrollPacketChecklist"><span class="todo-dot">○</span> Each employee's I-9/W-4 info + bank details</li>
+            <li><span class="tick">✓</span> Employee type <span class="fieldval">— W-2 employee from signed offer</span></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Employee payroll packets</h3>
+          <div id="payrollPacketList"></div>
+        </div>
+
+        <div class="card">
+          <h3>Recommended providers</h3>
+          <table class="ptable">
+            <tr><th>Provider</th><th>Best for</th><th></th></tr>
+            <tr>
+              <td class="p-name">Gusto</td>
+              <td class="p-note">US-only team, simplest setup</td>
+              <td><a class="p-link" href="#">Open ↗</a></td>
+            </tr>
+            <tr>
+              <td class="p-name">Rippling</td>
+              <td class="p-note">Want HR &amp; IT tools bundled in later</td>
+              <td><a class="p-link" href="#">Open ↗</a></td>
+            </tr>
+            <tr>
+              <td class="p-name">Deel</td>
+              <td class="p-note">Any international contractors or employees</td>
+              <td><a class="p-link" href="#">Open ↗</a></td>
+            </tr>
+          </table>
+          <div class="guidance-note"><b>Good to know —</b> if everyone's US-based, Gusto is usually fastest to set up. Hiring anyone outside the US — even one contractor — Deel handles compliance the others don't.</div>
+        </div>
+
+        <label class="attest" id="attest-5">
+          <input type="checkbox" onchange="toggleAttest(this, 5)">
+          <span>I've set up payroll</span>
+        </label>
+      </section>
+
+      <!-- STEP 6 -->
+      <section class="panel" id="panel-6">
+        <div class="panel-head">
+          <h2 class="panel-title">Employee access</h2>
+          <div class="badge-row"><span class="badge confirm">You confirm</span></div>
+        </div>
+        <p class="panel-desc">Decide what each new hire can see inside StartupKit. Start narrower than feels necessary — it's easy to grant more access later, harder to walk back after someone's already seen the cap table.</p>
+
+        <div class="card">
+          <h3>Access tiers</h3>
+          <div class="tiers" id="tiers">
+            <div class="tier-card" data-tier="Full Access">
+              <div class="tier-name">Full Access</div>
+              <div class="tier-desc">Sees and edits everything — cap table, legal docs, financials, every module. For a co-founder or CTO/CFO-level hire.</div>
+            </div>
+            <div class="tier-card selected" data-tier="Module Access">
+              <div class="tier-name">Module Access</div>
+              <div class="tier-desc">Sees and edits only assigned modules — e.g. an engineer gets W4 only. Everything else stays hidden, not just read-only.</div>
+            </div>
+            <div class="tier-card" data-tier="View Only">
+              <div class="tier-name">View Only</div>
+              <div class="tier-desc">Sees high-level status and progress, but can't open underlying documents or financials. A safe early default.</div>
+            </div>
+            <div class="tier-card" data-tier="No Access">
+              <div class="tier-name">No Access</div>
+              <div class="tier-desc">Not on the platform. Fine for most early hourly or contract hires.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Assign access</h3>
+          <div id="accessList"></div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <p class="footnote">This is a walkthrough preview of the redesigned W6 flow — sourcing and payroll are guide-only with AI-drafted content and partner recommendations, employee legal docs run through the same e-signature system as W1/W2, and access tiers are a new permission layer on top of the existing RBAC model. Founder-level docs and vesting review were dropped from this module since they're already handled in W1/W2 with nothing new to confirm here.</p>
+
+</div>
+
+<script>
+  const ROLE_EQUITY = {
+    "Founding Engineer": "1.00%",
+    "Product Designer": "0.75%",
+    "Growth Marketer": "0.50%"
+  };
+  let selectedReminderHours = 48;
+  let posterTheme = 'teal';
+  const POSTER_THEMES = {
+    teal: { bg: '#17222B', accent: '#0E7C6B', soft: 'rgba(14,124,107,.24)' },
+    amber: { bg: '#2A2318', accent: '#B8802A', soft: 'rgba(184,128,42,.28)' },
+    blue: { bg: '#17222B', accent: '#2C6E9E', soft: 'rgba(44,110,158,.28)' }
+  };
+
+  function currentRole(){
+    const select = document.getElementById('roleSelect');
+    const customInput = document.getElementById('customRoleInput');
+    return select.value === 'custom' ? (customInput.value.trim() || 'this role') : select.value;
+  }
+
+  function equityRange(role){
+    if(role === 'Founding Engineer') return '0.5-1.5% equity';
+    if(role === 'Product Designer') return '0.5-1% equity';
+    if(role === 'Growth Marketer') return '0.25-0.75% equity';
+    return 'Meaningful equity';
+  }
+
+  function posterDefaults(role){
+    const desc = currentDescription ? currentDescription() : '';
+    const tagline = desc
+      ? desc.split(/[.!?]/)[0].slice(0, 105)
+      : 'Join us early and shape the product with the founding team.';
+    return {
+      brand: 'Loopwell is hiring',
+      role: role,
+      tagline: tagline,
+      equity: equityRange(role),
+      location: 'Remote-friendly',
+      stage: 'Pre-seed',
+      cta: 'DM us or apply at startupkit.app/jobs'
+    };
+  }
+
+  function posterField(id){
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+  }
+
+  function setPosterFields(data){
+    const pairs = [
+      ['posterBrandInput', data.brand],
+      ['posterRoleInput', data.role],
+      ['posterTaglineInput', data.tagline],
+      ['posterEquityInput', data.equity],
+      ['posterLocationInput', data.location],
+      ['posterStageInput', data.stage],
+      ['posterCtaInput', data.cta]
+    ];
+    pairs.forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if(el) el.value = value;
+    });
+    manualPosterEdit();
+  }
+
+  function manualPosterEdit(){
+    const map = [
+      ['posterBrand', posterField('posterBrandInput') || 'Loopwell is hiring'],
+      ['posterRole', posterField('posterRoleInput') || currentRole()],
+      ['posterTagline', posterField('posterTaglineInput') || 'Join us early and shape the product with the founding team.'],
+      ['posterEquity', posterField('posterEquityInput') || equityRange(currentRole())],
+      ['posterLocation', posterField('posterLocationInput') || 'Remote-friendly'],
+      ['posterStage', posterField('posterStageInput') || 'Pre-seed'],
+      ['posterCta', posterField('posterCtaInput') || 'DM us or apply at startupkit.app/jobs']
+    ];
+    map.forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if(el) el.textContent = value;
+    });
+  }
+
+  function generatePoster(){
+    setPosterFields(posterDefaults(currentRole()));
+    const confirm = document.getElementById('posterConfirm');
+    if(confirm) confirm.textContent = 'Poster generated from the current role and sourcing notes.';
+  }
+
+  function applyPosterPrompt(){
+    const prompt = posterField('posterPrompt').toLowerCase();
+    const data = {
+      brand: posterField('posterBrandInput') || 'Loopwell is hiring',
+      role: posterField('posterRoleInput') || currentRole(),
+      tagline: posterField('posterTaglineInput') || 'Join us early and shape the product with the founding team.',
+      equity: posterField('posterEquityInput') || equityRange(currentRole()),
+      location: posterField('posterLocationInput') || 'Remote-friendly',
+      stage: posterField('posterStageInput') || 'Pre-seed',
+      cta: posterField('posterCtaInput') || 'DM us or apply at startupkit.app/jobs'
+    };
+    if(prompt.includes('short')) data.tagline = 'Early team. Real ownership. Ship with the founders.';
+    if(prompt.includes('founder')) data.tagline = 'Work directly with the founders and help define the company from day one.';
+    if(prompt.includes('design')) data.tagline = 'Own the product experience, visual language, and the way customers feel the brand.';
+    if(prompt.includes('equity')) data.equity = equityRange(data.role) + ' + founding-team ownership';
+    if(prompt.includes('remote')) data.location = 'Remote-first';
+    if(prompt.includes('instagram')) data.cta = 'Share this or DM us to intro someone great';
+    if(prompt.includes('urgent') || prompt.includes('hiring now')) data.brand = 'Hiring now at Loopwell';
+    setPosterFields(data);
+    const confirm = document.getElementById('posterConfirm');
+    if(confirm) confirm.textContent = 'AI edit applied. You can still manually tune any field.';
+  }
+
+  function setPosterTheme(theme, btn){
+    posterTheme = theme;
+    document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('selected'));
+    if(btn) btn.classList.add('selected');
+    const preview = document.getElementById('posterPreview');
+    const colors = POSTER_THEMES[theme] || POSTER_THEMES.teal;
+    if(preview) preview.style.background = 'linear-gradient(145deg,' + colors.bg + ',' + colors.accent + ')';
+  }
+
+  function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines){
+    const words = text.split(/\s+/);
+    let line = '';
+    let lines = 0;
+    for(let i = 0; i < words.length; i++){
+      const test = line ? line + ' ' + words[i] : words[i];
+      if(ctx.measureText(test).width > maxWidth && line){
+        ctx.fillText(line, x, y);
+        y += lineHeight;
+        lines++;
+        line = words[i];
+        if(lines >= maxLines - 1) break;
+      } else {
+        line = test;
+      }
+    }
+    if(line) ctx.fillText(line, x, y);
+  }
+
+  function downloadPoster(){
+    manualPosterEdit();
+    const canvas = document.getElementById('posterCanvas');
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const colors = POSTER_THEMES[posterTheme] || POSTER_THEMES.teal;
+    ctx.fillStyle = colors.bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const grd = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    grd.addColorStop(0, colors.bg);
+    grd.addColorStop(1, colors.accent);
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = 0.24;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(960, 1240, 330, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '600 38px IBM Plex Mono, monospace';
+    ctx.fillText((posterField('posterBrandInput') || 'Loopwell is hiring').toUpperCase(), 90, 120);
+    ctx.font = '600 112px Fraunces, serif';
+    drawWrappedText(ctx, posterField('posterRoleInput') || currentRole(), 90, 320, 930, 112, 3);
+    ctx.font = '400 48px IBM Plex Sans, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.84)';
+    drawWrappedText(ctx, posterField('posterTaglineInput') || 'Join us early and shape the product with the founding team.', 90, 700, 900, 62, 4);
+    const chips = [posterField('posterEquityInput'), posterField('posterLocationInput'), posterField('posterStageInput')].filter(Boolean);
+    let chipX = 90;
+    ctx.font = '500 30px IBM Plex Mono, monospace';
+    chips.forEach(chip => {
+      const w = ctx.measureText(chip).width + 44;
+      ctx.strokeStyle = 'rgba(255,255,255,.36)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(chipX, 1120, w, 58);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText(chip, chipX + 22, 1158);
+      chipX += w + 18;
+    });
+    ctx.font = '500 36px IBM Plex Mono, monospace';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(posterField('posterCtaInput') || 'DM us or apply at startupkit.app/jobs', 90, 1360);
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = (posterField('posterRoleInput') || currentRole()).replace(/\s+/g, '-').toLowerCase() + '-hiring-poster.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    const confirm = document.getElementById('posterConfirm');
+    if(confirm) confirm.textContent = 'Poster downloaded as a PNG.';
+  }
+
+  function generateOffer(){
+    const role = currentRole();
+    const equity = ROLE_EQUITY[role] || "0.50%";
+    const letter = "OFFER OF EMPLOYMENT\n\nLoopwell, Inc. (the \u201CCompany\u201D)\n\nDear Dana Kim,\n\nWe are pleased to offer you the position of " + role + " at Loopwell, Inc., reporting to the founding team.\n\nCompensation: [Add base salary before sending]\nEquity: " + equity + " of the Company\u2019s common stock, subject to the Company\u2019s standard 4-year vesting schedule with a 1-year cliff and double-trigger acceleration, as reflected on the Company\u2019s capitalization table.\nStart date: [Add start date]\n\nThis offer is contingent upon your signing the Company\u2019s standard Proprietary Information and Inventions Agreement.\n\nPlease sign below to accept this offer.\n\n_________________________\nDana Kim                          Date";
+    document.getElementById('offerDoc').textContent = letter;
+    document.getElementById('preGenerateCard').style.display = 'none';
+    document.getElementById('offerCard').style.display = 'block';
+    document.getElementById('reminderCard').style.display = 'block';
+  }
+
+  function downloadOffer(){
+    const text = document.getElementById('offerDoc').innerText;
+    const blob = new Blob([text], {type: 'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = currentRole().replace(/\s+/g, '-').toLowerCase() + '-offer-letter.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function selectReminder(btn){
+    document.querySelectorAll('.reminder-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedReminderHours = parseInt(btn.dataset.hours, 10);
+  }
+
+  function sendOffer(){
+    const confirmEl = document.getElementById('sendConfirm');
+    if(selectedReminderHours === 0){
+      confirmEl.textContent = 'Sent to Dana Kim — no automatic reminder set.';
+    } else {
+      confirmEl.textContent = 'Sent to Dana Kim — we\u2019ll remind them automatically if unsigned after ' + selectedReminderHours + ' hours.';
+    }
+    setDone(3, true);
+  }
+
+  const ROLE_CONTENT = {
+    "Founding Engineer": {
+      module: "W4 only",
+      li: "Founding Engineer — Loopwell (example)\n\nWe're building the operating system for early-stage logistics teams. As one of our first engineering hires, you'll shape the core product alongside our two co-founders — no layers, no legacy code, real ownership from day one.\n\nYou'll work across our full stack, help set technical direction, and ship things customers use within your first week. 0.5–1.5% equity, competitive salary, remote-friendly.",
+      wf: "🚀 Founding Engineer @ Loopwell (example)\n\nPre-seed, 2 co-founders, real customers already using v1. Looking for someone who wants meaningful equity and real influence over what gets built — not just a seat at a bigger company with a startup badge.\n\nEquity: 0.5–1.5% · Remote-friendly · Fast-moving",
+      sf: "Hiring: Founding Engineer\n\nWe're a 2-person team building something real. Looking for engineer #1 — meaningful equity, real ownership. DM if curious."
+    },
+    "Product Designer": {
+      module: "W5 only",
+      li: "Product Designer — Loopwell (example)\n\nWe're building the operating system for early-stage logistics teams, and our product doesn't have a dedicated design voice yet — that's you. You'll shape the brand, the UI, and how the whole thing feels, working directly with our two co-founders.\n\n0.5–1% equity, competitive salary, remote-friendly.",
+      wf: "🎨 Product Designer @ Loopwell (example)\n\nPre-seed, 2 co-founders, real customers already using v1. First design hire — you'll define the visual language and product experience, not just execute someone else's spec.\n\nEquity: 0.5–1% · Remote-friendly",
+      sf: "Hiring: Product Designer\n\nWe're a 2-person team building something real. Looking for our first designer — real creative ownership. DM if curious."
+    },
+    "Growth Marketer": {
+      module: "W7 only",
+      li: "Growth Marketer — Loopwell (example)\n\nWe're building the operating system for early-stage logistics teams and just getting our GTM engine started. You'll own acquisition experiments end to end, working directly with our two co-founders.\n\n0.25–0.75% equity, competitive salary, remote-friendly.",
+      wf: "📈 Growth Marketer @ Loopwell (example)\n\nPre-seed, 2 co-founders, real customers already using v1. Looking for someone who wants to build the growth playbook from scratch, not inherit one.\n\nEquity: 0.25–0.75% · Remote-friendly",
+      sf: "Hiring: Growth Marketer\n\nWe're a 2-person team building something real. Looking for our first growth hire — real ownership over acquisition. DM if curious."
+    }
+  };
+
+  function draftsFor(role){
+    if(ROLE_CONTENT[role]) return ROLE_CONTENT[role];
+    return {
+      module: "assigned module",
+      li: role + " — Loopwell (example)\n\nWe're building the operating system for early-stage logistics teams. As an early hire, you'll work directly with our two co-founders and have real ownership over what you build.\n\nEquity available, competitive salary, remote-friendly.",
+      wf: "🚀 " + role + " @ Loopwell (example)\n\nPre-seed, 2 co-founders, real customers already using v1. Looking for someone who wants meaningful equity and real influence over what gets built.\n\nRemote-friendly · Fast-moving",
+      sf: "Hiring: " + role + "\n\nWe're a 2-person team building something real. Real ownership, real equity. DM if curious."
+    };
+  }
+
+  function onRoleChange(){
+    const select = document.getElementById('roleSelect');
+    const customInput = document.getElementById('customRoleInput');
+    if(select.value === 'custom'){
+      customInput.classList.add('shown');
+      customInput.focus();
+      applyRole(customInput.value.trim() || 'this role');
+    } else {
+      customInput.classList.remove('shown');
+      applyRole(select.value);
+    }
+  }
+
+  function onCustomRoleInput(){
+    const customInput = document.getElementById('customRoleInput');
+    applyRole(customInput.value.trim() || 'this role');
+  }
+
+  function onDescriptionInput(){
+    const select = document.getElementById('roleSelect');
+    const customInput = document.getElementById('customRoleInput');
+    const role = select.value === 'custom' ? (customInput.value.trim() || 'this role') : select.value;
+    applyRole(role);
+  }
+
+  function currentDescription(){
+    return document.getElementById('jobDescInput').value.trim();
+  }
+
+  function applyRole(role){
+    const d = draftsFor(role);
+    const desc = currentDescription();
+    document.getElementById('draftRoleTitle').textContent = role;
+    document.getElementById('draftLi').innerHTML = formatDraft(d.li, desc, 'What we need from you: ');
+    document.getElementById('draftWf').innerHTML = formatDraft(d.wf, desc, 'Must-have: ');
+    document.getElementById('draftSf').innerHTML = formatDraft(d.sf, desc, 'Needs: ');
+    document.getElementById('genRoleLabel').textContent = role;
+    const seed = employees[0];
+    if(seed && !Object.values(seed.docs).some(doc => doc.generated)){
+      seed.role = role;
+      renderEmployees();
+      renderAccessList();
+    }
+  }
+
+  function formatDraft(text, desc, prefix){
+    const lines = text.split('\n');
+    let body = '<strong>' + lines[0] + '</strong>\n\n' + lines.slice(2).join('\n');
+    if(desc){
+      body += '\n\n' + prefix + desc;
+    }
+    return body;
+  }
+
+  const railNodes = document.querySelectorAll('.rail-node');
+  const panels = document.querySelectorAll('.panel');
+  const doneStates = {1:false, 2:false, 3:false, 4:false, 5:false, 6:false};
+
+  function updateProgress(){
+    const doneCount = Object.values(doneStates).filter(Boolean).length;
+    document.getElementById('progressFill').style.width = (doneCount/6*100) + '%';
+    document.getElementById('progressLabel').textContent = doneCount + ' / 6';
+  }
+
+  railNodes.forEach(node => {
+    node.addEventListener('click', () => {
+      goToStep(node.dataset.step);
+    });
+  });
+
+  function goToStep(step){
+    railNodes.forEach(n => n.classList.remove('active'));
+    document.querySelector('.rail-node[data-step="' + step + '"]').classList.add('active');
+    panels.forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + step).classList.add('active');
+  }
+
+  function setDone(step, isDone){
+    const railNode = document.querySelector('.rail-node[data-step="' + step + '"]');
+    doneStates[step] = isDone;
+    railNode.classList.toggle('done', isDone);
+    updateProgress();
+  }
+
+  function toggleAttest(input, step){
+    const wrap = document.getElementById('attest-' + step);
+    wrap.classList.toggle('checked', input.checked);
+    setDone(step, input.checked);
+    if(step === 1){
+      document.getElementById('planContinueRow').style.display = input.checked ? 'flex' : 'none';
+      if(input.checked) syncPlanRolesToFindCandidates();
+    }
+  }
+
+  /* ---------- Plan your hiring (Step 1) ---------- */
+  const BOTTLENECK_OPTIONS = [
+    {
+      key: 'build', label: "We can't build fast enough",
+      role: 'Founding Engineer', dept: 'Engineering', reportsTo: 'CTO (Founder)',
+      goal: 'Ship the product roadmap on schedule',
+      reason: "Product delivery is the constraint right now — until you can ship faster, sales and marketing hires won't have anything new to sell.",
+      urgency: 9, impact: 9, founders: 3,
+      timing: 'Within the next 2–4 weeks', salary: '$130k–$170k', equity: '0.5–1.5%',
+      roadmapNode: 'Engineering'
+    },
+    {
+      key: 'customers', label: "We have a product but can't get customers",
+      role: 'Growth Marketer', dept: 'Marketing', reportsTo: 'CEO (Founder)',
+      goal: 'Acquire first 1,000 users',
+      reason: "You have something to sell but no reliable acquisition engine — this is a distribution problem, not a product problem.",
+      urgency: 8, impact: 8, founders: 4,
+      timing: 'Within the next 30 days', salary: '$90k–$120k', equity: '0.25–0.75%',
+      roadmapNode: 'Marketing'
+    },
+    {
+      key: 'churn', label: 'Customers are leaving',
+      role: 'Customer Success Manager', dept: 'Customer Success', reportsTo: 'CEO (Founder)',
+      goal: 'Reduce monthly churn',
+      reason: "Retention problems compound — every dollar spent acquiring customers now leaks back out. Fix the leak before pouring in more.",
+      urgency: 9, impact: 8, founders: 5,
+      timing: 'Within the next 2–3 weeks', salary: '$75k–$100k', equity: '0.1–0.4%',
+      roadmapNode: 'Product'
+    },
+    {
+      key: 'overwhelmed', label: 'Founders are overwhelmed',
+      role: 'Operations Manager / Chief of Staff', dept: 'Operations', reportsTo: 'CEO (Founder)',
+      goal: 'Absorb day-to-day operational load',
+      reason: "When founders are buried in execution, high-leverage work like fundraising and strategy stalls. You need someone absorbing operational load.",
+      urgency: 7, impact: 7, founders: 2,
+      timing: 'Within the next 4–6 weeks', salary: '$85k–$115k', equity: '0.2–0.6%',
+      roadmapNode: 'Operations'
+    },
+    {
+      key: 'support', label: 'Too much support work',
+      role: 'Support Specialist', dept: 'Customer Success', reportsTo: 'Head of Product',
+      goal: 'Keep response times under 24 hours',
+      reason: "Support volume is a signal of real adoption — good news — but it's pulling engineering or founder time away from building.",
+      urgency: 6, impact: 6, founders: 6,
+      timing: 'Within the next 4–8 weeks', salary: '$45k–$65k', equity: '0–0.15%',
+      roadmapNode: 'Product'
+    },
+    {
+      key: 'raising', label: "We're raising money",
+      role: 'Fractional CFO (contractor)', dept: 'Finance', reportsTo: 'CEO (Founder)',
+      goal: 'Build the financial model and data room',
+      reason: "Fundraising is a founder-led motion — a full-time hire can wait. A fractional finance hire can build the model and data room so you're not doing it solo.",
+      urgency: 5, impact: 6, founders: 7,
+      timing: 'Consider a contractor now; delay full-time hiring until after the round closes',
+      salary: '$150–$250/hr (contract)', equity: 'None (contractor)',
+      roadmapNode: 'Operations'
+    },
+    { key: 'other', label: 'Something else', other: true }
+  ];
+
+  const ROADMAP_NODES = ['Founder', 'Engineering', 'Product', 'Sales', 'Marketing', 'Operations', 'HR'];
+  const NODE_KEYWORDS = {
+    Engineering: ['engineer', 'developer', 'cto', 'technical'],
+    Product: ['product', 'design'],
+    Sales: ['sales', 'account exec', 'business development', 'bdr'],
+    Marketing: ['marketing', 'growth'],
+    Operations: ['operation', 'chief of staff', 'ops', 'finance', 'cfo'],
+    HR: ['hr', 'people', 'recruit', 'human resources']
+  };
+  let selectedBottleneck = null;
+  let selectedRoadmapNode = null;
+
+  function getHiredNodes(){
+    const hired = new Set();
+    Object.values(matrixRoleData).forEach(r => {
+      const text = ((r.title || '') + ' ' + (r.dept || '')).toLowerCase();
+      if(!text.trim()) return;
+      Object.keys(NODE_KEYWORDS).forEach(node => {
+        if(NODE_KEYWORDS[node].some(kw => text.includes(kw))) hired.add(node);
+      });
+    });
+    return hired;
+  }
+
+  function getRecommendedNode(){
+    const hired = getHiredNodes();
+    return ROADMAP_NODES.find((node, i) => i > 0 && !hired.has(node)) || null;
+  }
+
+  function renderBottleneckOptions(){
+    const wrap = document.getElementById('bottleneckOptions');
+    wrap.innerHTML = BOTTLENECK_OPTIONS.map(opt =>
+      '<div class="bottleneck-option" id="bnOpt-' + opt.key + '" onclick="selectBottleneck(\'' + opt.key + '\')">' +
+        '<span class="opt-dot"></span><span>' + escapeHtml(opt.label) + '</span>' +
+      '</div>'
+    ).join('');
+  }
+
+  function selectBottleneck(key){
+    selectedBottleneck = key;
+    document.querySelectorAll('.bottleneck-option').forEach(el => el.classList.remove('selected'));
+    document.getElementById('bnOpt-' + key).classList.add('selected');
+
+    const opt = BOTTLENECK_OPTIONS.find(o => o.key === key);
+    const otherWrap = document.getElementById('somethingElseWrap');
+
+    if(opt.other){
+      otherWrap.style.display = 'block';
+      hideAiRec();
+      selectedRoadmapNode = null;
+      renderRoadmap();
+      return;
+    }
+    otherWrap.style.display = 'none';
+    showAiRec(opt);
+    selectedRoadmapNode = opt.roadmapNode;
+    renderRoadmap();
+  }
+
+  function onOtherBottleneckInput(){
+    const text = document.getElementById('planBottleneckOther').value.trim();
+    if(!text){ hideAiRec(); return; }
+    showAiRec({
+      role: '', reason: "You've described a bottleneck outside our common patterns — set the role yourself below, or add it straight to your hiring plan once you've named it.",
+      urgency: 5, impact: 5, founders: 5,
+      timing: 'Depends on the role — set a target once you name it', salary: 'Varies by role', equity: 'Varies by role',
+      dept: '', reportsTo: 'CEO (Founder)', goal: text
+    });
+    selectedRoadmapNode = null;
+    renderRoadmap();
+  }
+
+  let currentAiRec = null;
+
+  function showAiRec(opt){
+    currentAiRec = opt;
+    const card = document.getElementById('aiRecCard');
+    card.style.display = 'block';
+    document.getElementById('aiRecRoleInput').value = opt.role;
+    document.getElementById('aiRecReason').textContent = opt.reason;
+    document.getElementById('aiRecTiming').textContent = opt.timing;
+    document.getElementById('aiRecSalary').textContent = opt.salary;
+    document.getElementById('aiRecEquity').textContent = opt.equity;
+    document.getElementById('aiRecAddedConfirm').textContent = '';
+    setScoreBar('scoreUrgencyFill', 'scoreUrgencyVal', opt.urgency);
+    setScoreBar('scoreImpactFill', 'scoreImpactVal', opt.impact);
+    setScoreBar('scoreFoundersFill', 'scoreFoundersVal', opt.founders);
+  }
+
+  function hideAiRec(){
+    currentAiRec = null;
+    document.getElementById('aiRecCard').style.display = 'none';
+  }
+
+  function setScoreBar(fillId, valId, score){
+    document.getElementById(fillId).style.width = (score * 10) + '%';
+    document.getElementById(valId).textContent = score + '/10';
+  }
+
+  function onAiRecRoleEdit(){
+    if(currentAiRec) currentAiRec.role = document.getElementById('aiRecRoleInput').value;
+  }
+
+  function addAiRecToMatrix(){
+    if(!currentAiRec) return;
+    const priority = currentAiRec.urgency >= 8 ? 'High' : (currentAiRec.urgency >= 5 ? 'Med' : 'Low');
+    addMatrixRole({
+      title: document.getElementById('aiRecRoleInput').value || currentAiRec.role,
+      dept: currentAiRec.dept || '',
+      reportsTo: currentAiRec.reportsTo || 'CEO (Founder)',
+      goal: currentAiRec.goal || '',
+      priority: priority,
+      budget: currentAiRec.salary || '',
+      whyNotFounders: '', hoursLost: '', revenueUnlocked: '',
+      hireType: 'Employee', fullTime: 'Yes', remote: 'Remote', startDate: ''
+    });
+    document.getElementById('aiRecAddedConfirm').textContent = 'Added to your hiring plan below.';
+  }
+
+  function renderRoadmap(){
+    const wrap = document.getElementById('roadmapFlow');
+    const recommendedNode = getRecommendedNode();
+    wrap.innerHTML = ROADMAP_NODES.map((node, i) => {
+      const isCurrent = node === 'Founder';
+      const isRecommended = node === recommendedNode;
+      const isSelected = node === selectedRoadmapNode && !isCurrent;
+      let cls = 'roadmap-node';
+      if(isCurrent) cls += ' current';
+      if(isRecommended) cls += ' recommended';
+      if(isSelected) cls += ' selected';
+      const tags = [];
+      if(isCurrent) tags.push('<span class="roadmap-node-tag">You are here</span>');
+      if(isRecommended) tags.push('<span class="roadmap-node-tag">Recommended next</span>');
+      if(isSelected) tags.push('<span class="roadmap-node-tag tag-amber">You selected</span>');
+      const tagWrap = tags.length ? '<span class="roadmap-node-tags">' + tags.join('') + '</span>' : '';
+      const connector = i > 0 ? '<div class="roadmap-connector"></div>' : '';
+      return connector + '<div class="' + cls + '"><span class="rn-dot"></span><span>' + node + '</span>' + tagWrap + '</div>';
+    }).join('');
+  }
+
+  let matrixRoleCount = 0;
+  const matrixRoleData = {};
+
+  function addMatrixRole(prefill){
+    matrixRoleCount++;
+    const id = matrixRoleCount;
+    matrixRoleData[id] = Object.assign({
+      title:'', dept:'', reportsTo:'', goal:'', priority:'High', budget:'',
+      whyNotFounders:'', hoursLost:'', revenueUnlocked:'',
+      hireType:'Employee', fullTime:'Yes', remote:'Remote', startDate:''
+    }, prefill || {});
+    renderMatrixRoleList();
+  }
+
+  function removeMatrixRole(id){
+    delete matrixRoleData[id];
+    renderMatrixRoleList();
+  }
+
+  function updateMatrixField(id, field, value){
+    if(matrixRoleData[id]){
+      matrixRoleData[id][field] = value;
+      if(field === 'title' || field === 'priority' || field === 'budget') renderMatrixRoleList();
+    }
+  }
+
+  function renderMatrixRoleList(){
+    const list = document.getElementById('matrixRoleList');
+    const ids = Object.keys(matrixRoleData);
+    const confirmRow = document.getElementById('matrixConfirmRow');
+    renderRoadmap();
+    if(ids.length === 0){
+      list.innerHTML = '<p class="empty-state">Add a role above, or pull one in from the AI recommendation.</p>';
+      confirmRow.style.display = 'none';
+      updateSequenceAndCost();
+      return;
+    }
+    const hasTitledRole = ids.some(id => (matrixRoleData[id].title || '').trim());
+    confirmRow.style.display = hasTitledRole ? 'flex' : 'none';
+    list.innerHTML = ids.map(id => {
+      const r = matrixRoleData[id];
+      const title = r.title || 'Untitled role';
+      return '<div class="role-card">' +
+        '<div class="emp-card-head"><h3 style="margin:0;">' + escapeHtml(title) + '</h3>' +
+        '<button class="remove-link" onclick="removeMatrixRole(' + id + ')">Remove</button></div>' +
+        '<div class="role-card-grid">' +
+          field(id, 'title', 'Job title', r.title, 'e.g. Growth Marketer') +
+          field(id, 'dept', 'Department', r.dept, 'Marketing') +
+          field(id, 'reportsTo', 'Reports to', r.reportsTo, 'CEO (Founder)') +
+          selectField(id, 'priority', 'Priority', r.priority, ['High','Med','Low']) +
+          field(id, 'goal', 'Business goal', r.goal, 'Acquire first 1,000 users', true) +
+          textareaField(id, 'whyNotFounders', "Why can't founders keep doing this?", r.whyNotFounders) +
+          field(id, 'hoursLost', 'Hours/week lost to this', r.hoursLost, 'e.g. 15') +
+          field(id, 'revenueUnlocked', 'Revenue this unlocks', r.revenueUnlocked, 'e.g. $10k/mo') +
+          selectField(id, 'hireType', 'Hire type', r.hireType, ['Employee','Contractor']) +
+          selectField(id, 'fullTime', 'Full-time?', r.fullTime, ['Yes','No']) +
+          selectField(id, 'remote', 'Remote?', r.remote, ['Remote','Hybrid','Onsite']) +
+          field(id, 'budget', 'Budget range', r.budget, '$70k - $80k') +
+          field(id, 'startDate', 'Target start date', r.startDate, 'e.g. Sep 2026') +
+        '</div>' +
+      '</div>';
+    }).join('');
+    updateSequenceAndCost();
+
+    function field(id, key, label, val, placeholder, full){
+      return '<div' + (full ? ' class="full"' : '') + '><label>' + label + '</label>' +
+        '<input type="text" class="text-input" value="' + escapeHtml(val) + '" placeholder="' + placeholder + '" oninput="updateMatrixField(' + id + ',\'' + key + '\',this.value)"></div>';
+    }
+    function textareaField(id, key, label, val){
+      return '<div class="full"><label>' + label + '</label>' +
+        '<textarea class="role-textarea" oninput="updateMatrixField(' + id + ',\'' + key + '\',this.value)">' + escapeHtml(val) + '</textarea></div>';
+    }
+    function selectField(id, key, label, val, opts){
+      return '<div><label>' + label + '</label><select class="text-input" onchange="updateMatrixField(' + id + ',\'' + key + '\',this.value)">' +
+        opts.map(o => '<option' + (o === val ? ' selected' : '') + '>' + o + '</option>').join('') +
+        '</select></div>';
+    }
+  }
+
+  function parseBudgetMidpoint(str){
+    if(!str) return null;
+    const nums = (str.match(/[\d.]+/g) || []).map(Number);
+    if(nums.length === 0) return null;
+    const isHourly = /hr|hour/i.test(str);
+    if(isHourly) return null;
+    const mid = nums.length >= 2 ? (nums[0] + nums[1]) / 2 : nums[0];
+    return mid * 1000;
+  }
+
+  function updateSequenceAndCost(){
+    const ids = Object.keys(matrixRoleData);
+    const seqCard = document.getElementById('roadmapSummaryCard');
+    const costCard = document.getElementById('costCard');
+
+    if(ids.length === 0){
+      seqCard.style.display = 'none';
+      costCard.style.display = 'none';
+      return;
+    }
+
+    const order = { High: 0, Med: 1, Low: 2 };
+    const sorted = ids.slice().sort((a, b) => order[matrixRoleData[a].priority] - order[matrixRoleData[b].priority]);
+
+    const timingByRank = (rank, priority) => {
+      if(rank === 0) return 'Immediately';
+      if(priority === 'High') return 'Next — as soon as budget allows';
+      if(priority === 'Med') return 'After your first hire or two is ramped (~60–90 days)';
+      return "Later — once you've hit key milestones (e.g. PMF, Series A)";
+    };
+
+    seqCard.style.display = 'block';
+    document.getElementById('hiringSequence').innerHTML = sorted.map((id, i) => {
+      const r = matrixRoleData[id];
+      return '<div class="sequence-item">' +
+        '<span class="sequence-num">' + (i + 1) + '</span>' +
+        '<div><div class="sequence-role">' + escapeHtml(r.title || 'Untitled role') + '</div>' +
+        '<div class="sequence-timing">' + timingByRank(i, r.priority) + '</div></div>' +
+      '</div>';
+    }).join('');
+
+    let total = 0;
+    let rowsHtml = '';
+    let hasEstimate = false;
+    ids.forEach(id => {
+      const r = matrixRoleData[id];
+      const mid = parseBudgetMidpoint(r.budget);
+      if(mid !== null){
+        hasEstimate = true;
+        total += mid;
+        rowsHtml += '<div class="cost-row"><span class="cost-role">' + escapeHtml(r.title || 'Untitled role') + '</span><span class="cost-amount">~$' + Math.round(mid / 1000) + 'k/yr</span></div>';
+      } else {
+        rowsHtml += '<div class="cost-row"><span class="cost-role">' + escapeHtml(r.title || 'Untitled role') + '</span><span class="cost-amount">' + (r.budget ? escapeHtml(r.budget) : 'Not set') + '</span></div>';
+      }
+    });
+
+    if(hasEstimate){
+      costCard.style.display = 'block';
+      document.getElementById('costBreakdown').innerHTML = rowsHtml;
+      document.getElementById('costTotal').innerHTML = '<span>Total payroll</span><span>$' + Math.round(total / 1000) + 'k/year</span>';
+      document.getElementById('costBurn').textContent = 'Estimated additional monthly burn: +$' + Math.round(total / 12).toLocaleString() + '/mo';
+    } else {
+      costCard.style.display = 'none';
+    }
+  }
+
+  function confirmMatrixRoles(){
+    syncPlanRolesToFindCandidates();
+
+    const attestBox = document.querySelector('#attest-1 input[type=checkbox]');
+    if(attestBox && !attestBox.checked){
+      attestBox.checked = true;
+      toggleAttest(attestBox, 1);
+    }
+
+    const titles = Object.values(matrixRoleData).map(r => (r.title || '').trim()).filter(Boolean);
+    const uniqueTitles = [...new Set(titles)];
+    const msg = document.getElementById('matrixConfirmMsg');
+    msg.textContent = uniqueTitles.length > 1
+      ? uniqueTitles.length + ' roles sent to Find candidates.'
+      : 'Sent to Find candidates.';
+  }
+
+  function syncPlanRolesToFindCandidates(){
+    const titles = Object.values(matrixRoleData).map(r => (r.title || '').trim()).filter(Boolean);
+    const uniqueTitles = [...new Set(titles)];
+    if(uniqueTitles.length === 0) return;
+
+    const select = document.getElementById('roleSelect');
+    const customOption = select.querySelector('option[value="custom"]');
+    let addedCount = 0;
+
+    uniqueTitles.forEach(title => {
+      const exists = Array.from(select.options).some(o => o.value.toLowerCase() === title.toLowerCase());
+      if(!exists){
+        const opt = document.createElement('option');
+        opt.value = title;
+        opt.textContent = title + ' — from your plan';
+        opt.dataset.fromPlan = 'true';
+        select.insertBefore(opt, customOption);
+        addedCount++;
+      }
+    });
+
+    select.value = uniqueTitles[0];
+    onRoleChange();
+
+    const banner = document.getElementById('planSyncBanner');
+    const roleList = uniqueTitles.length > 1
+      ? uniqueTitles.slice(0, -1).join(', ') + ' and ' + uniqueTitles[uniqueTitles.length - 1]
+      : uniqueTitles[0];
+    banner.innerHTML = '<b>Pulled from your hiring plan —</b> ' + roleList + (uniqueTitles.length > 1 ? ' are' : ' is') + ' now in the dropdown below. Switch between them any time.';
+    banner.style.display = 'block';
+
+    document.getElementById('planLinkedConfirm').textContent = addedCount > 0
+      ? 'Sent ' + uniqueTitles.length + (uniqueTitles.length > 1 ? ' roles' : ' role') + ' to Find candidates.'
+      : 'Your plan roles are already in Find candidates.';
+  }
+
+  /* ---------- Employee onboarding (Step 4) ---------- */
+  const DOC_TYPES = [
+    { key: 'piia', abbr: 'PIIA', label: 'Proprietary Information & Inventions Agreement', gen: piiaText },
+    { key: 'nda', abbr: 'NDA', label: 'Non-Disclosure Agreement', gen: ndaText },
+    { key: 'ipa', abbr: 'IPA', label: 'Intellectual Property Assignment Agreement', gen: ipaText },
+    { key: 'atwill', abbr: 'At-Will Agreement', label: 'At-Will Employment Agreement', gen: atWillText },
+    { key: 'handbook', abbr: 'Handbook Acknowledgment', label: 'Employee Handbook Acknowledgment', gen: handbookText },
+    { key: 'arbitration', abbr: 'Arbitration Agreement', label: 'Mutual Arbitration Agreement', gen: arbitrationText }
+  ];
+
+  function makeDocState(){
+    return { generated: false, docText: '', status: 'wait', deliveryMode: null, reminderHours: 48, sentConfirm: '', uploadedFile: '' };
+  }
+  function makeDocsBundle(){
+    const bundle = {};
+    DOC_TYPES.forEach(t => bundle[t.key] = makeDocState());
+    return bundle;
+  }
+  function getDoc(empId, docKey){
+    const emp = employees.find(e => e.id === empId);
+    return emp ? emp.docs[docKey] : null;
+  }
+  function docType(docKey){
+    return DOC_TYPES.find(t => t.key === docKey);
+  }
+
+  let employees = [
+    { id: 1, name: 'Dana Kim', role: 'Founding Engineer', email: 'dana.kim@example.com', startDate: 'Aug 12, 2025', docs: makeDocsBundle(), onboardingLink: 'https://startupkit.app/onboard/loopwell/dana-kim-001', onboardingSent: true, onboardingComplete: false, onboardingConfirm: 'Onboarding link sent to dana.kim@example.com.', payrollPacket: null, tier: 'Module Access', accessGranted: false, accessConfirm: '' },
+    { id: 2, name: 'Marcus Reid', role: 'Product Designer', email: 'marcus@email.com', startDate: 'Sep 1, 2025', docs: makeDocsBundle(), onboardingLink: '', onboardingSent: false, onboardingComplete: false, onboardingConfirm: '', payrollPacket: null, tier: 'Module Access', accessGranted: false, accessConfirm: '' },
+    { id: 3, name: 'Sofia Lena', role: 'Growth Marketer', email: 'sofia.lena@example.com', startDate: 'Sep 15, 2025', docs: makeDocsBundle(), onboardingLink: 'https://startupkit.app/onboard/loopwell/sofia-lena-003', onboardingSent: true, onboardingComplete: true, onboardingConfirm: 'Sofia Lena submitted their onboarding packet.', payrollPacket: { workState: 'New York', taxForm: 'W-4 complete', i9: 'I-9 basics complete', bank: 'Mercury checking ending 0914', deposit: 'Direct deposit authorized' }, tier: 'Module Access', accessGranted: false, accessConfirm: '' }
+  ];
+  let nextEmpId = 4;
+  let selectedOnboardingEmpId = 2;
+  let onboardingView = 'founder';
+  let onboardingSendMode = 'email';
+
+  function escapeHtml(str){
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function piiaText(name, role){
+    return "PROPRIETARY INFORMATION AND INVENTIONS AGREEMENT\n\nLoopwell, Inc. (the \u201CCompany\u201D)\n\nThis Agreement is entered into by and between the Company and " + name + " (\u201CEmployee\u201D), in connection with Employee\u2019s role as " + role + ".\n\nIn consideration of my employment, I agree to hold all Company confidential and proprietary information in strict confidence, and I agree that all inventions, discoveries, and work product I create during my employment relating to the Company\u2019s business are the sole property of the Company.\n\nThis Agreement does not alter the at-will nature of my employment and remains in effect after my employment ends.\n\nPlease sign below to accept this agreement.\n\n_________________________\n" + name + "                          Date";
+  }
+
+  function atWillText(name, role){
+    return "AT-WILL EMPLOYMENT AGREEMENT\n\nLoopwell, Inc. (the \u201CCompany\u201D)\n\nThis confirms that " + name + "\u2019s employment with the Company as " + role + " is at-will, meaning either " + name + " or the Company may terminate the employment relationship at any time, with or without cause or advance notice.\n\nNothing in this Agreement, or in any Company policy or handbook, alters this at-will relationship or creates a contract of employment for any specific term.\n\nPlease sign below to acknowledge.\n\n_________________________\n" + name + "                          Date";
+  }
+
+  function handbookText(name, role){
+    return "EMPLOYEE HANDBOOK ACKNOWLEDGMENT\n\nLoopwell, Inc. (the \u201CCompany\u201D)\n\nI, " + name + ", acknowledge that I have received and reviewed the Company\u2019s Employee Handbook, and understand it sets out the Company\u2019s policies and expectations that I am responsible for following in my role as " + role + ".\n\nI understand the Handbook is not a contract of employment and that the Company may revise it at any time.\n\nPlease sign below to acknowledge.\n\n_________________________\n" + name + "                          Date";
+  }
+
+  function arbitrationText(name, role){
+    return "MUTUAL ARBITRATION AGREEMENT\n\nLoopwell, Inc. (the \u201CCompany\u201D)\n\n" + name + " and the Company agree that any dispute arising out of or relating to " + name + "\u2019s employment as " + role + ", including its termination, will be resolved through final and binding arbitration rather than in court, except where prohibited by law.\n\nBoth parties waive the right to a jury trial and to bring or participate in a class or collective action, to the extent permitted by law.\n\nPlease sign below to accept this agreement.\n\n_________________________\n" + name + "                          Date";
+  }
+
+  function ndaText(name, role){
+    return "NON-DISCLOSURE AGREEMENT\n\nLoopwell, Inc. (the \u201CCompany\u201D)\n\n" + name + ", in connection with " + name + "\u2019s role as " + role + ", agrees to keep confidential all non-public information belonging to the Company \u2014 including business plans, customer data, financials, and product roadmaps \u2014 both during and after employment.\n\n" + name + " agrees not to disclose or use this confidential information for any purpose outside the scope of employment with the Company.\n\nPlease sign below to accept this agreement.\n\n_________________________\n" + name + "                          Date";
+  }
+
+  function ipaText(name, role){
+    return "INTELLECTUAL PROPERTY ASSIGNMENT AGREEMENT\n\nLoopwell, Inc. (the \u201CCompany\u201D)\n\nIn connection with " + name + "\u2019s role as " + role + ", " + name + " hereby assigns to the Company all right, title, and interest in any inventions, works of authorship, and other intellectual property " + name + " creates during employment that relate to the Company\u2019s business or are created using Company resources.\n\nThis assignment applies to intellectual property created during the term of employment and does not extend to inventions developed entirely on " + name + "\u2019s own time without use of Company resources, except as required by applicable law.\n\nPlease sign below to accept this agreement.\n\n_________________________\n" + name + "                          Date";
+  }
+
+  function directDepositText(name, role){
+    return "DIRECT DEPOSIT AUTHORIZATION FORM\n\nLoopwell, Inc. (the \u201CCompany\u201D)\n\nI, " + name + ", authorize Loopwell, Inc. to deposit my net pay directly into the bank account(s) I provide below, and to make adjustments for any deposits made in error.\n\nBank name: [Add bank name]\nRouting number: [Add routing number]\nAccount number: [Add account number]\nAccount type: [Checking / Savings]\n\nThis authorization remains in effect until I submit a written request to change or cancel it.\n\n_________________________\n" + name + "                          Date";
+  }
+
+  function onNewEmpRoleChange(){
+    const select = document.getElementById('newEmpRole');
+    const customInput = document.getElementById('newEmpCustomRole');
+    customInput.classList.toggle('shown', select.value === 'custom');
+    if(select.value === 'custom') customInput.focus();
+  }
+
+  function addEmployee(){
+    const nameInput = document.getElementById('newEmpName');
+    const emailInput = document.getElementById('newEmpEmail');
+    const select = document.getElementById('newEmpRole');
+    const customInput = document.getElementById('newEmpCustomRole');
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
+    const role = select.value === 'custom' ? (customInput.value.trim() || 'this role') : select.value;
+    const hint = document.getElementById('addEmpHint');
+
+    if(!name){
+      hint.textContent = 'Add the employee\u2019s name before continuing.';
+      hint.style.color = '#B8433A';
+      nameInput.focus();
+      return;
+    }
+
+    const newId = nextEmpId++;
+    employees.push({ id: newId, name: name, role: role, email: email, startDate: 'Add start date', docs: makeDocsBundle(), onboardingLink: '', onboardingSent: false, onboardingComplete: false, onboardingConfirm: '', payrollPacket: null, tier: 'Module Access', accessGranted: false, accessConfirm: '' });
+    selectedOnboardingEmpId = newId;
+    onboardingView = 'founder';
+
+    nameInput.value = '';
+    emailInput.value = '';
+    select.value = 'Founding Engineer';
+    customInput.value = '';
+    customInput.classList.remove('shown');
+    hint.textContent = name + ' added — generate their legal documents below.';
+    hint.style.color = '';
+    renderEmployees();
+    renderAccessList();
+    renderPayrollPackets();
+    checkStep3Done();
+    checkStep5Done();
+  }
+
+  function removeEmployee(id){
+    employees = employees.filter(e => e.id !== id);
+    renderEmployees();
+    checkStep3Done();
+    renderAccessList();
+    renderPayrollPackets();
+    checkStep5Done();
+  }
+
+  function onboardingUrl(emp){
+    const slug = emp.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'employee';
+    return 'https://startupkit.app/onboard/loopwell/' + slug + '-' + String(emp.id).padStart(3, '0');
+  }
+
+  function generateOnboardingLink(empId){
+    const emp = employees.find(e => e.id === empId);
+    if(!emp) return;
+    emp.onboardingLink = onboardingUrl(emp);
+    emp.onboardingSent = false;
+    emp.onboardingConfirm = 'Personalized onboarding link generated for ' + emp.name + '.';
+    renderEmployees();
+    renderPayrollPackets();
+  }
+
+  function sendOnboardingLink(empId){
+    const emp = employees.find(e => e.id === empId);
+    if(!emp) return;
+    if(!emp.onboardingLink) emp.onboardingLink = onboardingUrl(emp);
+    if(!emp.email){
+      emp.onboardingConfirm = 'Add an employee email before sending the onboarding link.';
+    } else {
+      emp.onboardingSent = true;
+      emp.onboardingConfirm = 'Sent onboarding link to ' + emp.email + '. They can enter tax elections and bank details directly.';
+    }
+    renderEmployees();
+    renderPayrollPackets();
+  }
+
+  function simulateOnboardingSubmit(empId){
+    const emp = employees.find(e => e.id === empId);
+    if(!emp) return;
+    if(!emp.onboardingLink) emp.onboardingLink = onboardingUrl(emp);
+    emp.onboardingComplete = true;
+    emp.payrollPacket = {
+      workState: 'California',
+      taxForm: 'W-4 complete',
+      i9: 'I-9 basics complete',
+      bank: 'Chase checking ending 4821',
+      deposit: 'Direct deposit authorized'
+    };
+    emp.onboardingConfirm = emp.name + ' submitted their onboarding packet. Payroll setup now has their W-4, I-9 basics, work state, and direct deposit details.';
+    renderEmployees();
+    renderPayrollPackets();
+    checkStep3Done();
+  }
+
+  function updateEmpEmail(empId){
+    const emp = employees.find(e => e.id === empId);
+    const input = document.getElementById('empEmail-' + empId);
+    if(emp && input) emp.email = input.value.trim();
+    renderAccessList();
+    renderPayrollPackets();
+  }
+
+  function generateDoc(empId, docKey){
+    const emp = employees.find(e => e.id === empId);
+    const doc = getDoc(empId, docKey);
+    const type = docType(docKey);
+    if(!emp || !doc || !type) return;
+    doc.docText = type.gen(emp.name, emp.role);
+    doc.generated = true;
+    renderEmployees();
+  }
+
+  function onDocEdit(empId, docKey){
+    const doc = getDoc(empId, docKey);
+    const el = document.getElementById('docBox-' + empId + '-' + docKey);
+    if(doc && el) doc.docText = el.innerText;
+  }
+
+  function downloadDoc(empId, docKey){
+    const emp = employees.find(e => e.id === empId);
+    const doc = getDoc(empId, docKey);
+    if(!emp || !doc) return;
+    const el = document.getElementById('docBox-' + empId + '-' + docKey);
+    const text = el ? el.innerText : doc.docText;
+    const blob = new Blob([text], {type: 'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = emp.name.trim().replace(/\s+/g, '-').toLowerCase() + '-' + docKey + '.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function chooseDeliveryMode(empId, docKey, mode){
+    const doc = getDoc(empId, docKey);
+    if(!doc) return;
+    doc.deliveryMode = mode;
+    doc.sentConfirm = '';
+    renderEmployees();
+  }
+
+  function resetDeliveryMode(empId, docKey){
+    const doc = getDoc(empId, docKey);
+    if(!doc) return;
+    doc.deliveryMode = null;
+    doc.sentConfirm = '';
+    renderEmployees();
+  }
+
+  function selectReminder(empId, docKey, hours){
+    const doc = getDoc(empId, docKey);
+    if(!doc) return;
+    doc.reminderHours = hours;
+    renderEmployees();
+  }
+
+  function markManualSent(empId, docKey){
+    const emp = employees.find(e => e.id === empId);
+    const doc = getDoc(empId, docKey);
+    const type = docType(docKey);
+    if(!emp || !doc || !type) return;
+    doc.sentConfirm = doc.reminderHours === 0
+      ? 'Marked as sent \u2014 you told us you sent the ' + type.abbr + ' to ' + emp.name + ' yourself.'
+      : 'Marked as sent \u2014 we\u2019ll remind you to check back after ' + doc.reminderHours + ' hours if it\u2019s still unsigned.';
+    renderEmployees();
+  }
+
+  function setDocReminder(empId, docKey){
+    const emp = employees.find(e => e.id === empId);
+    const doc = getDoc(empId, docKey);
+    const type = docType(docKey);
+    if(!emp || !doc || !type) return;
+    doc.sentConfirm = doc.reminderHours === 0
+      ? 'No reminder set for the ' + type.abbr + '. This document is handled through the onboarding link.'
+      : 'Reminder set for the ' + type.abbr + ' — we’ll check back after ' + doc.reminderHours + ' hours if it’s still unsigned. No separate document email will be sent.';
+    renderEmployees();
+  }
+
+  function markDocSigned(empId, docKey){
+    const doc = getDoc(empId, docKey);
+    if(!doc) return;
+    doc.status = 'signed';
+    renderEmployees();
+    checkStep3Done();
+  }
+
+  function uploadSignedDoc(empId, docKey, input){
+    const doc = getDoc(empId, docKey);
+    const type = docType(docKey);
+    if(!doc || !type || !input.files || !input.files.length) return;
+    doc.uploadedFile = input.files[0].name;
+    doc.status = 'signed';
+    doc.sentConfirm = 'Uploaded signed ' + type.abbr + ': ' + doc.uploadedFile + '.';
+    renderEmployees();
+    checkStep3Done();
+  }
+
+  function checkStep3Done(){
+    const allSigned = employees.length > 0 && employees.every(emp => DOC_TYPES.every(t => emp.docs[t.key].status === 'signed'));
+    const allOnboarded = employees.length > 0 && employees.every(emp => emp.onboardingComplete);
+    setDone(4, allSigned && allOnboarded);
+  }
+
+  function selectedOnboardingEmployee(){
+    return employees.find(e => e.id === selectedOnboardingEmpId) || employees[0];
+  }
+
+  function onboardingStatus(emp){
+    if(emp.onboardingComplete) return { label: 'Complete', cls: 'status-pill' };
+    if(emp.onboardingSent) return { label: 'Link sent', cls: 'status-pill wait' };
+    return { label: 'Not sent', cls: 'status-pill wait' };
+  }
+
+  function selectOnboardingEmployee(id){
+    selectedOnboardingEmpId = id;
+    onboardingView = 'founder';
+    renderEmployees();
+  }
+
+  function setOnboardingView(view){
+    onboardingView = view;
+    renderEmployees();
+  }
+
+  function setOnboardingSendMode(mode){
+    onboardingSendMode = mode;
+    renderEmployees();
+  }
+
+  function copyOnboardingLink(empId){
+    const emp = employees.find(e => e.id === empId);
+    if(!emp) return;
+    if(!emp.onboardingLink) emp.onboardingLink = onboardingUrl(emp);
+    if(navigator.clipboard) navigator.clipboard.writeText(emp.onboardingLink).catch(() => {});
+    emp.onboardingConfirm = 'Copied onboarding link. Send it however you like.';
+    renderEmployees();
+    renderPayrollPackets();
+  }
+
+  function previewEmployeeOnboarding(empId){
+    selectedOnboardingEmpId = empId;
+    onboardingView = 'employee';
+    renderEmployees();
+  }
+
+  function renderEmployees(){
+    const container = document.getElementById('employeeList');
+    if(!container) return;
+
+    if(employees.length === 0){
+      container.innerHTML = '<p class="empty-state">No employees added yet — add one above to generate their required legal documents.</p>';
+      return;
+    }
+
+    const selectedEmp = selectedOnboardingEmployee();
+    selectedOnboardingEmpId = selectedEmp.id;
+    const selectedName = escapeHtml(selectedEmp.name);
+    const selectedRole = escapeHtml(selectedEmp.role);
+    const selectedInitials = escapeHtml(avatarInitials(selectedEmp.name));
+    if(!selectedEmp.onboardingLink) selectedEmp.onboardingLink = onboardingUrl(selectedEmp);
+    const selectedLink = escapeHtml(selectedEmp.onboardingLink);
+
+    const hireRows = employees.map(emp => {
+      const status = onboardingStatus(emp);
+      const name = escapeHtml(emp.name);
+      const role = escapeHtml(emp.role);
+      const initials = escapeHtml(avatarInitials(emp.name));
+      const startDate = escapeHtml(emp.startDate || 'Add start date');
+      return '<div class="hire-row' + (emp.id === selectedEmp.id ? ' selected' : '') + '" onclick="selectOnboardingEmployee(' + emp.id + ')">' +
+        '<div class="hire-row-main"><span class="avatar">' + initials + '</span><div><div class="hire-name">' + name + '</div><div class="hire-meta">' + role + ' · Start date: ' + startDate + '</div></div></div>' +
+        '<span class="' + status.cls + '">' + status.label + '</span>' +
+      '</div>';
+    }).join('');
+
+    const consoleHtml = '<div class="view-toggle">' +
+      '<button class="view-btn' + (onboardingView === 'founder' ? ' active' : '') + '" onclick="setOnboardingView(\'founder\')">Founder view</button>' +
+      '<button class="view-btn' + (onboardingView === 'employee' ? ' active' : '') + '" onclick="setOnboardingView(\'employee\')">Employee view</button>' +
+    '</div>' +
+    (onboardingView === 'founder'
+      ? '<div class="onboarding-console">' +
+          '<div class="card"><h3>Pending onboarding</h3><div class="hire-list">' + hireRows + '</div></div>' +
+          '<div class="card"><h3>Send onboarding link - ' + selectedName + '</h3>' +
+            '<p class="field-hint" style="margin:0 0 14px;">' + selectedName + ' fills in their own information - address, bank details, W-4 elections, and emergency contact. You do not relay anything manually.</p>' +
+            '<div class="link-box"><span class="link-url">' + selectedLink + '</span><button class="ghost-btn" onclick="copyOnboardingLink(' + selectedEmp.id + ')">Copy</button></div>' +
+            '<p class="field-hint">Link expires in 7 days and works only for ' + selectedName + '. Pre-filled with role, start date, and equity from your cap table.</p>' +
+            '<h4 class="reminder-subhead">Send via</h4>' +
+            '<div class="send-choice">' +
+              '<div class="send-choice-card' + (onboardingSendMode === 'email' ? ' selected' : '') + '" onclick="setOnboardingSendMode(\'email\')"><div class="delivery-name">Email automatically</div><div class="delivery-desc">We send it to ' + escapeHtml(selectedEmp.email || 'their email') + ' with your company name in the subject.</div></div>' +
+              '<div class="send-choice-card' + (onboardingSendMode === 'copy' ? ' selected' : '') + '" onclick="setOnboardingSendMode(\'copy\')"><div class="delivery-name">Copy link myself</div><div class="delivery-desc">Send it however you like - Slack, text, email - you control the message.</div></div>' +
+            '</div>' +
+            '<div class="offer-actions"><button class="ghost-btn send-btn" onclick="sendOnboardingLink(' + selectedEmp.id + ')">Send onboarding link</button><button class="ghost-btn" onclick="previewEmployeeOnboarding(' + selectedEmp.id + ')">Preview what ' + selectedName + ' sees</button></div>' +
+            (selectedEmp.onboardingConfirm ? '<p class="send-confirm">' + escapeHtml(selectedEmp.onboardingConfirm) + '</p>' : '') +
+          '</div>' +
+        '</div>'
+      : '<div class="card"><h3>Employee preview</h3><div class="employee-preview">' +
+          '<div class="preview-head"><span class="avatar">' + selectedInitials + '</span><div><div class="preview-title">Welcome, ' + selectedName + '</div><div class="preview-sub">' + selectedRole + ' · Loopwell onboarding</div></div></div>' +
+          '<div class="onboarding-grid">' +
+            '<div class="mini-field"><span class="mini-label">Home address</span><span class="mini-value">Required</span></div>' +
+            '<div class="mini-field"><span class="mini-label">W-4 elections</span><span class="mini-value">Federal withholding</span></div>' +
+            '<div class="mini-field"><span class="mini-label">Bank details</span><span class="mini-value">Direct deposit</span></div>' +
+            '<div class="mini-field"><span class="mini-label">Emergency contact</span><span class="mini-value">Required</span></div>' +
+          '</div>' +
+          '<div class="offer-actions" style="margin-top:16px;"><button class="ghost-btn send-btn" onclick="simulateOnboardingSubmit(' + selectedEmp.id + ')">Submit onboarding packet</button><button class="ghost-btn" onclick="setOnboardingView(\'founder\')">Back to founder view</button></div>' +
+        '</div></div>');
+
+    container.innerHTML = consoleHtml + employees.filter(emp => emp.id === selectedEmp.id).map(emp => {
+      const name = escapeHtml(emp.name);
+      const role = escapeHtml(emp.role);
+      const emailVal = escapeHtml(emp.email || '');
+
+      const onboardingStatus = emp.onboardingComplete ? 'Completed' : (emp.onboardingSent ? 'Sent' : (emp.onboardingLink ? 'Ready to send' : 'Not generated'));
+      const onboardingStatusClass = emp.onboardingComplete ? 'status-pill' : 'status-pill wait';
+      const link = emp.onboardingLink || onboardingUrl(emp);
+      let onboardingHtml = '<div class="doc-block doc-block-first">' +
+        '<div class="row"><span class="row-label">Employee self-onboarding link</span><span class="' + onboardingStatusClass + '">' + onboardingStatus + '</span></div>' +
+        '<p class="field-hint" style="margin:0 0 10px;">Send one link to ' + name + '. They enter W-4 elections, I-9 basics, work state, and direct deposit details themselves.</p>';
+      if(emp.onboardingLink){
+        onboardingHtml += '<div class="link-box"><span class="link-url">' + escapeHtml(link) + '</span><button class="ghost-btn" onclick="sendOnboardingLink(' + emp.id + ')">' + (emp.onboardingSent ? 'Resend link' : 'Send link') + '</button></div>';
+      } else {
+        onboardingHtml += '<button class="ghost-btn" onclick="generateOnboardingLink(' + emp.id + ')">Generate onboarding link</button>';
+      }
+      if(emp.onboardingLink && !emp.onboardingComplete){
+        onboardingHtml += '<div class="offer-actions" style="margin-top:12px;"><button class="ghost-btn send-btn" onclick="simulateOnboardingSubmit(' + emp.id + ')">Preview employee submission</button></div>';
+      }
+      if(emp.payrollPacket){
+        onboardingHtml += '<div class="onboarding-grid">' +
+          '<div class="mini-field"><span class="mini-label">Work state</span><span class="mini-value">' + emp.payrollPacket.workState + '</span></div>' +
+          '<div class="mini-field"><span class="mini-label">Tax elections</span><span class="mini-value">' + emp.payrollPacket.taxForm + '</span></div>' +
+          '<div class="mini-field"><span class="mini-label">Employment eligibility</span><span class="mini-value">' + emp.payrollPacket.i9 + '</span></div>' +
+          '<div class="mini-field"><span class="mini-label">Bank details</span><span class="mini-value">' + emp.payrollPacket.bank + '</span></div>' +
+        '</div>';
+      }
+      if(emp.onboardingConfirm) onboardingHtml += '<p class="send-confirm">' + escapeHtml(emp.onboardingConfirm) + '</p>';
+      onboardingHtml += '</div>';
+
+      const docsHtml = DOC_TYPES.map((type, idx) => {
+        const doc = emp.docs[type.key];
+        const statusLabel = doc.status === 'signed' ? 'Signed' : 'Awaiting signature';
+        const statusClass = doc.status === 'signed' ? 'status-pill' : 'status-pill wait';
+
+        let body = '';
+        if(!doc.generated){
+          body = '<button class="ghost-btn" onclick="generateDoc(' + emp.id + ',\'' + type.key + '\')">Generate ' + type.abbr + '</button>';
+        } else {
+          body += '<div class="offer-doc" contenteditable="true" id="docBox-' + emp.id + '-' + type.key + '" oninput="onDocEdit(' + emp.id + ',\'' + type.key + '\')">' + escapeHtml(doc.docText) + '</div>';
+          body += '<div class="offer-actions"><button class="ghost-btn" onclick="downloadDoc(' + emp.id + ',\'' + type.key + '\')">Download ' + type.abbr + '</button></div>';
+
+          if(doc.deliveryMode === null){
+            body += '<div class="delivery-choice">';
+            body += '<div class="delivery-card" onclick="chooseDeliveryMode(' + emp.id + ',\'' + type.key + '\',\'manual\')"><div class="delivery-name">Download &amp; I\u2019ll send it</div><div class="delivery-desc">Send this to ' + name + ' yourself, however you normally would.</div></div>';
+            body += '<div class="delivery-card" onclick="chooseDeliveryMode(' + emp.id + ',\'' + type.key + '\',\'auto\')"><div class="delivery-name">Set a reminder</div><div class="delivery-desc">Track this document after the onboarding link goes out. No separate document email.</div></div>';
+            body += '</div>';
+          } else if(doc.deliveryMode === 'manual'){
+            body += '<div class="delivery-active"><span class="delivery-active-label">Sending it yourself</span><button class="change-link" onclick="resetDeliveryMode(' + emp.id + ',\'' + type.key + '\')">Change</button></div>';
+            body += '<p class="field-hint" style="margin:8px 0 14px;">Download it above and send it to ' + name + ' directly. We won\u2019t email them automatically.</p>';
+            body += '<h4 class="reminder-subhead">Remind me to check in</h4>';
+            body += '<div class="reminder-options">';
+            [24, 48, 0].forEach(h => {
+              const label = h === 0 ? 'Don\u2019t remind me' : h + ' hours';
+              const sel = doc.reminderHours === h ? ' selected' : '';
+              body += '<button class="reminder-btn' + sel + '" onclick="selectReminder(' + emp.id + ',\'' + type.key + '\',' + h + ')">' + label + '</button>';
+            });
+            body += '</div>';
+            body += '<button class="ghost-btn" onclick="markManualSent(' + emp.id + ',\'' + type.key + '\')">I\u2019ve sent this myself</button>';
+          } else if(doc.deliveryMode === 'auto'){
+            body += '<div class="delivery-active"><span class="delivery-active-label">Reminder only</span><button class="change-link" onclick="resetDeliveryMode(' + emp.id + ',\'' + type.key + '\')">Change</button></div>';
+            if(!emp.email){
+              body += '<p class="field-hint" style="margin:8px 0 14px;">This reminder does not send the document. The employee gets documents through the onboarding link.</p>';
+            } else {
+              body += '<p class="field-hint" style="margin:8px 0 14px;">The onboarding link goes to <b>' + escapeHtml(emp.email) + '</b>. This only sets your follow-up reminder.</p>';
+            }
+            body += '<h4 class="reminder-subhead">Signature reminder</h4>';
+            body += '<p class="field-hint" style="margin:0 0 14px;">If ' + name + ' hasn\u2019t signed by then, we\u2019ll remind you to check the onboarding packet.</p>';
+            body += '<div class="reminder-options">';
+            [24, 48, 0].forEach(h => {
+              const label = h === 0 ? 'Don\u2019t remind me' : h + ' hours';
+              const sel = doc.reminderHours === h ? ' selected' : '';
+              body += '<button class="reminder-btn' + sel + '" onclick="selectReminder(' + emp.id + ',\'' + type.key + '\',' + h + ')">' + label + '</button>';
+            });
+            body += '</div>';
+            body += '<button class="ghost-btn send-btn" onclick="setDocReminder(' + emp.id + ',\'' + type.key + '\')">Set reminder</button>';
+          }
+
+          if(doc.sentConfirm) body += '<p class="send-confirm">' + escapeHtml(doc.sentConfirm) + '</p>';
+          if(doc.uploadedFile) body += '<div class="uploaded-file">Uploaded signed copy: ' + escapeHtml(doc.uploadedFile) + '</div>';
+
+          body += '<div class="offer-actions" style="margin-top:14px;">';
+          if(doc.status !== 'signed'){
+            body += '<button class="ghost-btn" onclick="markDocSigned(' + emp.id + ',\'' + type.key + '\')">Simulate signature received</button>';
+            body += '<label class="ghost-btn" for="upload-' + emp.id + '-' + type.key + '">Upload signed doc</label>';
+            body += '<input class="upload-input" id="upload-' + emp.id + '-' + type.key + '" type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onchange="uploadSignedDoc(' + emp.id + ',\'' + type.key + '\',this)">';
+          } else {
+            body += '<label class="ghost-btn" for="upload-' + emp.id + '-' + type.key + '">Replace signed doc</label>';
+            body += '<input class="upload-input" id="upload-' + emp.id + '-' + type.key + '" type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onchange="uploadSignedDoc(' + emp.id + ',\'' + type.key + '\',this)">';
+          }
+          body += '</div>';
+        }
+
+        const blockClass = 'doc-block';
+        return '<div class="' + blockClass + '">' +
+          '<div class="row"><span class="row-label">' + type.label + '</span><span class="' + statusClass + '">' + statusLabel + '</span></div>' +
+          body +
+          '</div>';
+      }).join('');
+
+      return '<div class="card">' +
+        '<div class="emp-card-head"><h3>' + name + ' \u2014 ' + role + '</h3>' +
+        '<button class="remove-link" onclick="removeEmployee(' + emp.id + ')">Remove</button></div>' +
+        '<input type="email" class="text-input" id="empEmail-' + emp.id + '" value="' + emailVal + '" placeholder="Employee email (needed to send automatically)" oninput="updateEmpEmail(' + emp.id + ')" style="margin-bottom:18px;">' +
+        docsHtml +
+        '</div>';
+    }).join('');
+  }
+
+  function renderPayrollPackets(){
+    const container = document.getElementById('payrollPacketList');
+    const checklist = document.getElementById('payrollPacketChecklist');
+    if(!container) return;
+
+    if(employees.length === 0){
+      container.innerHTML = '<p class="empty-state">Add an employee in Employee onboarding to generate their payroll packet link.</p>';
+      if(checklist) checklist.innerHTML = '<span class="todo-dot">○</span> Each employee\'s I-9/W-4 info + bank details';
+      return;
+    }
+
+    const completeCount = employees.filter(e => e.onboardingComplete).length;
+    if(checklist){
+      const iconClass = completeCount === employees.length ? 'tick' : 'todo-dot';
+      const icon = completeCount === employees.length ? '✓' : '○';
+      checklist.innerHTML = '<span class="' + iconClass + '">' + icon + '</span> Each employee\'s I-9/W-4 info + bank details <span class="fieldval">— ' + completeCount + ' / ' + employees.length + ' received</span>';
+    }
+
+    container.innerHTML = '<div class="payroll-status">' + employees.map(emp => {
+      const name = escapeHtml(emp.name);
+      const initials = escapeHtml(avatarInitials(emp.name));
+      const status = emp.onboardingComplete ? 'Ready for payroll' : (emp.onboardingSent ? 'Waiting on employee' : 'Link not sent');
+      const cls = emp.onboardingComplete ? 'status-pill' : 'status-pill wait';
+      const detail = emp.onboardingComplete
+        ? escapeHtml(emp.payrollPacket.workState + ' · ' + emp.payrollPacket.taxForm + ' · ' + emp.payrollPacket.deposit)
+        : 'Generate and send their onboarding link from Step 3.';
+      return '<div class="payroll-person"><div class="payroll-person-main"><span class="avatar">' + initials + '</span><div><div class="row-label">' + name + '</div><div class="row-sub">' + detail + '</div></div></div><span class="' + cls + '">' + status + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  function avatarInitials(name){
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if(parts.length === 0) return '?';
+    if(parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function saveAccessEmail(id){
+    const emp = employees.find(e => e.id === id);
+    const input = document.getElementById('accessEmail-' + id);
+    if(!emp || !input) return;
+    const email = input.value.trim();
+    if(!email){
+      const hint = document.getElementById('accessEmailHint-' + id);
+      if(hint){ hint.textContent = 'Add an email address to continue.'; hint.style.color = '#B8433A'; }
+      return;
+    }
+    emp.email = email;
+    renderAccessList();
+    renderEmployees();
+  }
+
+  function setEmpTier(id, tier){
+    const emp = employees.find(e => e.id === id);
+    if(!emp) return;
+    emp.tier = tier;
+  }
+
+  function grantAccess(id){
+    const emp = employees.find(e => e.id === id);
+    if(!emp) return;
+    const select = document.getElementById('tierSelect-' + id);
+    if(select) emp.tier = select.value;
+    emp.accessGranted = true;
+    emp.accessConfirm = emp.tier === 'No Access'
+      ? emp.name + ' won\u2019t be added to StartupKit.'
+      : emp.name + ' has been granted ' + emp.tier + ' \u2014 an invite will go to ' + emp.email + '.';
+    renderAccessList();
+    checkStep5Done();
+  }
+
+  function checkStep5Done(){
+    const relevant = employees.filter(e => e.email);
+    const allGranted = relevant.length > 0 && relevant.every(e => e.accessGranted);
+    setDone(6, allGranted);
+  }
+
+  function renderAccessList(){
+    const container = document.getElementById('accessList');
+    if(!container) return;
+
+    if(employees.length === 0){
+      container.innerHTML = '<p class="empty-state">Add an employee in Employee onboarding to assign their access here.</p>';
+      return;
+    }
+
+    container.innerHTML = employees.map(emp => {
+      const name = escapeHtml(emp.name);
+      const role = escapeHtml(emp.role);
+      const initials = escapeHtml(avatarInitials(emp.name));
+      const module = draftsFor(emp.role).module;
+
+      let body = '<div class="mock-employee-name" style="margin-bottom:16px;"><span class="avatar">' + initials + '</span><span>' + name + ' \u2014 ' + role + '</span></div>';
+
+      if(!emp.email){
+        body += '<p class="field-hint" style="margin:0 0 10px;">We need an email on file before we can grant ' + name + ' access.</p>';
+        body += '<input type="email" class="text-input" id="accessEmail-' + emp.id + '" placeholder="Employee email" style="margin-bottom:6px;">';
+        body += '<p class="field-hint" id="accessEmailHint-' + emp.id + '" style="margin:0 0 10px;"></p>';
+        body += '<button class="ghost-btn" onclick="saveAccessEmail(' + emp.id + ')">Save email</button>';
+      } else {
+        body += '<p class="row-sub" style="margin:-10px 0 16px 38px;">' + escapeHtml(emp.email) + '</p>';
+        body += '<select class="tier-select" id="tierSelect-' + emp.id + '" onchange="setEmpTier(' + emp.id + ',this.value)">';
+        ['Full Access', 'Module Access', 'View Only', 'No Access'].forEach(t => {
+          const optLabel = t === 'Module Access' ? ('Module Access \u2014 ' + module) : t;
+          const sel = emp.tier === t ? ' selected' : '';
+          body += '<option value="' + t + '"' + sel + '>' + optLabel + '</option>';
+        });
+        body += '</select>';
+        body += '<div class="offer-actions" style="margin-top:14px;"><button class="ghost-btn" onclick="grantAccess(' + emp.id + ')">' + (emp.accessGranted ? 'Update access level' : 'Confirm access level') + '</button></div>';
+        if(emp.accessConfirm) body += '<p class="send-confirm">' + escapeHtml(emp.accessConfirm) + '</p>';
+      }
+
+      return '<div class="card">' + body + '</div>';
+    }).join('');
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const container = btn.closest('.card');
+      container.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      container.querySelector('#tab-' + tab).classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.tier-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.tier-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+    });
+  });
+
+  updateProgress();
+  applyRole('Founding Engineer');
+  renderEmployees();
+  renderAccessList();
+  renderPayrollPackets();
+  renderBottleneckOptions();
+  renderRoadmap();
+  renderMatrixRoleList();
+</script>
+</body>
+</html>

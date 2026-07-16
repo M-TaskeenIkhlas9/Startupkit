@@ -19,23 +19,73 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
 from startupkit.adapters.model_template import TemplateModelAdapter
+from startupkit.core.company_object.brand_types import BrandState
 from startupkit.core.company_object.events import (
     DocumentGenerated,
     DocumentSubmitted,
     FounderProfileSet,
 )
+from startupkit.core.company_object.gtm_types import GtmState
 from startupkit.core.company_object.memory_store import InMemoryEventStore
+from startupkit.core.company_object.people_types import PeopleState
 from startupkit.core.company_object.projections.health_score import HealthScore
 from startupkit.core.company_object.projections.snapshot import CompanySnapshot, DocumentRecord
 from startupkit.core.services.advisor import SUGGESTED_QUESTIONS, Answer, ask
+from startupkit.core.services.brand import (
+    BrandHealth,
+    ChatReply,
+    CoachTip,
+    PlayMatch,
+    brand_chat,
+    brand_coach,
+    brand_health,
+    check_presence,
+    generate_brand_core,
+    generate_visual_system,
+    match_plays,
+)
+from startupkit.core.services.brand_assets import (
+    render_site_html,
+    svg_favicon,
+    svg_wordmark,
+)
 from startupkit.core.services.case_studies import CaseStudy, relevant_case_studies
 from startupkit.core.services.cofounder_chat import IdeaChatRequest, IdeaChatResponse, idea_chat
 from startupkit.core.services.company_object_service import CompanyObjectService, NextAction
 from startupkit.core.services.compliance import ComplianceItem, compliance_calendar
 from startupkit.core.services.document_engine import DocumentEngine, GeneratedDocument
+from startupkit.core.services.gtm import (
+    GTM_DOCS,
+    Attribution,
+    ChannelMatrix,
+    ContentPlanDraft,
+    Deliverability,
+    Discovery,
+    GtmDraft,
+    GtmHealth,
+    Guardrail,
+    MotionRead,
+    PricingRead,
+    attribution,
+    channel_matrix,
+    check_deliverability,
+    discover_accounts,
+    export_crm_csv,
+    export_sequence_csv,
+    export_targets_csv,
+    generate_content,
+    generate_gtm,
+    gtm_chat,
+    gtm_health,
+    read_motion,
+    render_gtm_doc,
+    research_pricing,
+    stage_guardrails,
+)
 from startupkit.core.services.guardrails import GuardrailAction, GuardrailResult, check
 from startupkit.core.services.idea_reasoning import IdeaReasoning, reason_about_idea
 from startupkit.core.services.idea_validation import (
@@ -253,6 +303,239 @@ async def check_guardrail(company_id: str, action: GuardrailAction) -> Guardrail
     """Real-time guardrail: can the founder safely take this action yet?"""
     snap = await _snapshot_or_404(company_id)
     return check(action, snap, await _workflow_status(company_id))
+
+
+# --- W5 · Brand & Product Foundation -----------------------------------------------------------
+
+
+@app.get("/api/companies/{company_id}/brand/plays")
+async def brand_plays(company_id: str) -> list[PlayMatch]:
+    """Rank the proven Brand Plays for this company (backed by real named brands)."""
+    snap = await _snapshot_or_404(company_id)
+    return match_plays(snap)
+
+
+class GenerateBrandInput(BaseModel):
+    play_id: str = ""
+
+
+@app.post("/api/companies/{company_id}/brand/generate")
+async def brand_generate(company_id: str, req: GenerateBrandInput) -> BrandState:
+    """Generate a Brand Core + visual system grounded in the chosen Brand Play. Does not persist."""
+    snap = await _snapshot_or_404(company_id)
+    core = await generate_brand_core(snap, req.play_id, model=_model, search=_search)
+    visual = generate_visual_system(core)
+    presence = await check_presence(snap.name, search=_search)
+    return BrandState(core=core, visual=visual, presence=presence)
+
+
+@app.post("/api/companies/{company_id}/brand")
+async def save_brand(company_id: str, state: BrandState) -> CompanySnapshot:
+    """Persist the founder's edited Brand Core — the source of truth the site/deck read from."""
+    await _snapshot_or_404(company_id)
+    await _service.set_brand(company_id, state)
+    return await _service.snapshot(company_id)
+
+
+@app.post("/api/companies/{company_id}/people")
+async def save_people(company_id: str, state: PeopleState) -> CompanySnapshot:
+    """W6 · Persist the hiring plan, employee roster, and step progress."""
+    await _snapshot_or_404(company_id)
+    await _service.set_people(company_id, state)
+    return await _service.snapshot(company_id)
+
+
+@app.post("/api/companies/{company_id}/gtm")
+async def save_gtm(company_id: str, state: GtmState) -> CompanySnapshot:
+    """W7 · Persist the revenue engine — motion, pricing, accounts, sequences, connections."""
+    await _snapshot_or_404(company_id)
+    await _service.set_gtm(company_id, state)
+    return await _service.snapshot(company_id)
+
+
+@app.post("/api/companies/{company_id}/gtm/generate")
+async def gtm_generate(company_id: str) -> GtmDraft:
+    """W7 · Draft the GTM engine from the Company Object + Brand Core. Does not persist."""
+    snap = await _snapshot_or_404(company_id)
+    return await generate_gtm(snap, model=_model)
+
+
+@app.post("/api/companies/{company_id}/gtm/discover")
+async def gtm_discover(company_id: str, trigger: str = "") -> Discovery:
+    """W7 · Research the market from the ICP and propose real named accounts. Does not persist.
+
+    W7 used to ask the founder to type 50 company names. Now it does the homework — they approve.
+    """
+    snap = await _snapshot_or_404(company_id)
+    return await discover_accounts(snap, trigger=trigger, model=_model, search=_search)
+
+
+@app.post("/api/companies/{company_id}/gtm/motion")
+async def gtm_motion(company_id: str) -> MotionRead:
+    """W7 · Infer the motion signals from the Company Object — don't ask what we already know."""
+    snap = await _snapshot_or_404(company_id)
+    return await read_motion(snap, model=_model)
+
+
+@app.get("/api/companies/{company_id}/gtm/deliverability")
+async def gtm_deliverability(company_id: str, domain: str = "") -> Deliverability:
+    """W7 · Real SPF/DMARC/MX checks on the founder's sending domain (DNS-over-HTTPS)."""
+    snap = await _snapshot_or_404(company_id)
+    target = domain or (snap.website or "") or snap.owner_email.split("@")[-1]
+    return await check_deliverability(target)
+
+
+@app.post("/api/companies/{company_id}/gtm/content/generate")
+async def gtm_content(company_id: str) -> ContentPlanDraft:
+    """W7 · Content ideas from the Brand Core — so the PLG recommendation isn't a dead end."""
+    snap = await _snapshot_or_404(company_id)
+    return await generate_content(snap, model=_model)
+
+
+@app.post("/api/companies/{company_id}/gtm/pricing")
+async def gtm_pricing(company_id: str) -> PricingRead:
+    """W7 · Research what comparable companies charge and propose tiers. Does not persist."""
+    snap = await _snapshot_or_404(company_id)
+    return await research_pricing(snap, model=_model, search=_search)
+
+
+@app.get("/api/companies/{company_id}/gtm/health")
+async def get_gtm_health(company_id: str) -> GtmHealth:
+    """W7 · Score the revenue engine on what's actually done, never on what's typed in."""
+    snap = await _snapshot_or_404(company_id)
+    return gtm_health(snap.gtm)
+
+
+@app.get("/api/companies/{company_id}/gtm/channels")
+async def gtm_channels(company_id: str, motion: str = "") -> ChannelMatrix:
+    """W7 · Every channel ranked for this motion: 2 bets, the rest ignored with a reason."""
+    snap = await _snapshot_or_404(company_id)
+    return channel_matrix(snap, motion=motion)
+
+
+@app.get("/api/companies/{company_id}/gtm/guardrails")
+async def gtm_guardrails(company_id: str) -> list[Guardrail]:
+    """W7 · The pipeline talks back — warnings computed from real account stages."""
+    snap = await _snapshot_or_404(company_id)
+    return stage_guardrails(snap.gtm)
+
+
+@app.get("/api/companies/{company_id}/gtm/attribution")
+async def gtm_attribution(company_id: str) -> Attribution:
+    """W7 · Which trigger is producing conversations, computed from real stages."""
+    snap = await _snapshot_or_404(company_id)
+    return attribution(snap.gtm)
+
+
+class GtmChatInput(BaseModel):
+    message: str
+    history: list[str] = []
+
+
+@app.post("/api/companies/{company_id}/gtm/chat")
+async def gtm_chat_endpoint(company_id: str, req: GtmChatInput) -> ChatReply:
+    """W7 · GTM Q&A grounded in the founder's own pipeline numbers."""
+    snap = await _snapshot_or_404(company_id)
+    return await gtm_chat(snap, req.message, req.history, model=_model)
+
+
+@app.get("/api/companies/{company_id}/gtm/export/{kind}.csv")
+async def gtm_export(company_id: str, kind: str) -> Response:
+    """W7 · Hand the decision off to the tool that executes it — we orchestrate, we don't rebuild.
+
+    targets -> Clay / Apollo · sequence -> Instantly / Smartlead · crm -> HubSpot / Attio
+    """
+    snap = await _snapshot_or_404(company_id)
+    builders = {
+        "targets": export_targets_csv,
+        "sequence": export_sequence_csv,
+        "crm": export_crm_csv,
+    }
+    build = builders.get(kind)
+    if build is None:
+        raise HTTPException(status_code=404, detail="unknown export")
+    slug = snap.name.lower().replace(" ", "-") or "company"
+    return Response(
+        content=build(snap),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{slug}-{kind}.csv"'},
+    )
+
+
+@app.get("/api/companies/{company_id}/gtm/docs")
+async def gtm_docs_list(company_id: str) -> list[dict[str, str]]:
+    """W7 · The five documents the catalog promises, generated from the Company Object."""
+    await _snapshot_or_404(company_id)
+    return [{"key": k, "name": v} for k, v in GTM_DOCS.items()]
+
+
+@app.get("/api/companies/{company_id}/gtm/docs/{doc_key}.md")
+async def gtm_doc(company_id: str, doc_key: str) -> Response:
+    snap = await _snapshot_or_404(company_id)
+    try:
+        body = render_gtm_doc(snap, doc_key)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="unknown document") from None
+    return Response(
+        content=body,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{doc_key}.md"'},
+    )
+
+
+@app.get("/api/companies/{company_id}/brand/health")
+async def get_brand_health(company_id: str) -> BrandHealth:
+    snap = await _snapshot_or_404(company_id)
+    return brand_health(snap.brand)
+
+
+class CoachInput(BaseModel):
+    step: str = "define"  # define | design | deploy
+    play_id: str = ""
+
+
+@app.post("/api/companies/{company_id}/brand/coach")
+async def brand_coach_endpoint(company_id: str, req: CoachInput) -> CoachTip:
+    """The AI co-founder's guidance for a W5 step, grounded in real brand case studies."""
+    snap = await _snapshot_or_404(company_id)
+    play = req.play_id or (snap.brand.core.play_id if snap.brand else "")
+    return await brand_coach(snap, play, req.step, model=_model)
+
+
+# --- W5 production layer: generated logo, favicon, and the published site ------------------------
+
+
+@app.get("/api/companies/{company_id}/brand/wordmark.svg")
+async def brand_wordmark(company_id: str) -> Response:
+    snap = await _snapshot_or_404(company_id)
+    svg = svg_wordmark(snap.name, snap.brand.visual)
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+@app.get("/api/companies/{company_id}/brand/favicon.svg")
+async def brand_favicon(company_id: str) -> Response:
+    snap = await _snapshot_or_404(company_id)
+    svg = svg_favicon(snap.name, snap.brand.visual)
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+@app.get("/site/{company_id}")
+async def published_site(company_id: str, template: str | None = None) -> HTMLResponse:
+    """The founder's published landing page — a real hosted page rendered from the Brand Core."""
+    snap = await _snapshot_or_404(company_id)
+    return HTMLResponse(content=render_site_html(snap, template))
+
+
+class BrandChatInput(BaseModel):
+    message: str
+    history: list[str] = []
+
+
+@app.post("/api/companies/{company_id}/brand/chat")
+async def brand_chat_endpoint(company_id: str, req: BrandChatInput) -> ChatReply:
+    """Conversational branding Q&A with the AI co-founder, grounded in the Brand Core."""
+    snap = await _snapshot_or_404(company_id)
+    return await brand_chat(snap, req.message, req.history, model=_model)
 
 
 # --- Founder Input Layer -----------------------------------------------------------------------
