@@ -9,8 +9,11 @@ import {
   getBrandHealth,
   brandChat,
   completePhase,
+  getBrandPlays,
+  generateBrand,
+  checkNamePresence,
 } from "@/lib/api";
-import type { BrandHealth, BrandState, WorkflowView } from "@/lib/types";
+import type { BrandHealth, BrandState, PlayMatch, PresenceItem, WorkflowView } from "@/lib/types";
 
 // W5 · Brand & Product Foundation — rebuilt to the finalized design (W5 folder mocks).
 // Design-first (matches the images); real backend wiring is a follow-up pass. Two screens so far:
@@ -48,20 +51,12 @@ const MODULES: Module[] = [
   { n: 2, id: "market", opens: "market", title: "Market Research & Competitor Analysis", desc: "Analyze your market, competitors, and unique position.", color: "#2563EB", icon: ICON.chart, steps: allDone(3) },
   {
     n: 3, id: "naming", title: "Naming & Validation",
-    desc: "Generate name ideas and validate across trademark, domain, and social handles.",
+    desc: "Check your name's domain, social handle, and trademark availability — a heuristic read, not a registration.",
     color: "#EA580C", icon: ICON.spark,
-    steps: [
-      { id: "n1", label: "Generate Name Ideas", status: "done" },
-      { id: "n2", label: "Trademark Search", status: "done" },
-      { id: "n3", label: "Domain Availability", status: "done" },
-      { id: "n4", label: "Social Handle Search", status: "active" },
-      { id: "n5", label: "Shortlist & Review", status: "pending" },
-      { id: "n6", label: "Final Selection", status: "pending" },
-      { id: "n7", label: "Lock Name", status: "pending" },
-    ],
+    steps: allPending(3),
   },
   { n: 4, id: "identity", opens: "identity", title: "Brand Identity", desc: "Design your logo, wordmark, and core visual identity.", color: "#EC4899", icon: ICON.brush, steps: allPending(6) },
-  { n: 5, id: "design", opens: "design", title: "Design System", desc: "Create your design system, components, and UI foundation.", color: "#F59E0B", icon: ICON.grid, steps: allPending(8) },
+  { n: 5, id: "design", opens: "design", title: "Design System", desc: "Tokens, UI foundation, and your generated website — all in one place.", color: "#F59E0B", icon: ICON.grid, steps: allPending(8) },
   { n: 6, id: "marketing", opens: "launch", title: "Marketing Assets", desc: "Generate pitch decks, one-pagers, and marketing materials.", color: "#16A34A", icon: ICON.mega, steps: allPending(7) },
   { n: 7, id: "os", title: "Brand Operating System", desc: "Your centralized brand OS that powers everything.", color: "#7C3AED", icon: ICON.db, steps: allPending(4) },
 ];
@@ -72,7 +67,7 @@ const MODULE_WHY: Record<string, string> = {
   market: "Know who else solves this before you lock positioning — the map turns research into a picture of where you sit versus the field.",
   naming: "A name you can legally own and register across domain and social handles.",
   identity: "The look people recognize before they read a word.",
-  design: "Advanced / optional — the reusable UI foundation your product and site are built from. Overlaps W4 (Technical); most pre-seed teams can skip until they have a product team.",
+  design: "The reusable UI foundation your product and site are built from — and where your generated website lives. Overlaps W4 (Technical); most pre-seed teams can skip the raw tokens until they have a product team, but the website link is worth checking.",
   marketing: "The assets you hand to investors, press, and your first hires.",
   os: "Merged into the Documents & Connections tabs above — that IS your brand operating system: every asset + every connected tool, kept in sync.",
 };
@@ -83,15 +78,6 @@ function allDone(n: number): Step[] {
 function allPending(n: number): Step[] {
   return Array.from({ length: n }, (_, i) => ({ id: `s${i}`, label: `Step ${i + 1}`, status: "pending" as const }));
 }
-
-const HANDLES = [
-  { plat: "Twitter/X", handle: "@nexora", status: "Available", c: "#111827", ic: "𝕏" },
-  { plat: "LinkedIn", handle: "nexora", status: "Available", c: "#0A66C2", ic: "in" },
-  { plat: "Instagram", handle: "@nexora", status: "Taken", c: "#E4405F", ic: "◉" },
-  { plat: "YouTube", handle: "@nexora", status: "Available", c: "#FF0000", ic: "▶" },
-  { plat: "TikTok", handle: "@nexora", status: "Taken", c: "#111827", ic: "♪" },
-  { plat: "Facebook", handle: "nexora", status: "Available", c: "#1877F2", ic: "f" },
-];
 
 const PALETTE = ["#111827", "#7C3AED", "#2563EB", "#0D9488", "#16A34A", "#E5E7EB"];
 
@@ -110,6 +96,7 @@ const EMPTY_BRAND: BrandState = {
   presence: [],
   site_template: "",
   steps_done: [],
+  asset_edits: {},
 };
 
 // The real, progress-bearing modules (Brand OS folds into Documents).
@@ -134,6 +121,7 @@ type W5Actions = {
   complete: (id: string, opts?: { silent?: boolean }) => Promise<void>;
   toggle: (id: string) => void;
   saveDraft: () => Promise<void>;
+  patch: (partial: Partial<BrandState>, note?: string) => Promise<void>;
   finishW5: () => Promise<void>;
   busy: boolean;
   health?: BrandHealth;
@@ -278,6 +266,13 @@ export function W5Workflow({
     await persist(brand, "Draft saved ✓");
   }, [brand, persist]);
 
+  const patch = useCallback(
+    async (partial: Partial<BrandState>, note?: string) => {
+      await persist({ ...brand, ...partial }, note);
+    },
+    [brand, persist],
+  );
+
   const overallPct = useMemo(() => {
     const done = PROGRESS_MODULES.filter((m) => brand.steps_done.includes(`mod:${m}`)).length;
     return Math.round((done / PROGRESS_MODULES.length) * 100);
@@ -303,16 +298,21 @@ export function W5Workflow({
 
   const actions: W5Actions = {
     companyId, brandName, brand, core: brand.core, has, overallPct,
-    complete, toggle, saveDraft, finishW5, busy, health, notify, download, openUrl, goWorkflow, openChat,
+    complete, toggle, saveDraft, patch, finishW5, busy, health, notify, download, openUrl, goWorkflow, openChat,
   };
 
   let body: React.ReactNode;
-  if (section === "strategy") body = <StrategyPage companyName={brandName} onBack={() => setSection(null)} />;
+  if (section === "strategy") body = <StrategyPage companyName={brandName} onBack={() => setSection(null)} onOpenSection={setSection} />;
   else if (section === "market") body = <CompetitorAnalysis onBack={() => setSection(null)} />;
   else if (section === "identity") body = <BrandIdentity onBack={() => setSection(null)} onOpenSection={setSection} />;
   else if (section === "logo") body = <LogoGenerator companyName={brandName} onBack={() => setSection("identity")} />;
-  else if (section === "digital") body = <DigitalPresence companyName={brandName} onBack={() => setSection("identity")} onOpenSection={setSection} />;
-  else if (section === "website") body = <WebsiteBuilder companyName={brandName} onBack={() => setSection("digital")} />;
+  else if (section === "palette") body = <PaletteEditor onBack={() => setSection("identity")} />;
+  else if (section === "typography") body = <TypographyEditor onBack={() => setSection("identity")} />;
+  else if (section === "voice") body = <BrandVoiceEditor onBack={() => setSection("identity")} />;
+  else if (section === "story") body = <BrandStoryEditor onBack={() => setSection("identity")} />;
+  else if (section === "guidelines") body = <BrandGuidelines onBack={() => setSection("identity")} />;
+  else if (section === "icons") body = <IconographyEditor onBack={() => setSection("identity")} />;
+  else if (section === "assets") body = <AssetsLibrary onBack={() => setSection("identity")} />;
   else if (section === "launch") body = <LaunchAssets companyName={brandName} onBack={() => setSection(null)} />;
   else if (section === "design") body = <DesignSystem onBack={() => setSection(null)} />;
   else body = <Hub open={open} setOpen={setOpen} onOpenSection={setSection} />;
@@ -420,6 +420,20 @@ function Progress({ pct, color = O }: { pct: number; color?: string }) {
 const card = "rounded-2xl border border-[#E7E9EE] bg-white";
 const btnO = "rounded-lg px-4 py-2.5 text-sm font-semibold text-white";
 const btnGhost = "rounded-lg border border-[#E7E9EE] bg-white px-4 py-2.5 text-sm font-medium text-[#3A414D] hover:border-[#c9cfda]";
+const label = "text-xs font-bold uppercase tracking-wide text-[#9AA3B0]";
+
+// A real, clickable back button — every W5 sub-page used to open with a tiny gray breadcrumb
+// line that read as plain text, not a control. This is the one shared "leave this page" affordance.
+function BackBar({ onBack, to }: { onBack: () => void; to: string }) {
+  return (
+    <button
+      onClick={onBack}
+      className="mb-4 inline-flex items-center gap-2 rounded-lg border border-[#E7E9EE] bg-white px-3.5 py-2 text-sm font-semibold text-[#3A414D] shadow-sm transition hover:border-[#c9cfda] hover:bg-[#F7F8FA]"
+    >
+      <span aria-hidden className="text-base leading-none">←</span> Back to {to}
+    </button>
+  );
+}
 
 // ============================ HUB ============================================================
 function Hub({
@@ -436,7 +450,6 @@ function Hub({
   // Overall progress is computed from persisted module completions (steps_done).
   const pct = A.overallPct;
   const [tab, setTab] = useState<"modules" | "documents" | "connections">("modules");
-  const [entity, setEntity] = useState<"C-Corp" | "LLC">("C-Corp");
 
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
@@ -461,29 +474,6 @@ function Hub({
           </div>
           <div className="mt-2"><Progress pct={pct} /></div>
         </div>
-      </div>
-
-      {/* entity note + cross-workflow handoffs (from the checklist studio) */}
-      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-[#FDE7D2] bg-[#FFF9F3] px-4 py-2.5">
-        <span className="flex items-center gap-2 text-xs">
-          <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-[#7A4A1E]">🏛 Delaware {entity}</span>
-          <span className="text-[#7A4A1E]">
-            Entity barely matters here — only the <b>trade-name filing</b> in Identity differs
-            {entity === "LLC" ? " (an LLC may market under a DBA)" : ""}. Positioning, logo, site, and deck are identical.
-          </span>
-        </span>
-        <div className="ml-auto flex overflow-hidden rounded-lg border border-[#F0D6BC] text-xs">
-          {(["C-Corp", "LLC"] as const).map((e) => (
-            <button key={e} onClick={() => setEntity(e)} className="px-3 py-1 font-semibold"
-              style={e === entity ? { background: O, color: "#fff" } : { background: "#fff", color: "#7A4A1E" }}>{e}</button>
-          ))}
-        </div>
-      </div>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {([["needs W1 ✓", true, "W1"], ["🔗 → W2 trademark", false, "W2"], ["🔗 ↔ W3 pitch deck", false, "W3"], ["🔗 → W7 go-to-market", false, "W7"]] as [string, boolean, string][]).map(([t, done, code]) => (
-          <button key={t} onClick={() => A.goWorkflow(code)} className="rounded-full border px-2.5 py-1 text-[11px] hover:opacity-80"
-            style={done ? { borderColor: "#BBE9CD", background: "#EAF7EF", color: "#1E7A3D" } : { borderColor: "#E7E9EE", background: "#fff", color: "#6B7280" }}>{t}</button>
-        ))}
       </div>
 
       {/* tab bar */}
@@ -700,90 +690,71 @@ function ConnectionsView({ brandName }: { brandName: string }) {
   );
 }
 
+const PRESENCE_KIND: Record<string, { label: string; icon: string }> = {
+  domain: { label: "Domain", icon: "🌐" },
+  handle: { label: "Social Handles", icon: "𝕏" },
+  trademark: { label: "Trademark", icon: "™" },
+};
+const PRESENCE_STATUS_COLOR: Record<string, string> = { available: GREEN, taken: "#DC2626", unknown: "#9AA3B0" };
+
 function NamingDetail({ onOpenSection }: { onOpenSection: (s: string) => void }) {
   const A = useW5();
-  const naming = MODULES.find((m) => m.id === "naming")!;
-  const [reserved, setReserved] = useState<string[]>([]);
+  const presence = A.brand.presence;
+  const hasPresence = presence.length > 0;
+  const locked = A.has("mod:naming");
+  const [checking, setChecking] = useState(false);
+  const runCheck = async () => {
+    setChecking(true);
+    try {
+      const items = await checkNamePresence(A.brandName);
+      await A.patch({ presence: items }, "Name availability checked");
+    } catch {
+      A.notify("Couldn't check — is the API running?");
+    } finally {
+      setChecking(false);
+    }
+  };
   return (
-    <div className="grid gap-5 border-t border-[#EEF0F3] p-4 lg:grid-cols-[220px_1fr]">
-      {/* substeps */}
-      <div className="space-y-1">
-        {naming.steps.map((s, i) => (
-          <div key={s.id} className="flex items-center gap-3 rounded-lg px-3 py-2"
-            style={s.status === "active" ? { background: "#FFF4EC", border: `1px solid ${O}` } : undefined}>
-            <span className="text-sm">
-              {s.status === "done" ? <span style={{ color: GREEN }}>✓</span> : s.status === "active" ? <span style={{ color: O }}>◉</span> : <span className="text-[#C4CCD6]">○</span>}
-            </span>
-            <span className="text-xs font-medium text-[#6B7280]">4.{i + 1}</span>
-            <span className="text-sm" style={{ color: s.status === "active" ? O : s.status === "done" ? "#111827" : "#9AA3B0", fontWeight: s.status === "active" ? 600 : 400 }}>
-              {s.label}
-            </span>
-            {s.status === "active" && <span className="ml-auto text-[11px] font-medium" style={{ color: O }}>In Progress</span>}
-          </div>
-        ))}
+    <div className="border-t border-[#EEF0F3] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-bold text-[#111827]">Name Availability <span className="ml-1 text-xs font-normal text-[#9AA3B0]">for {A.brandName}</span></p>
+          <p className="mt-1 text-xs text-[#6B7280]">A heuristic web-presence read (domain, social handles, trademark) — not a registration. StartupKit never registers anything on your behalf.</p>
+        </div>
+        <button onClick={runCheck} disabled={checking} className="rounded-md border border-[#E7E9EE] px-2 py-1 text-[11px] hover:border-[#c9cfda] disabled:opacity-50">{checking ? "Checking…" : hasPresence ? "↻ Run Again" : "Run Check"}</button>
       </div>
 
-      {/* detail: social handle search */}
-      <div>
-        <p className="text-sm font-bold text-[#111827]">4.4 Social Handle Search <span className="ml-2 text-xs font-medium" style={{ color: O }}>In Progress</span></p>
-        <p className="mt-1 text-xs text-[#6B7280]">We&apos;ll check availability of your name across major social platforms and show you the results.</p>
-        <div className="mt-3 grid gap-4 lg:grid-cols-[1fr_260px]">
-          <div className="rounded-xl border border-[#E7E9EE]">
-            <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-xs font-semibold" style={{ color: "#7C3AED" }}>AI Generated Results ✦</span>
-              <button onClick={() => A.notify("Re-checking handle availability…")} className="rounded-md border border-[#E7E9EE] px-2 py-1 text-[11px] hover:border-[#c9cfda]">↻ Run Again</button>
-            </div>
-            <table className="w-full text-xs">
-              <thead><tr className="text-left text-[#9AA3B0]">
-                <th className="px-3 py-1.5 font-medium">Platform</th><th className="font-medium">Handle</th><th className="font-medium">Status</th><th className="px-3 font-medium">Actions</th>
-              </tr></thead>
-              <tbody>
-                {HANDLES.map((h) => {
-                  const isReserved = reserved.includes(h.plat);
-                  const status = isReserved ? "Reserved" : h.status;
-                  const sColor = isReserved ? "#4F46E5" : h.status === "Available" ? GREEN : "#D97706";
-                  return (
-                    <tr key={h.plat} className="border-t border-[#F1F3F6]">
-                      <td className="px-3 py-2 font-medium text-[#111827]">
-                        <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold text-white" style={{ background: h.c }}>{h.ic}</span>
-                        {h.plat}
-                      </td>
-                      <td className="text-[#6B7280]">{h.handle}</td>
-                      <td style={{ color: sColor }}>● {status}</td>
-                      <td className="px-3">
-                        <button
-                          onClick={() => {
-                            if (h.status === "Available") {
-                              setReserved((r) => isReserved ? r.filter((p) => p !== h.plat) : [...r, h.plat]);
-                              A.notify(isReserved ? `Released ${h.handle} on ${h.plat}` : `Reserved ${h.handle} on ${h.plat} ✓`);
-                            } else {
-                              A.notify(`Showing alternatives for ${h.plat}`);
-                            }
-                          }}
-                          className="rounded-md border px-2 py-1 text-[11px] hover:border-[#c9cfda]"
-                          style={isReserved ? { borderColor: "#4F46E5", color: "#4F46E5", background: "#EEF0FF" } : { borderColor: "#E7E9EE", color: "#3A414D" }}
-                        >
-                          {isReserved ? "Reserved ✓" : h.status === "Available" ? "Reserve" : "View Alternatives"}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="rounded-xl border border-[#E7E9EE] bg-[#F7F5FF] p-3">
-            <p className="text-xs font-semibold" style={{ color: "#7C3AED" }}>✦ AI Suggestion</p>
-            <p className="mt-2 text-xs text-[#3A414D]">Great news! Your name is available on most key platforms.</p>
-            <p className="mt-2 text-xs text-[#6B7280]">Consider these alternatives for taken handles:</p>
-            <p className="mt-1 text-xs font-medium" style={{ color: "#7C3AED" }}>@nexora_official<br />@nexora_hq</p>
-            <button onClick={() => A.notify("Applied suggested handle alternatives")} className="mt-3 w-full rounded-lg py-2 text-xs font-semibold" style={{ background: "#EDE9FE", color: "#7C3AED" }}>Apply All Alternatives</button>
-          </div>
+      {!hasPresence ? (
+        <div className="mt-3 rounded-xl border border-dashed border-[#D7DCDA] p-6 text-center">
+          <p className="text-sm text-[#6B7280]">No check has run yet — real data, not invented here.</p>
+          <button onClick={runCheck} disabled={checking} className="mt-3 rounded-lg px-4 py-2 text-xs font-semibold text-white disabled:opacity-60" style={{ background: O }}>{checking ? "Checking…" : "Run Availability Check"}</button>
         </div>
-        <div className="mt-3 flex justify-end gap-2">
-          <button className={btnGhost} onClick={() => A.openChat("Help me shortlist a brand name.")}>✦ Ask AI</button>
-          <button className={btnO} style={{ background: O }} disabled={A.busy} onClick={async () => { await A.complete("mod:naming"); onOpenSection("strategy"); }}>Save &amp; Continue →</button>
+      ) : (
+        <div className="mt-3 overflow-hidden rounded-xl border border-[#E7E9EE]">
+          <table className="w-full text-xs">
+            <thead><tr className="text-left text-[#9AA3B0]">
+              <th className="px-3 py-1.5 font-medium">Kind</th><th className="font-medium">Handle</th><th className="font-medium">Status</th><th className="px-3 py-1.5 font-medium">What to do</th>
+            </tr></thead>
+            <tbody>
+              {presence.map((p) => {
+                const meta = PRESENCE_KIND[p.kind] ?? { label: p.kind, icon: "•" };
+                return (
+                  <tr key={p.kind} className="border-t border-[#F1F3F6]">
+                    <td className="px-3 py-2 font-medium text-[#111827]">{meta.icon} {meta.label}</td>
+                    <td className="text-[#6B7280]">{p.handle}</td>
+                    <td style={{ color: PRESENCE_STATUS_COLOR[p.status] ?? "#9AA3B0" }}>● {p.status}</td>
+                    <td className="px-3 py-2 text-[#6B7280]">{p.detail}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
+      )}
+
+      <div className="mt-3 flex justify-end gap-2">
+        <button className={btnGhost} onClick={() => A.openChat("Help me think through my brand name and where it might conflict.")}>✦ Ask AI</button>
+        <button className={btnO} style={{ background: O }} disabled={A.busy} onClick={async () => { await A.complete("mod:naming"); onOpenSection("strategy"); }}>{locked ? "Locked ✓" : "Lock Name & Continue →"}</button>
       </div>
     </div>
   );
@@ -904,14 +875,101 @@ const HEALTH_DIMS: [string, number][] = [
   ["Identity", 100], ["Audience", 90], ["Positioning", 80], ["Differentiation", 80], ["Messaging", 75],
 ];
 
-function StrategyPage({ companyName, onBack }: { companyName: string; onBack: () => void }) {
+// The real entry point into W5 — nothing downstream (logo, palette, typography, voice, story)
+// has anything to show until this runs once. Ranks real Brand Plays against the company's
+// validated idea (match_plays on the backend), the founder picks one, generate_brand_core writes
+// the whole BrandCore + VisualSystem in one call.
+function BrandCoreGenerator({ onDone }: { onDone: () => void }) {
+  const A = useW5();
+  const [plays, setPlays] = useState<PlayMatch[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    getBrandPlays(A.companyId).then(setPlays).catch(() => setLoadError(true));
+  }, [A.companyId]);
+
+  const generate = async (playId: string) => {
+    setPicked(playId);
+    setGenerating(true);
+    try {
+      const draft = await generateBrand(A.companyId, playId);
+      await A.patch(draft, "Brand Core generated ✓");
+      onDone();
+    } catch {
+      A.notify("Couldn't generate — is the API running?");
+    } finally {
+      setGenerating(false);
+      setPicked(null);
+    }
+  };
+
+  return (
+    <div className={`${card} p-6`}>
+      <p className="text-lg font-extrabold text-[#111827]">Choose your Brand Play</p>
+      <p className="mt-1 text-sm text-[#6B7280]">
+        Ranked against your validated idea from intake — not generic options. Pick one and StartupKit generates
+        your mission, positioning, voice, palette, typography, and logo direction in one pass. You edit everything after.
+      </p>
+
+      {loadError && (
+        <p className="mt-4 rounded-lg bg-[#FEF3C7] p-3 text-xs" style={{ color: "#92600E" }}>
+          Couldn&apos;t reach the API to load plays. Confirm the backend is running and refresh.
+        </p>
+      )}
+      {!plays && !loadError && (
+        <p className="mt-4 text-sm text-[#9AA3B0]">Matching Brand Plays to your company…</p>
+      )}
+
+      {plays && (
+        <div className="mt-5 space-y-3">
+          {plays.map((p) => (
+            <div key={p.play_id} className={`${card} p-4`} style={picked === p.play_id ? { borderColor: "#4F46E5", borderWidth: 2 } : undefined}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-[#111827]">{p.name}</p>
+                    <span className="rounded-full bg-[#EEF0FF] px-2 py-0.5 text-[10px] font-semibold" style={{ color: "#4F46E5" }}>{p.score}% match</span>
+                  </div>
+                  <p className="mt-1 text-xs text-[#6B7280]">{p.move}</p>
+                  <p className="mt-1.5 text-xs italic text-[#9AA3B0]">{p.rationale}</p>
+                  {p.examples.length > 0 && (
+                    <p className="mt-1.5 text-[11px] text-[#9AA3B0]">e.g. {p.examples.join(", ")}</p>
+                  )}
+                </div>
+                <button className={btnO} style={{ background: "#4F46E5" }} disabled={generating}
+                  onClick={() => generate(p.play_id)}>
+                  {generating && picked === p.play_id ? "Generating…" : "Generate this →"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StrategyPage({ companyName, onBack, onOpenSection }: { companyName: string; onBack: () => void; onOpenSection: (s: string) => void }) {
   const A = useW5();
   const f = useBrandFacts();
+  const hasBrand = Boolean(A.brand.core.play_id);
+  const setCoreField = (k: "icp" | "category" | "positioning", val: string) =>
+    A.patch({ core: { ...A.brand.core, [k]: val } });
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
-      <button onClick={onBack} className="text-xs text-[#6B7280] hover:text-[#111827]">
-        W5 Brand &amp; Product Foundation › <span className="font-medium text-[#111827]">Phase 1: Brand Strategy</span>
-      </button>
+      <BackBar onBack={onBack} to="W5" />
+      {!hasBrand && (
+        <>
+          <div className="mt-3">
+            <h1 className="text-3xl font-extrabold tracking-tight text-[#111827]">Brand Strategy</h1>
+            <p className="mt-1 max-w-xl text-sm text-[#6B7280]">Nothing generated yet — this is the one step everything else in W5 depends on.</p>
+          </div>
+          <div className="mt-6"><BrandCoreGenerator onDone={() => { /* re-renders once brand.core.play_id is set */ }} /></div>
+        </>
+      )}
+      {hasBrand && (<>
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-[#111827]">Brand Strategy</h1>
@@ -947,10 +1005,29 @@ function StrategyPage({ companyName, onBack }: { companyName: string; onBack: ()
         </aside>
 
         <div className="space-y-4">
-          <StratCard n={1} title="Company Identity" done cols={[
-            [["Company Name", companyName], ["Tagline", f.tagline], ["Industry", f.category]],
-            [["Mission", f.mission], ["Vision", f.vision]],
-          ]} />
+          <div className={`${card} p-5`}>
+            <CardHead n={1} title="Company Identity" done />
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div className="space-y-3">
+                <div><p className="text-xs text-[#9AA3B0]">Company Name</p><p className="text-sm font-medium text-[#111827]">{companyName}</p></div>
+                <div><p className="text-xs text-[#9AA3B0]">Tagline</p><p className="text-sm font-medium text-[#111827]">{f.tagline}</p></div>
+                <div>
+                  <p className={label}>Category / Industry</p>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-[#E7E9EE] px-2.5 py-1.5 text-sm font-medium text-[#111827] outline-none focus:border-[#4F46E5]"
+                    value={A.brand.core.category}
+                    onChange={(e) => setCoreField("category", e.target.value)}
+                    onBlur={A.saveDraft}
+                  />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div><p className="text-xs text-[#9AA3B0]">Mission</p><p className="text-sm font-medium text-[#111827]">{f.mission}</p></div>
+                <div><p className="text-xs text-[#9AA3B0]">Vision</p><p className="text-sm font-medium text-[#111827]">{f.vision}</p></div>
+              </div>
+            </div>
+            <p className="mt-3 text-[11px] text-[#9AA3B0]">Tagline, mission &amp; vision are edited in <button onClick={() => onOpenSection("story")} className="font-medium underline hover:text-[#6B7280]">Brand Story</button>.</p>
+          </div>
           <div className={`${card} p-5`}>
             <CardHead n={2} title="Brand Personality" done />
             <div className="mt-3 grid gap-4 md:grid-cols-2">
@@ -963,27 +1040,43 @@ function StrategyPage({ companyName, onBack }: { companyName: string; onBack: ()
                 </div>
               </div>
               <div>
-                <p className="text-xs text-[#9AA3B0]">Brand Archetype</p>
-                <p className="text-sm font-semibold text-[#111827]">The Creator</p>
-                <p className="mt-2 text-xs text-[#9AA3B0]">Tone of Voice</p>
+                <p className="text-xs text-[#9AA3B0]">Tone of Voice</p>
                 <p className="text-sm font-medium text-[#111827]">{f.voice}</p>
               </div>
             </div>
           </div>
-          <StratCard n={3} title="Target Audience" done cols={[
-            [["Primary Audience", f.icp]],
-            [["Market", "United States"], ["Startup Stage", "Pre-seed to Series A"]],
-          ]} />
+          <div className={`${card} p-5`}>
+            <CardHead n={3} title="Target Audience" done />
+            <p className={`${label} mt-3`}>Ideal Customer Profile</p>
+            <textarea
+              className="mt-1 w-full rounded-lg border border-[#E7E9EE] p-3 text-sm text-[#111827] outline-none focus:border-[#4F46E5]"
+              rows={2}
+              value={A.brand.core.icp}
+              onChange={(e) => setCoreField("icp", e.target.value)}
+              onBlur={A.saveDraft}
+              placeholder="Who this is for — generated from your validated idea, editable here."
+            />
+          </div>
           <div className={`${card} p-5`}>
             <CardHead n={4} title="Value Proposition" done />
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <p className="text-sm text-[#3A414D]">{f.positioning}</p>
-              <ul className="space-y-1.5 text-xs text-[#3A414D]">
-                {["AI-guided, step-by-step workflows", "Attorney-signed legal documents", "Integrated tools and automations", "Built for startups, by startup operators", "Save months of time and thousands of dollars"].map((p) => (
-                  <li key={p} className="flex items-center gap-2"><span style={{ color: GREEN }}>✓</span>{p}</li>
-                ))}
-              </ul>
-            </div>
+            <p className={`${label} mt-3`}>Positioning</p>
+            <textarea
+              className="mt-1 w-full rounded-lg border border-[#E7E9EE] p-3 text-sm text-[#111827] outline-none focus:border-[#4F46E5]"
+              rows={3}
+              value={A.brand.core.positioning}
+              onChange={(e) => setCoreField("positioning", e.target.value)}
+              onBlur={A.saveDraft}
+            />
+            {A.brand.core.pillars.length > 0 && (
+              <>
+                <p className={`${label} mt-3`}>Message Pillars</p>
+                <ul className="mt-1 space-y-1.5 text-xs text-[#3A414D]">
+                  {A.brand.core.pillars.map((p) => (
+                    <li key={p} className="flex items-center gap-2"><span style={{ color: GREEN }}>✓</span>{p}</li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
           <div className={`${card} p-5`}>
             <CardHead n={5} title="Competitive Positioning" done />
@@ -1061,7 +1154,7 @@ function StrategyPage({ companyName, onBack }: { companyName: string; onBack: ()
               <button onClick={() => A.openChat("Help me refine my brand snapshot.")} className="text-xs font-medium" style={{ color: "#4F46E5" }}>Edit</button>
             </div>
             <div className="mt-3 space-y-2.5">
-              {([["Name", companyName], ["Tagline", f.tagline], ["Industry", f.category], ["Archetype", "The Creator"], ["Primary Audience", f.icp]] as [string, string][]).map(([k, v]) => (
+              {([["Name", companyName], ["Tagline", f.tagline], ["Industry", f.category], ["Primary Audience", f.icp]] as [string, string][]).map(([k, v]) => (
                 <div key={k}><p className="text-[11px] text-[#9AA3B0]">{k}</p><p className="text-sm font-medium text-[#111827]">{v}</p></div>
               ))}
             </div>
@@ -1080,89 +1173,330 @@ function StrategyPage({ companyName, onBack }: { companyName: string; onBack: ()
           </div>
         </aside>
       </div>
+      </>)}
     </div>
   );
 }
 
 // ============================ LAUNCH ASSETS (Phase 4) =======================================
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function onePagerText(A: W5Actions): string {
+  const c = A.brand.core;
+  return [
+    A.brandName,
+    c.tagline || "Add a tagline in Brand Strategy",
+    "=".repeat(40),
+    "",
+    "POSITIONING",
+    c.positioning || "Not generated yet — run Brand Strategy first.",
+    "",
+    "WHO IT'S FOR",
+    c.icp || "—",
+    "",
+    "THE PITCH",
+    c.pitch || "—",
+    "",
+    `CATEGORY: ${c.category || "—"}`,
+    "",
+    `Generated by StartupKit · ${new Date().toLocaleDateString()}`,
+  ].join("\n");
+}
+
+function mediaKitText(A: W5Actions): string {
+  const c = A.brand.core;
+  return [
+    `${A.brandName} — Press Kit`,
+    "=".repeat(40),
+    "",
+    "ABOUT",
+    c.mission || "Not generated yet — run Brand Strategy first.",
+    "",
+    "WHAT WE DO",
+    c.pitch || "—",
+    "",
+    `CATEGORY: ${c.category || "—"}`,
+    `TAGLINE: ${c.tagline || "—"}`,
+    "",
+    `Generated by StartupKit · ${new Date().toLocaleDateString()}`,
+  ].join("\n");
+}
+
+function pitchOutline(A: W5Actions): { title: string; body: string }[] {
+  const c = A.brand.core;
+  return [
+    { title: "1 · Company", body: `${A.brandName} — ${c.tagline || "add your tagline in Brand Strategy"}` },
+    { title: "2 · Problem & Positioning", body: c.positioning || "Not generated yet — run Brand Strategy first." },
+    { title: "3 · Who it's for", body: c.icp || "Not generated yet." },
+    { title: "4 · The pitch", body: c.pitch || "Not generated yet." },
+    { title: "5 · Mission", body: c.mission || "Not generated yet." },
+    { title: "6 · Traction & Ask", body: "We don't invent numbers here — add your real revenue, users, and ask amount before you send this." },
+  ];
+}
+
+function investorText(A: W5Actions): string {
+  const c = A.brand.core;
+  return [
+    `${A.brandName} — Investor Snapshot`,
+    "=".repeat(40),
+    "",
+    "POSITIONING", c.positioning || "Not generated yet.",
+    "",
+    "WHO IT'S FOR", c.icp || "—",
+    "",
+    "THE PITCH", c.pitch || "—",
+    "",
+    "TRACTION", "Not connected — connect accounting in W3 to pull real revenue and growth numbers. We never invent these.",
+    "",
+    `Generated by StartupKit · ${new Date().toLocaleDateString()}`,
+  ].join("\n");
+}
+
+function businessCardSvg(A: W5Actions, person?: string, role?: string): string {
+  const accent = A.brand.visual.palette[0]?.hex || O;
+  const name = escapeXml(A.brandName);
+  const tagline = escapeXml(A.brand.core.tagline || "");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="340" height="190" viewBox="0 0 340 190">
+    <rect width="340" height="190" fill="#ffffff" stroke="#E7E9EE"/>
+    <rect x="24" y="24" width="40" height="6" rx="3" fill="${accent}"/>
+    <text x="24" y="100" font-family="Arial, sans-serif" font-size="20" font-weight="800" fill="#111827">${name}</text>
+    <text x="24" y="122" font-family="Arial, sans-serif" font-size="12" fill="#6B7280">${tagline}</text>
+    <text x="24" y="166" font-family="Arial, sans-serif" font-size="11" fill="#9AA3B0">${escapeXml(person || "[Your Name]")} · ${escapeXml(role || "[Title]")}</text>
+  </svg>`;
+}
+
+function socialPostSvg(A: W5Actions, line?: string): string {
+  const accent = A.brand.visual.palette[0]?.hex || O;
+  const name = escapeXml(A.brandName);
+  const tagline = escapeXml(line || A.brand.core.tagline || "Add a tagline in Brand Strategy");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+    <rect width="320" height="320" fill="${accent}"/>
+    <text x="160" y="150" font-family="Arial, sans-serif" font-size="24" font-weight="800" fill="#ffffff" text-anchor="middle">${name}</text>
+    <text x="160" y="180" font-family="Arial, sans-serif" font-size="13" fill="#ffffff" opacity="0.85" text-anchor="middle">${tagline}</text>
+  </svg>`;
+}
+
+function emailSignatureText(A: W5Actions, person?: string, role?: string): string {
+  const c = A.brand.core;
+  return [person || "[Your Name]", `${role || "[Your Title]"}, ${A.brandName}`, c.tagline || ""].join("\n");
+}
+
+function EditableTextBlock({ text, onSave, hasOverride, onReset }: { text: string; onSave: (v: string) => void; hasOverride: boolean; onReset: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(text);
+  if (editing) {
+    return (
+      <div>
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="h-56 w-full rounded-lg border border-[#E7E9EE] p-3 text-xs leading-relaxed text-[#3A414D] outline-none focus:border-[#4F46E5]"
+        />
+        <div className="mt-2 flex justify-end gap-2">
+          <button onClick={() => { setDraft(text); setEditing(false); }} className="rounded-lg border border-[#E7E9EE] px-3 py-1.5 text-xs font-semibold text-[#6B7280] hover:border-[#c9cfda]">Cancel</button>
+          <button onClick={() => { onSave(draft); setEditing(false); }} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white" style={{ background: O }}>Save</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <pre className="whitespace-pre-wrap rounded-lg bg-[#F7F8FA] p-3 text-xs leading-relaxed text-[#3A414D]">{text}</pre>
+      <div className="mt-2 flex items-center justify-end gap-3">
+        {hasOverride && <button onClick={onReset} className="text-[11px] font-medium text-[#9AA3B0] hover:text-[#6B7280]">Reset to generated</button>}
+        <button onClick={() => { setDraft(text); setEditing(true); }} className="text-[11px] font-semibold" style={{ color: "#4F46E5" }}>✎ Edit</button>
+      </div>
+    </div>
+  );
+}
+
+function AssetPreviewModal({ title, A, onClose }: { title: string; A: W5Actions; onClose: () => void }) {
+  const c = A.brand.core;
+  const hasBrand = Boolean(c.play_id);
+  const edits = A.brand.asset_edits;
+  const downloadName = `${A.brandName.toLowerCase().replace(/\s+/g, "-")}-${title.toLowerCase().replace(/\s+/g, "-")}`;
+  const setEdit = (key: string, value: string) => A.patch({ asset_edits: { ...A.brand.asset_edits, [key]: value } });
+  const clearEdit = (key: string) => { const next = { ...edits }; delete next[key]; A.patch({ asset_edits: next }); };
+  // Local state for the short input fields so typing is instant — saved to the server on blur,
+  // not on every keystroke (EditableTextBlock's longer bodies save on an explicit Save click).
+  const [cardName, setCardName] = useState(edits["Business Cards.name"] || "");
+  const [cardRole, setCardRole] = useState(edits["Business Cards.title"] || "");
+  const [socialLine, setSocialLine] = useState(edits["Social Media Kit.text"] || "");
+  const [sigName, setSigName] = useState(edits["Email Signature.name"] || "");
+  const [sigRole, setSigRole] = useState(edits["Email Signature.title"] || "");
+
+  let body: React.ReactNode;
+  let downloadFn: (() => void) | null = null;
+
+  if (title === "Pitch Deck") {
+    const generated = pitchOutline(A).map((s) => `${s.title}\n${s.body}`).join("\n\n");
+    const text = edits[title] ?? generated;
+    body = <EditableTextBlock text={text} hasOverride={title in edits} onSave={(v) => setEdit(title, v)} onReset={() => clearEdit(title)} />;
+    downloadFn = () => A.download(`${downloadName}.txt`, text);
+  } else if (title === "One Pager" || title === "Media Kit" || title === "Investor Assets") {
+    const generated = title === "One Pager" ? onePagerText(A) : title === "Media Kit" ? mediaKitText(A) : investorText(A);
+    const text = edits[title] ?? generated;
+    body = <EditableTextBlock text={text} hasOverride={title in edits} onSave={(v) => setEdit(title, v)} onReset={() => clearEdit(title)} />;
+    downloadFn = () => A.download(`${downloadName}.txt`, text);
+  } else if (title === "Business Cards") {
+    const svg = businessCardSvg(A, cardName, cardRole);
+    body = (
+      <div className="flex flex-col items-center gap-3">
+        <div dangerouslySetInnerHTML={{ __html: svg }} />
+        <div className="grid w-full max-w-[340px] grid-cols-2 gap-2">
+          <input value={cardName} onChange={(e) => setCardName(e.target.value)} onBlur={() => setEdit("Business Cards.name", cardName)} placeholder="Your Name" className="rounded-lg border border-[#E7E9EE] px-2.5 py-1.5 text-xs outline-none focus:border-[#4F46E5]" />
+          <input value={cardRole} onChange={(e) => setCardRole(e.target.value)} onBlur={() => setEdit("Business Cards.title", cardRole)} placeholder="Title" className="rounded-lg border border-[#E7E9EE] px-2.5 py-1.5 text-xs outline-none focus:border-[#4F46E5]" />
+        </div>
+        <p className="text-[11px] text-[#9AA3B0]">Type your name &amp; title above — they&apos;re saved and baked into the card.</p>
+      </div>
+    );
+    downloadFn = () => A.download(`${downloadName}.svg`, svg, "image/svg+xml");
+  } else if (title === "Social Media Kit") {
+    const svg = socialPostSvg(A, socialLine);
+    body = (
+      <div className="flex flex-col items-center gap-3">
+        <div dangerouslySetInnerHTML={{ __html: svg }} />
+        <input
+          value={socialLine}
+          onChange={(e) => setSocialLine(e.target.value)}
+          onBlur={() => setEdit("Social Media Kit.text", socialLine)}
+          placeholder={c.tagline || "Headline for this post"}
+          className="w-full max-w-[320px] rounded-lg border border-[#E7E9EE] px-2.5 py-1.5 text-xs outline-none focus:border-[#4F46E5]"
+        />
+        <p className="text-[11px] text-[#9AA3B0]">One square template — resize per platform before posting.</p>
+      </div>
+    );
+    downloadFn = () => A.download(`${downloadName}.svg`, svg, "image/svg+xml");
+  } else if (title === "Email Signature") {
+    const text = emailSignatureText(A, sigName, sigRole);
+    body = (
+      <div>
+        <div className="rounded-lg border border-[#EEF0F3] p-4 text-xs" style={{ borderLeft: `3px solid ${A.brand.visual.palette[0]?.hex || O}` }}>
+          <p className="font-bold text-[#111827]">{sigName || "[Your Name]"}</p>
+          <p className="text-[#6B7280]">{sigRole || "[Your Title]"}, {A.brandName}</p>
+          {c.tagline && <p className="mt-1 text-[#9AA3B0]">{c.tagline}</p>}
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <input value={sigName} onChange={(e) => setSigName(e.target.value)} onBlur={() => setEdit("Email Signature.name", sigName)} placeholder="Your Name" className="rounded-lg border border-[#E7E9EE] px-2.5 py-1.5 text-xs outline-none focus:border-[#4F46E5]" />
+          <input value={sigRole} onChange={(e) => setSigRole(e.target.value)} onBlur={() => setEdit("Email Signature.title", sigRole)} placeholder="Your Title" className="rounded-lg border border-[#E7E9EE] px-2.5 py-1.5 text-xs outline-none focus:border-[#4F46E5]" />
+        </div>
+      </div>
+    );
+    downloadFn = () => A.download(`${downloadName}.txt`, text);
+  } else {
+    body = (
+      <div className="rounded-xl border border-dashed border-[#D7DCDA] p-6 text-center text-xs text-[#6B7280]">
+        There&apos;s no product-screenshot or mockup-generation engine yet — this card is a placeholder. Add your own screens to the Assets Library once you have a product to show.
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#E7E9EE] bg-white shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ fontFamily: "Inter, sans-serif" }}>
+        <div className="flex items-center justify-between border-b border-[#EEF0F3] px-5 py-3.5">
+          <p className="text-sm font-bold text-[#111827]">{title}</p>
+          <button onClick={onClose} className="text-[#9AA3B0] hover:text-[#111827]">✕</button>
+        </div>
+        <div className="p-5">
+          {!hasBrand && <p className="mb-3 rounded-lg bg-[#FFF9F3] px-3 py-2 text-[11px] text-[#7A4A1E]">Generate your Brand Core in Brand Strategy first — this preview fills in for real as soon as you do.</p>}
+          {body}
+        </div>
+        {downloadFn && (
+          <div className="flex justify-end gap-2 border-t border-[#EEF0F3] px-5 py-3">
+            <button onClick={downloadFn} className="rounded-lg px-4 py-2 text-xs font-semibold text-white" style={{ background: O }}>⤓ Download</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const ASSETS = [
-  { n: 1, title: "Pitch Deck", desc: "Investor-ready pitch deck 15–20 slides", g: "linear-gradient(135deg,#1a1a2e,#3a2a1a)", action: "Preview" },
-  { n: 2, title: "One Pager", desc: "Concise one-pager for investors & partners", g: "linear-gradient(135deg,#f3f4f6,#e5e7eb)", action: "Preview", light: true },
-  { n: 3, title: "Brand Book", desc: "Brand guidelines, voice, and visual system", g: "linear-gradient(135deg,#0f172a,#7c2d12)", action: "Preview" },
-  { n: 4, title: "Business Cards", desc: "Professional business card designs", g: "linear-gradient(135deg,#111827,#1f2937)", action: "Preview" },
-  { n: 5, title: "Email Signature", desc: "Beautiful email signature for your team", g: "linear-gradient(135deg,#f8fafc,#eef2ff)", action: "Preview", light: true },
-  { n: 6, title: "Investor Assets", desc: "Investor FAQ, traction and financial summary", g: "linear-gradient(135deg,#f0fdf4,#dcfce7)", action: "Preview", light: true },
-  { n: 7, title: "Product Mockups", desc: "High-quality product screens & mockups", g: "linear-gradient(135deg,#0f172a,#1e293b)", action: "Preview" },
-  { n: 8, title: "Social Media Kit", desc: "Branded templates for all social platforms", g: "linear-gradient(135deg,#111827,#374151)", action: "Preview" },
-  { n: 9, title: "Brand Kit (ZIP)", desc: "Logos, colors, fonts, icons & assets", g: "linear-gradient(135deg,#f8fafc,#f1f5f9)", action: "Download ZIP", light: true },
-  { n: 10, title: "Media Kit", desc: "Company overview for press & media", g: "linear-gradient(135deg,#1a1a2e,#3a2a1a)", action: "Preview" },
+  { n: 1, title: "Pitch Deck", desc: "6-slide outline from your Brand Core — problem, positioning, pitch, ask" },
+  { n: 2, title: "One Pager", desc: "Positioning, ICP, and pitch as a single-page summary" },
+  { n: 3, title: "Business Cards", desc: "A real card template in your brand color — add name & title" },
+  { n: 4, title: "Email Signature", desc: "Plain-text signature block with your tagline" },
+  { n: 5, title: "Investor Assets", desc: "Positioning + pitch, with an honest note on traction" },
+  { n: 6, title: "Product Mockups", desc: "Not built yet — no screenshot engine exists" },
+  { n: 7, title: "Social Media Kit", desc: "One square post template in your brand color" },
+  { n: 8, title: "Media Kit", desc: "Press-ready company overview" },
 ];
+// Brand Book / Brand Kit ZIP deliberately excluded — already covered by Brand Identity's
+// Brand Guidelines and Brand Assets Library modules; keeping one destination per asset type.
 
 function LaunchAssets({ companyName, onBack }: { companyName: string; onBack: () => void }) {
   const A = useW5();
+  const [preview, setPreview] = useState<string | null>(null);
+  const hasBrand = Boolean(A.brand.core.play_id);
+  const accent = A.brand.visual.palette[0]?.hex || O;
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
-      <button onClick={onBack} className="text-xs text-[#6B7280] hover:text-[#111827]">W5 / <span className="font-medium text-[#111827]">Launch Assets &amp; Marketing Kit</span></button>
+      <BackBar onBack={onBack} to="W5" />
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-xl text-white" style={{ background: O }}>🎁</span>
-          <div><h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">Phase 4 – Launch Assets &amp; Marketing Kit</h1><p className="text-sm text-[#6B7280]">Create everything you need to launch, pitch, and grow your brand.</p></div>
+          <div><h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">Phase 3 – Marketing Assets</h1><p className="text-sm text-[#6B7280]">Everything below is generated live from your Brand Core — preview, edit the placeholders, download.</p></div>
         </div>
-        <div className="flex gap-2"><button className={btnGhost} onClick={() => A.notify("Launch guide opened")}>▤ Guide</button><button className={btnGhost} onClick={() => A.download(`${companyName.toLowerCase().replace(/\s+/g, "-")}-media-kit.txt`, brandSummary(A))}>▤ Resources</button><button onClick={() => A.openChat("Generate all my launch assets — deck, one-pager, social kit.")} className="rounded-lg border px-4 py-2.5 text-sm font-semibold" style={{ borderColor: O, color: O }}>AI Generate All Assets →</button></div>
+        <div className="flex gap-2"><button className={btnGhost} onClick={() => A.notify("Launch guide opened")}>▤ Guide</button><button className={btnGhost} onClick={() => A.download(`${companyName.toLowerCase().replace(/\s+/g, "-")}-media-kit.txt`, brandSummary(A))}>▤ Resources</button><button onClick={() => A.openChat("Generate all my launch assets — deck, one-pager, social kit.")} className="rounded-lg border px-4 py-2.5 text-sm font-semibold" style={{ borderColor: O, color: O }}>✦ Ask AI to tailor these →</button></div>
       </div>
 
-      <div className="mt-5"><PhaseBar active={4} /></div>
+      <div className="mt-5"><PhaseBar active={3} /></div>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_300px]">
         <div>
-          <div className="flex items-center justify-between rounded-xl border border-[#FDE7D2] bg-[#FFF9F3] p-3 text-xs">
-            <span style={{ color: "#7A4A1E" }}>✦ <b>You&apos;re in the final step!</b> Generate all your launch assets and download your complete marketing kit.</span>
-            <button onClick={() => A.openChat("How does the launch assets step work?")} className="rounded-md border border-[#F0D6BC] px-2 py-1" style={{ color: "#7A4A1E" }}>ⓘ How this works</button>
-          </div>
+          {!hasBrand && (
+            <div className="flex items-center justify-between rounded-xl border border-[#FDE7D2] bg-[#FFF9F3] p-3 text-xs">
+              <span style={{ color: "#7A4A1E" }}>⚠ No Brand Core yet — previews below will show placeholders until you generate one in <b>Brand Strategy</b>.</span>
+              <button onClick={() => A.openChat("How does the marketing assets step work?")} className="rounded-md border border-[#F0D6BC] px-2 py-1" style={{ color: "#7A4A1E" }}>ⓘ How this works</button>
+            </div>
+          )}
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {ASSETS.map((a) => (
-              <div key={a.n} className={`${card} p-3`}>
-                <div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#F1F3F6] text-xs font-bold text-[#6B7280]">{a.n}</span><p className="text-xs font-bold text-[#111827]">{a.title}</p></div>
-                <p className="mt-1 text-[10px] text-[#9AA3B0]">{a.desc}</p>
-                <div className="mt-2 flex h-20 items-center justify-center rounded-lg text-[10px] font-semibold" style={{ background: a.g, color: a.light ? "#6B7280" : "rgba(255,255,255,.85)" }}>
-                  {a.title === "Investor Assets" ? "$125K MRR · 120% ↑" : companyName}
+              <div key={a.n} className={`${card} overflow-hidden p-0 transition hover:border-[#D7DCDA]`}>
+                <button
+                  onClick={() => setPreview(a.title)}
+                  className="flex h-24 w-full items-center justify-center text-sm font-bold text-white"
+                  style={{ background: `linear-gradient(135deg, ${accent}, ${accent}AA)` }}
+                >
+                  {companyName}
+                </button>
+                <div className="p-3">
+                  <p className="text-xs font-bold text-[#111827]">{a.title}</p>
+                  <p className="mt-1 text-[10px] text-[#9AA3B0]">{a.desc}</p>
+                  <p className="mt-2 text-[11px] font-medium" style={{ color: Object.keys(A.brand.asset_edits).some((k) => k === a.title || k.startsWith(`${a.title}.`)) ? "#4F46E5" : hasBrand ? GREEN : "#9AA3B0" }}>
+                    {Object.keys(A.brand.asset_edits).some((k) => k === a.title || k.startsWith(`${a.title}.`)) ? "✎ Edited by you" : hasBrand ? "● Live from your Brand Core" : "○ Placeholder — generate Brand Core"}
+                  </p>
+                  <button onClick={() => setPreview(a.title)} className="mt-2 w-full rounded-lg border border-[#E7E9EE] py-1.5 text-[11px] font-semibold text-[#3A414D] hover:border-[#c9cfda]">Preview</button>
                 </div>
-                <p className="mt-2 text-[11px] font-medium" style={{ color: GREEN }}>✓ Completed</p>
-                <button onClick={() => a.action.startsWith("Download") ? A.download(`${a.title.toLowerCase().replace(/\s+/g, "-")}.txt`, `${a.title}\n\n${brandSummary(A)}`) : A.notify(`Previewing ${a.title}`)} className="mt-1 w-full rounded-lg border border-[#E7E9EE] py-1.5 text-[11px] font-semibold text-[#3A414D] hover:border-[#c9cfda]">{a.action}</button>
               </div>
             ))}
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#FDE7D2] bg-[#FFF9F3] p-3">
-            <span className="text-xs" style={{ color: "#7A4A1E" }}>🎁 <b>All assets are ready!</b> Download your complete marketing kit or go back to edit any asset.</span>
-            <button className={btnO} style={{ background: O }} onClick={() => A.download(`${companyName.toLowerCase().replace(/\s+/g, "-")}-marketing-kit.txt`, brandSummary(A))}>Download All Assets ↓</button>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#EEF0F3] bg-[#F7F8FA] p-3">
+            <span className="text-xs text-[#3A414D]">🎁 Download everything as one text bundle, or open each card above to preview and download it individually.</span>
+            <button className={btnO} style={{ background: O }} onClick={() => A.download(`${companyName.toLowerCase().replace(/\s+/g, "-")}-marketing-kit.txt`, brandSummary(A))}>Download Brand Summary ↓</button>
           </div>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
-            <button className={btnGhost} onClick={onBack}>← Previous: Phase 3</button>
-            <div className="flex gap-2"><button className={btnGhost} disabled={A.busy} onClick={A.saveDraft}>⤓ {A.busy ? "Saving…" : "Save Draft"}</button><button className={btnGhost} onClick={() => A.download(`${companyName.toLowerCase().replace(/\s+/g, "-")}-assets.txt`, brandSummary(A))}>◉ Preview All Assets</button><button className={btnO} style={{ background: O }} disabled={A.busy} onClick={async () => { await A.complete("mod:marketing", { silent: true }); await A.finishW5(); onBack(); }}>Complete W5 &amp; Continue →</button></div>
+            <button className={btnGhost} onClick={onBack}>← Previous: Brand Identity</button>
+            <div className="flex gap-2"><button className={btnGhost} disabled={A.busy} onClick={A.saveDraft}>⤓ {A.busy ? "Saving…" : "Save Draft"}</button><button className={btnO} style={{ background: O }} disabled={A.busy} onClick={async () => { await A.complete("mod:marketing", { silent: true }); await A.finishW5(); onBack(); }}>Complete W5 &amp; Continue →</button></div>
           </div>
         </div>
 
         {/* right rail */}
         <aside className="space-y-4">
           <div className="rounded-2xl border border-[#E7E9EE] bg-[#F7F5FF] p-4">
-            <p className="text-sm font-bold" style={{ color: "#7C3AED" }}>AI Assistant <span className="ml-1 rounded bg-[#EDE9FE] px-1.5 py-0.5 text-[10px]">Beta</span></p>
-            <div className="mt-2 flex items-center justify-between text-xs"><span className="text-[#6B7280]">Overall Progress</span><span className="font-semibold" style={{ color: O }}>83%</span></div>
-            <div className="mt-1"><Progress pct={83} /></div>
-            <p className="mt-2 text-xs text-[#6B7280]">You&apos;re almost ready to launch!</p>
-            <p className="mt-3 text-xs font-bold text-[#111827]">AI Suggestions</p>
-            <div className="mt-2 space-y-2 text-xs text-[#3A414D]">
-              {[["Customize your pitch deck for AI investors", "We can tailor it for you"], ["Add more testimonials to your one pager", "Build more social proof"], ["Optimize your LinkedIn description", "Improve your discoverability"]].map(([t, d]) => (
-                <div key={t}><p className="font-medium text-[#111827]">{t}</p><p className="text-[11px] text-[#9AA3B0]">{d}</p></div>
-              ))}
-            </div>
+            <p className="text-sm font-bold" style={{ color: "#7C3AED" }}>Overall W5 Progress</p>
+            <div className="mt-2 flex items-center justify-between text-xs"><span className="text-[#6B7280]">Across all phases</span><span className="font-semibold" style={{ color: O }}>{A.overallPct}%</span></div>
+            <div className="mt-1"><Progress pct={A.overallPct} /></div>
           </div>
           <div className={`${card} p-4`}>
-            <div className="flex items-center justify-between"><p className="text-sm font-bold text-[#111827]">Asset Quality Score</p><span className="text-sm font-bold" style={{ color: GREEN }}>94/100</span></div>
-            <div className="mt-2"><Progress pct={94} color={GREEN} /></div>
-            <p className="mt-1 text-xs text-[#6B7280]">Excellent! Your assets are top-notch.</p>
+            <p className="text-sm font-bold text-[#111827]">What&apos;s real here</p>
+            <p className="mt-1 text-xs leading-relaxed text-[#6B7280]">Tagline, positioning, ICP, and pitch come straight from your Brand Core. Personal fields like <span className="font-medium text-[#3A414D]">[Your Name]</span> and traction numbers are left for you to fill in — we don&apos;t invent those.</p>
           </div>
           <div className={`${card} p-4`}>
             <p className="text-sm font-bold text-[#111827]">Coming Next</p>
@@ -1175,6 +1509,8 @@ function LaunchAssets({ companyName, onBack }: { companyName: string; onBack: ()
           </div>
         </aside>
       </div>
+
+      {preview && <AssetPreviewModal title={preview} A={A} onClose={() => setPreview(null)} />}
     </div>
   );
 }
@@ -1186,7 +1522,7 @@ const H3 = ({ children }: { children: React.ReactNode }) => (
 function SectionShell({ badge, title, desc, banner, onBack, children }: { badge: string; title: string; desc: string; banner?: React.ReactNode; onBack: () => void; children: React.ReactNode }) {
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
-      <button onClick={onBack} className="text-xs text-[#6B7280] hover:text-[#111827]">← Back · <span className="font-medium text-[#111827]">W5 › {badge}</span></button>
+      <BackBar onBack={onBack} to="W5" />
       <div className="mt-3 flex items-center gap-3">
         <span className="flex h-11 w-11 items-center justify-center rounded-xl text-sm font-extrabold text-white" style={{ background: O }}>W5</span>
         <div><h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">{title}</h1><p className="text-sm text-[#6B7280]">{desc}</p></div>
@@ -1214,8 +1550,8 @@ function DesignSystem({ onBack }: { onBack: () => void }) {
     radius: [6, 10, 14, 999],
   }, null, 2);
   return (
-    <SectionShell badge="Design System" title="Design System" desc="Tokens, type, and components — the reusable UI foundation, generated from your Brand Identity." onBack={onBack}
-      banner={<div className="rounded-xl border border-[#FDE7D2] bg-[#FFF9F3] p-3 text-xs text-[#7A4A1E]"><b>⚠ Advanced / optional.</b> Overlaps <b>W4 · Technical Infrastructure</b>. Tokens = reusable design decisions (color, spacing, type); most pre-seed teams start here and expand later.</div>}>
+    <SectionShell badge="Design System" title="Design System" desc="Tokens, type, and components — the reusable UI foundation, generated from your Brand Identity — plus your generated website below." onBack={onBack}
+      banner={<div className="rounded-xl border border-[#FDE7D2] bg-[#FFF9F3] p-3 text-xs text-[#7A4A1E]"><b>⚠ Tokens are advanced / optional.</b> Overlaps <b>W4 · Technical Infrastructure</b>; most pre-seed teams can skip the raw color/type/spacing tokens until they have a product team. The website section below isn&apos;t optional — that&apos;s your live site.</div>}>
       <div className="grid gap-4 xl:grid-cols-2">
         <div className={`${card} p-5`}>
           <H3>Color tokens <span className="font-normal text-[#9AA3B0]">— from your palette</span></H3>
@@ -1276,15 +1612,16 @@ function DesignSystem({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      {/* the whole system applied to a real site — the "website builder" preview */}
+      {/* the whole system applied to a real site — digital presence lives here now, not as a separate phase */}
       <div className={`${card} mt-4 p-5`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <H3>Applied to your website <span className="font-normal text-[#9AA3B0]">— tokens, type &amp; logo in a live layout</span></H3>
+          <H3>Your website <span className="font-normal text-[#9AA3B0]">— tokens, type &amp; logo applied to a live layout</span></H3>
           <div className="flex gap-2">
             <button onClick={() => A.openUrl(publishedSiteUrl(A.companyId))} className={btnGhost}>◉ Open live site ↗</button>
-            <button onClick={() => onBack()} className={btnGhost}>Open Website Builder →</button>
+            <button onClick={() => A.notify(A.brand.site_template ? "Publishing your website…" : "Generate a site template first — this preview is a style reference, not a live page yet")} className={btnO} style={{ background: O }}>🚀 Publish</button>
           </div>
         </div>
+        <p className="mt-2 text-xs text-[#6B7280]">{A.brand.site_template ? `Live template: ${A.brand.site_template}. Open live site to see the real generated page.` : "No site template generated yet — the layout below shows your tokens applied to a generic SaaS page as a style reference, not your actual site."}</p>
         <div className="mt-3"><SitePreview companyName={A.brandName} dark={false} /></div>
       </div>
 
@@ -1297,9 +1634,10 @@ function DesignSystem({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ============================ DIGITAL PRESENCE (Phase 3) ====================================
-// AI-generated website preview — faithful to the Website Builder mock: nav, bold hero with orange
-// CTA, a Revenue Overview dashboard card, a trusted-by row, and a Powerful Features section.
+// ============================ SITE PREVIEW (used inside Design System) ======================
+// AI-generated website preview — nav, bold hero with orange CTA, a Revenue Overview dashboard
+// card, a trusted-by row, and a Powerful Features section. Illustrative style reference, not
+// live traffic/revenue data — see the honest note rendered above it in DesignSystem.
 const SITE_STATS: [string, string, string][] = [
   ["Users", "24,329", "+18.2%"],
   ["Conversions", "3.62%", "+12.7%"],
@@ -1390,347 +1728,667 @@ function SitePreview({ companyName, dark = false }: { companyName: string; dark?
   );
 }
 
-const DP_PAGES = [
-  ["Homepage", true], ["About Us", true], ["Features", true], ["Pricing", true], ["Contact", true], ["Blog", true], ["Terms of Service", true], ["Privacy Policy", true],
-] as [string, boolean][];
-const DP_CHECK = [
-  ["Domain Connected", true], ["SSL Certificate Active", true], ["Website Built", true], ["Terms of Service Added", true], ["Privacy Policy Added", true], ["Analytics Connected", true], ["Contact Form Tested", true], ["Cookie Policy Added", false], ["Social Profiles Created", false], ["Professional Email Setup", true], ["SEO Optimization", true],
-] as [string, boolean][];
-
-function DigitalPresence({ companyName, onBack, onOpenSection }: { companyName: string; onBack: () => void; onOpenSection: (s: string) => void }) {
-  const A = useW5();
-  const [vp, setVp] = useState<"Desktop" | "Tablet" | "Mobile">("Desktop");
-  return (
-    <div style={{ fontFamily: "Inter, sans-serif" }}>
-      <button onClick={onBack} className="text-xs text-[#6B7280] hover:text-[#111827]">W5 / <span className="font-medium text-[#111827]">Digital Presence &amp; Brand Infrastructure</span></button>
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl text-white" style={{ background: "#2563EB" }}>▧</span>
-          <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">Phase 3 – Digital Presence &amp; Brand Infrastructure</h1>
-            <p className="text-sm text-[#6B7280]">Build your online presence and launch your brand to the world.</p>
-          </div>
-        </div>
-        <div className="flex gap-2"><button className={btnGhost} onClick={() => A.notify("Digital presence guide opened")}>▤ Guide</button><button className={btnGhost} onClick={() => A.openUrl(publishedSiteUrl(A.companyId))}>▤ Resources</button><button onClick={() => A.openChat("Build my full digital presence — website, SEO, and social.")} className="rounded-lg border px-4 py-2.5 text-sm font-semibold" style={{ borderColor: O, color: O }}>✦ AI Build Everything →</button></div>
-      </div>
-
-      {/* stat tiles */}
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[["🌐", "Domain", `${companyName.toLowerCase().replace(/\s+/g, "")}.ai`, "✓ Connected", GREEN, "#DCFCE7"], ["🖥", "Website", "92%", "Ready", "#6D5BF6", "#EDE9FE"], ["📈", "SEO Score", "81/100", "Good", "#D97706", "#FEF3C7"], ["🚀", "Launch Score", "88/100", "Great", GREEN, "#DCFCE7"]].map(([ic, label, val, sub, col, bg]) => (
-          <div key={label as string} className={`${card} p-4`}>
-            <div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: bg as string }}>{ic}</span><span className="text-sm font-semibold text-[#3A414D]">{label}</span></div>
-            <p className="mt-2 text-lg font-extrabold text-[#111827]">{val}</p>
-            <p className="text-xs font-medium" style={{ color: col as string }}>{sub}</p>
-            {label === "Website" && <div className="mt-1"><Progress pct={92} color="#6D5BF6" /></div>}
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_300px]">
-        <div className={`${card} p-4`}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-bold text-[#111827]">🔵 3.3 Website Builder <span className="ml-1 text-xs font-normal text-[#9AA3B0]">AI generates your website pages with your brand and messaging.</span></p>
-            <div className="flex items-center gap-2">
-              <div className="flex rounded-lg border border-[#E7E9EE] p-0.5 text-[11px]">
-                {(["Desktop", "Tablet", "Mobile"] as const).map((v) => (
-                  <button key={v} onClick={() => setVp(v)} className="rounded-md px-2 py-1" style={vp === v ? { background: "#EEF0FF", color: "#4F46E5" } : { color: "#9AA3B0" }}>{v}</button>
-                ))}
-              </div>
-              <button className={btnGhost} onClick={() => A.openUrl(publishedSiteUrl(A.companyId))}>◉ Preview</button><button className={btnO} style={{ background: O }} onClick={() => A.notify("Publishing your website…")}>🚀 Publish</button>
-            </div>
-          </div>
-          <div className="mt-3 grid gap-4 lg:grid-cols-[170px_1fr]">
-            <div>
-              <p className="mb-1 text-xs font-semibold text-[#6B7280]">Pages <span className="float-right text-[#9AA3B0]">8/8</span></p>
-              <div className="space-y-1">
-                {DP_PAGES.map(([p, done], i) => (
-                  <div key={p} className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs" style={i === 0 ? { background: "#FFF4EC" } : undefined}>
-                    <span className="text-[#3A414D]">{p}</span><span style={{ color: done ? GREEN : "#C4CCD6" }}>✓</span>
-                  </div>
-                ))}
-                <button onClick={() => A.notify("New page added to your site")} className="mt-1 w-full rounded-lg border border-dashed border-[#D7DCDA] py-1.5 text-xs text-[#6B7280] hover:border-[#c9cfda]">+ Add Page</button>
-              </div>
-            </div>
-            <SitePreview companyName={companyName} />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {["↻ Regenerate Page", "✎ Rewrite Copy", "⇄ Change Style", "◎ Optimize SEO", "▤ Add Section"].map((a) => (
-              <button key={a} className={btnGhost} onClick={() => onOpenSection("website")}>{a}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* right rail */}
-        <aside className="space-y-4">
-          <div className="rounded-2xl border border-[#E7E9EE] bg-[#F7F5FF] p-4">
-            <div className="flex items-center justify-between"><p className="text-sm font-bold" style={{ color: "#7C3AED" }}>◈ StartupKit AI</p></div>
-            <div className="mt-2 flex items-center justify-between text-xs"><span className="text-[#6B7280]">Progress</span><span className="font-semibold" style={{ color: "#7C3AED" }}>83% Complete</span></div>
-            <div className="mt-1"><Progress pct={83} color="#7C3AED" /></div>
-            <p className="mt-2 text-xs text-[#6B7280]">You&apos;re doing great! 2 steps left to launch.</p>
-            <p className="mt-3 text-xs font-bold text-[#111827]">AI Suggestions</p>
-            <div className="mt-2 space-y-2 text-xs text-[#3A414D]">
-              {[["Connect Google Analytics", "Track your website visitors"], ["Create careers email", "Add jobs@" + companyName.toLowerCase().replace(/\s+/g, "") + ".ai"], ["Improve SEO title", "Your title can rank higher"], ["Publish your website", "Go live and get discovered"]].map(([t, d]) => (
-                <div key={t}><p className="font-medium text-[#111827]">{t}</p><p className="text-[11px] text-[#9AA3B0]">{d}</p></div>
-              ))}
-            </div>
-            <button onClick={() => A.openChat("Show me all suggestions to improve my website.")} className="mt-3 w-full rounded-lg border border-[#E7E9EE] bg-white py-2 text-xs font-semibold" style={{ color: "#7C3AED" }}>View All Suggestions</button>
-          </div>
-          <div className={`${card} p-4`}>
-            <div className="flex items-center justify-between"><p className="text-sm font-bold text-[#111827]">Publishing Checklist</p><span className="text-xs text-[#9AA3B0]">9 / 11 Completed</span></div>
-            <div className="mt-3 space-y-1.5 text-xs">
-              {DP_CHECK.map(([l, done]) => (
-                <div key={l} className="flex items-center gap-2"><span style={{ color: done ? GREEN : "#C4CCD6" }}>{done ? "✓" : "○"}</span><span className="text-[#3A414D]">{l}</span></div>
-              ))}
-            </div>
-            <button onClick={() => A.openUrl(publishedSiteUrl(A.companyId))} className="mt-3 w-full rounded-lg py-2.5 text-sm font-semibold text-white" style={{ background: O }}>🚀 Publish Website<br /><span className="text-[10px] font-normal opacity-80">Go live in one click</span></button>
-          </div>
-        </aside>
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
-        <button className={btnGhost} onClick={onBack}>← Previous</button>
-        <div className="flex gap-2"><button className={btnGhost} disabled={A.busy} onClick={A.saveDraft}>⤓ {A.busy ? "Saving…" : "Save Draft"}</button><button className={btnGhost} onClick={() => A.openUrl(publishedSiteUrl(A.companyId))}>◉ Preview Website</button><button className={btnO} style={{ background: O }} onClick={() => onOpenSection("launch")}>Continue to Phase 4 →</button></div>
-      </div>
-    </div>
-  );
-}
-
-// ============================ WEBSITE BUILDER (full, W5.3) ===================================
-const WB_STEPS = ["Domain & Hosting", "Website Builder", "Pages & Content", "Design & Style", "SEO & Settings", "Review & Publish"];
-const WB_BUILD = ["Business Information", "ICP & Messaging", "Key Features", "Social Proof", "FAQ", "Call To Action", "AI Generate Website"] as string[];
-const WB_STRUCT = [["Homepage", "7 sections"], ["Features", "6 sections"], ["About Us", "5 sections"], ["Pricing", "4 sections"], ["Contact", "4 sections"], ["Privacy Policy", "1 section"], ["Terms of Service", "1 section"]] as [string, string][];
-
-function WebsiteBuilder({ companyName, onBack }: { companyName: string; onBack: () => void }) {
-  const A = useW5();
-  const [vp, setVp] = useState<"Desktop" | "Tablet" | "Mobile">("Desktop");
-  return (
-    <div style={{ fontFamily: "Inter, sans-serif" }}>
-      <button onClick={onBack} className="text-xs text-[#6B7280] hover:text-[#111827]">W5 / Digital Presence / <span className="font-medium text-[#111827]">Website Builder</span></button>
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl text-white" style={{ background: O }}>▤</span>
-          <div><h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">W5.3 Website Builder</h1><p className="text-sm text-[#6B7280]">Create a professional, high-converting website for your startup in minutes.</p></div>
-        </div>
-        <div className="flex gap-2"><button className={btnGhost} onClick={() => A.notify("Website builder guide opened")}>▤ Guide</button><button className={btnGhost} onClick={() => A.openUrl(publishedSiteUrl(A.companyId))}>▤ Resources</button><button className={btnGhost} onClick={() => A.openUrl(publishedSiteUrl(A.companyId))}>◉ Preview Site ↗</button><button className={btnO} style={{ background: O }} onClick={() => A.notify("Publishing your website…")}>Publish Website</button></div>
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center gap-1 rounded-2xl border border-[#E7E9EE] bg-white p-4">
-        {WB_STEPS.map((s, i) => { const n = i + 1, done = n === 1, cur = n === 2; return (
-          <div key={s} className="flex flex-1 items-center gap-2">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: done ? "#DCFCE7" : cur ? O : "#F1F3F6", color: done ? GREEN : cur ? "#fff" : "#9AA3B0" }}>{done ? "✓" : n}</span>
-            <span className="text-xs font-medium" style={{ color: cur ? "#111827" : done ? "#3A414D" : "#9AA3B0" }}>{s}</span>
-            {i < WB_STEPS.length - 1 && <span className="mx-1 hidden flex-1 border-t border-dashed border-[#E7E9EE] lg:block" />}
-          </div>
-        ); })}
-      </div>
-
-      <div className="mt-6 grid gap-5 xl:grid-cols-[230px_1fr_260px]">
-        {/* left build + structure */}
-        <aside className="space-y-4">
-          <div className={`${card} p-4`}>
-            <p className="text-sm font-bold text-[#111827]">1. Build Your Website</p>
-            <p className="mt-1 text-xs text-[#6B7280]">We&apos;ll generate a website for you based on your brand and inputs.</p>
-            <div className="mt-3 space-y-2">
-              {WB_BUILD.map((b, i) => (
-                <div key={b} className="flex items-center justify-between text-xs"><span className="text-[#3A414D]">{b}</span><span style={{ color: i < 7 - 1 ? GREEN : O }}>{i < 7 - 1 ? "✓ Completed" : "○ In Progress"}</span></div>
-              ))}
-            </div>
-          </div>
-          <div className={`${card} p-4`}>
-            <p className="text-sm font-bold text-[#111827]">Website Structure</p>
-            <div className="mt-3 space-y-1">
-              {WB_STRUCT.map(([p, s], i) => (
-                <div key={p} className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs" style={i === 0 ? { background: "#FFF4EC", color: O } : { color: "#3A414D" }}><span>{p}</span><span className="text-[#9AA3B0]">{s}</span></div>
-              ))}
-              <button onClick={() => A.notify("New page added to your site")} className="mt-1 w-full rounded-lg border border-dashed border-[#D7DCDA] py-1.5 text-xs text-[#6B7280] hover:border-[#c9cfda]">+ Add New Page</button>
-            </div>
-          </div>
-        </aside>
-
-        {/* center preview */}
-        <div className={`${card} p-4`}>
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-[#111827]">AI Generated Website <span className="text-xs font-normal text-[#9AA3B0]">(You can edit everything)</span></p>
-            <div className="flex rounded-lg border border-[#E7E9EE] p-0.5 text-[11px]">
-              {(["Desktop", "Tablet", "Mobile"] as const).map((v) => (
-                <button key={v} onClick={() => setVp(v)} className="rounded-md px-2 py-1" style={vp === v ? { background: "#FFF4EC", color: O } : { color: "#9AA3B0" }}>{v}</button>
-              ))}
-            </div>
-          </div>
-          <div className="mt-3"><SitePreview companyName={companyName} dark={false} /></div>
-          <div className="mt-3 flex items-center justify-between rounded-lg bg-[#F7F8FA] p-2 text-[11px] text-[#6B7280]"><span>This is an AI-generated draft. You can edit any text, image, layout, or style.</span><button className={btnGhost} onClick={() => A.notify("Regenerating your website…")}>↻ Regenerate Website</button></div>
-        </div>
-
-        {/* right rail */}
-        <aside className="space-y-4">
-          <div className="rounded-2xl border border-[#E7E9EE] bg-[#F7F5FF] p-4">
-            <p className="text-sm font-bold" style={{ color: "#7C3AED" }}>AI Assistant <span className="ml-1 rounded bg-[#EDE9FE] px-1.5 py-0.5 text-[10px]">Beta</span></p>
-            <p className="mt-2 text-xs text-[#3A414D]">I&apos;ve built your website based on your brand and inputs. Here are some suggestions to improve it.</p>
-            <div className="mt-3 space-y-2 text-xs">
-              {[["Add a customer testimonial section to increase trust.", "Add Section"], ["Your headline is strong! Consider A/B testing this variation.", "Try Variation"], ["Add integration logos to boost credibility.", "Add Integrations"]].map(([t, b]) => (
-                <div key={t}><p className="text-[#3A414D]">{t}</p><button onClick={() => A.notify(`${b} — applied`)} className="mt-1 rounded-md border border-[#E7E9EE] bg-white px-2 py-0.5 text-[10px] hover:border-[#c9cfda]" style={{ color: "#7C3AED" }}>{b}</button></div>
-              ))}
-            </div>
-          </div>
-          <div className={`${card} p-4`}>
-            <p className="text-sm font-bold text-[#111827]">Design &amp; Style</p>
-            <p className="mt-2 text-xs text-[#9AA3B0]">Current Theme</p><p className="text-sm font-medium text-[#111827]">Modern Clean</p>
-            <p className="mt-2 text-xs text-[#9AA3B0]">Primary Color</p>
-            <div className="mt-1 flex gap-1.5">{[O, "#111827", "#2563EB", "#16A34A", "#7C3AED", "#9AA3B0"].map((c) => <span key={c} className="h-6 w-6 rounded-md" style={{ background: c }} />)}</div>
-            <button onClick={() => A.openChat("Help me customize my website design.")} className="mt-3 w-full rounded-lg border border-[#E7E9EE] py-2 text-xs font-semibold text-[#3A414D] hover:border-[#c9cfda]">Customize Design</button>
-          </div>
-          <div className={`${card} p-4`}>
-            <p className="text-sm font-bold text-[#111827]">Integrations</p>
-            <div className="mt-2 space-y-2 text-xs">
-              {[["Google Analytics", true], ["Google Search Console", true], ["Hotjar", false]].map(([n, on]) => (
-                <div key={n as string} className="flex items-center justify-between"><span className="text-[#3A414D]">{n}</span><span style={{ color: on ? GREEN : "#9AA3B0" }}>{on ? "Connected" : "Not Connected"}</span></div>
-              ))}
-            </div>
-            <button onClick={() => A.notify("Manage integrations — opening settings")} className="mt-3 w-full rounded-lg border border-[#E7E9EE] py-2 text-xs font-semibold text-[#3A414D] hover:border-[#c9cfda]">Manage Integrations</button>
-          </div>
-        </aside>
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
-        <button className={btnGhost} onClick={onBack}>← Previous: Domain &amp; Hosting</button>
-        <div className="flex gap-2"><button className={btnGhost} disabled={A.busy} onClick={A.saveDraft}>⤓ {A.busy ? "Saving…" : "Save Progress"}</button><button className={btnO} style={{ background: O }} onClick={() => A.notify("Moving to Pages & Content")}>Next: Pages &amp; Content →</button></div>
-      </div>
-    </div>
-  );
-}
-
 // ============================ LOGO GENERATOR ================================================
-const LOGO_STEPS = ["Brand Name", "Logo Generation", "Mockup Preview", "Colors & Typography", "Brand Guidelines", "Trademark Review"];
-const LOGO_MARKS = [
-  '<path d="M12 3l9 18H3z" fill="url(#g)"/>', // A triangle
-  '<path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z" fill="url(#g)"/>', // hexagon
-  '<rect x="4" y="13" width="3.5" height="7" rx="1" fill="url(#g)"/><rect x="10" y="9" width="3.5" height="11" rx="1" fill="url(#g)"/><rect x="16" y="5" width="3.5" height="15" rx="1" fill="url(#g)"/>', // bars
-  '<path d="M12 3l8 8-8 10L4 11z" fill="url(#g)"/>', // diamond/A
-  '<circle cx="7" cy="8" r="2.5" fill="url(#g)"/><circle cx="17" cy="8" r="2.5" fill="url(#g)"/><circle cx="12" cy="16" r="2.5" fill="url(#g)"/><path d="M7 8l5 8 5-8" stroke="url(#g)" stroke-width="1.5" fill="none"/>', // nodes
-  '<path d="M5 19L12 5l7 14" stroke="url(#g)" stroke-width="3" fill="none" stroke-linecap="round"/>', // A stroke
-];
+// Was showing 6 hardcoded generic shapes ("AI Generated") plus fake "Brand Inputs" from
+// useBrandFacts' silent placeholder fallback — for every company, whether or not anything was
+// actually generated. There is no multi-concept logo generator on the backend: there's one
+// deterministic wordmark + favicon, rendered live from the real VisualSystem. This now shows
+// exactly that, gated the same honest way as Palette/Typography/Voice/Story.
 function LogoGenerator({ companyName, onBack }: { companyName: string; onBack: () => void }) {
   const A = useW5();
-  const f = useBrandFacts();
-  const [selected, setSelected] = useState(1);
-  const [liked, setLiked] = useState<number[]>([]);
-  const grad = (
-    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#4F46E5" /><stop offset="1" stopColor="#06B6D4" /></linearGradient></defs>
-  );
+  const v = A.brand.visual;
+  const has = Boolean(v.logo_direction);
+  const [note, setNote] = useState(v.logo_direction);
+
+  const confirm = async () => {
+    await A.patch({ visual: { ...v, logo_direction: note } });
+    await A.complete("mod:logo", { silent: true });
+    A.notify("Logo confirmed ✓");
+    onBack();
+  };
+
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
-      <button onClick={onBack} className="text-xs text-[#6B7280] hover:text-[#111827]">W5 › Identity › <span className="font-medium text-[#111827]">Logo Generation</span></button>
+      <BackBar onBack={onBack} to="Brand Identity" />
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-full text-white" style={{ background: O }}>◒</span>
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">2.2 Logo Generation</h1>
-            <p className="text-sm text-[#6B7280]">Generate multiple logo concepts for your brand. Choose the one that best represents your vision.</p>
+            <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">2.1 Logo Design</h1>
+            <p className="text-sm text-[#6B7280]">Your real, generated wordmark and favicon — rendered live from your visual system.</p>
           </div>
         </div>
-        <div className="flex gap-2"><button className={btnGhost} onClick={() => A.notify("Logo guide opened")}>▤ Guide</button><button className={btnGhost} onClick={() => A.openUrl(brandWordmarkUrl(A.companyId))}>▤ Resources</button><button className={btnGhost} onClick={() => A.openUrl(brandWordmarkUrl(A.companyId))}>⇱ Share</button></div>
+        <div className="flex gap-2"><button className={btnGhost} onClick={() => A.openUrl(brandWordmarkUrl(A.companyId))}>▤ Open wordmark</button><button className={btnGhost} onClick={() => A.openUrl(brandFaviconUrl(A.companyId))}>▤ Open favicon</button></div>
       </div>
 
-      {/* step bar */}
-      <div className="mt-5 flex flex-wrap items-center gap-1 rounded-2xl border border-[#E7E9EE] bg-white p-4">
-        {LOGO_STEPS.map((s, i) => {
-          const n = i + 1, done = n === 1, cur = n === 2;
-          return (
-            <div key={s} className="flex flex-1 items-center gap-2">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: done ? "#DCFCE7" : cur ? O : "#F1F3F6", color: done ? GREEN : cur ? "#fff" : "#9AA3B0" }}>{done ? "✓" : n}</span>
-              <span className="text-xs font-medium" style={{ color: cur ? "#111827" : done ? "#3A414D" : "#9AA3B0" }}>{s}</span>
-              {i < LOGO_STEPS.length - 1 && <span className="mx-1 hidden flex-1 border-t border-dashed border-[#E7E9EE] lg:block" />}
+      {!has ? (
+        <div className={`${card} mt-6 p-10 text-center`}>
+          <p className="text-3xl">◒</p>
+          <p className="mt-3 text-sm font-bold text-[#111827]">No logo generated yet</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-[#6B7280]">
+            Your wordmark is rendered from your Brand Play&apos;s visual system — generate your Brand Core in
+            <b> 1. Brand Strategy</b> first and it appears here automatically. There&apos;s no separate
+            &ldquo;pick from 6 concepts&rdquo; step — one wordmark, generated from real brand data.
+          </p>
+          <button className={btnO} style={{ background: O, marginTop: 16 }} onClick={onBack}>← Back to Brand Identity</button>
+        </div>
+      ) : (
+        <>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className={`${card} flex flex-col items-center justify-center gap-3 p-8`}>
+              <p className={label}>Wordmark</p>
+              <img src={brandWordmarkUrl(A.companyId)} alt="wordmark" style={{ height: 56 }} />
             </div>
-          );
-        })}
-      </div>
+            <div className={`${card} flex flex-col items-center justify-center gap-3 p-8`}>
+              <p className={label}>Favicon</p>
+              <img src={brandFaviconUrl(A.companyId)} alt="favicon" style={{ height: 40, width: 40 }} />
+            </div>
+          </div>
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[280px_1fr]">
-        {/* left: inputs + prefs */}
-        <aside className="space-y-4">
-          <div className={`${card} p-4`}>
-            <div className="flex items-center justify-between"><p className="text-sm font-bold text-[#111827]">Brand Inputs</p><button onClick={() => A.openChat("Help me refine the inputs for my logo.")} className="text-xs" style={{ color: "#4F46E5" }}>✎ Edit</button></div>
-            <div className="mt-3 space-y-3 text-xs">
-              {([["Brand Name", companyName], ["Industry", f.category], ["Positioning", f.positioning], ["Brand Personality", f.values.join(", ")], ["Color Preference", "Blue, Purple, Teal"], ["Style Preference", "Minimal, Clean, Geometric"]] as [string, string][]).map(([k, v]) => (
-                <div key={k}><p className="text-[#9AA3B0]">{k}</p><p className="font-medium text-[#111827]">{v}</p></div>
-              ))}
-            </div>
-          </div>
-          <div className={`${card} p-4`}>
-            <p className="text-sm font-bold text-[#111827]">Design Preferences</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {["Minimal", "Modern", "Bold", "Techy", "Playful", "Classic"].map((d, i) => (
-                <span key={d} className="rounded-lg border px-2.5 py-1 text-xs" style={i === 0 ? { borderColor: "#4F46E5", color: "#4F46E5", background: "#EEF0FF" } : { borderColor: "#E7E9EE", color: "#6B7280" }}>{d} {i === 0 ? "✓" : ""}</span>
-              ))}
-            </div>
-            <p className="mt-3 text-sm font-bold text-[#111827]">Layout Preference</p>
-            <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[11px]">
-              {["Icon + Text", "Icon Above", "Icon Only"].map((l, i) => (
-                <div key={l} className="rounded-lg border p-2" style={i === 0 ? { borderColor: "#4F46E5", background: "#EEF0FF", color: "#4F46E5" } : { borderColor: "#E7E9EE", color: "#6B7280" }}>▦<br />{l}</div>
-              ))}
-            </div>
-            <p className="mt-3 text-sm font-bold text-[#111827]">Icon Style</p>
-            <div className="mt-2 flex gap-2">
-              {["Geometric", "Abstract", "Symbolic"].map((s, i) => (
-                <span key={s} className="flex-1 rounded-lg border px-2 py-1 text-center text-[11px]" style={i === 0 ? { borderColor: "#4F46E5", color: "#4F46E5", background: "#EEF0FF" } : { borderColor: "#E7E9EE", color: "#6B7280" }}>{s} {i === 0 ? "✓" : ""}</span>
-              ))}
-            </div>
-          </div>
-        </aside>
-
-        {/* center: concepts */}
-        <div>
-          <div className="flex items-center justify-between">
-            <div><p className="text-lg font-extrabold text-[#111827]">Logo Concepts <span className="ml-1 rounded bg-[#EDE9FE] px-1.5 py-0.5 text-[10px]" style={{ color: "#7C3AED" }}>AI Generated</span></p><p className="text-xs text-[#6B7280]">Choose your favorite logo or regenerate more options.</p></div>
-            <div className="flex gap-2"><button className={btnGhost} onClick={() => A.notify("Regenerating logo concepts…")}>↻ Regenerate</button><button className={btnGhost} onClick={() => A.openChat("Refine my logo prompt.")}>⇄ Refine Prompt</button></div>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {LOGO_MARKS.map((m, i) => (
-              <button key={i} onClick={() => setSelected(i)} className={`${card} flex flex-col items-center justify-center p-6 text-center`} style={i === selected ? { borderColor: "#4F46E5", borderWidth: 2 } : undefined}>
-                <div className="mb-2 flex w-full items-center justify-between">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#EEF0FF] text-xs font-bold" style={{ color: "#4F46E5" }}>{String.fromCharCode(65 + i)}</span>
-                  <span onClick={(e) => { e.stopPropagation(); setLiked((l) => l.includes(i) ? l.filter((x) => x !== i) : [...l, i]); }} style={{ color: liked.includes(i) ? "#EC4899" : "#C4CCD6" }}>{liked.includes(i) ? "♥" : "♡"}</span>
-                </div>
-                <svg viewBox="0 0 24 24" className="h-10 w-10">{grad}<g dangerouslySetInnerHTML={{ __html: m }} /></svg>
-                <p className="mt-2 text-sm font-bold text-[#111827]">{companyName}</p>
-              </button>
-            ))}
-          </div>
-          <p className="mt-3 rounded-lg bg-[#F5F3FF] p-3 text-xs" style={{ color: "#6D5BD0" }}>✦ These logos are AI-generated based on your brand inputs. You can refine the prompt and regenerate for more options.</p>
-
-          <div className={`${card} mt-4 p-4`}>
-            <p className="text-sm font-bold text-[#111827]">Selected Logo Preview</p>
-            <div className="mt-3 grid gap-4 md:grid-cols-3">
-              <div className="flex flex-col items-center justify-center rounded-xl border border-[#EEF0F3] py-4">
-                <svg viewBox="0 0 24 24" className="h-9 w-9">{grad}<g dangerouslySetInnerHTML={{ __html: LOGO_MARKS[selected] }} /></svg>
-                <p className="mt-1 text-sm font-bold text-[#111827]">{companyName}</p>
-              </div>
-              <div>
-                <p className="text-xs text-[#6B7280]">Selected: <b className="text-[#111827]">Option {String.fromCharCode(65 + selected)}</b> <span className="rounded bg-[#DCFCE7] px-1.5 py-0.5 text-[10px]" style={{ color: GREEN }}>Recommended</span></p>
-                <ul className="mt-2 space-y-1 text-xs text-[#3A414D]">
-                  {["Clean and professional", "Great scalability", "Works well across digital platforms"].map((x) => <li key={x} className="flex gap-1.5"><span style={{ color: GREEN }}>✓</span>{x}</li>)}
-                </ul>
-              </div>
-              <div>
-                <p className="text-xs text-[#6B7280]">File Formats You&apos;ll Get</p>
-                <div className="mt-2 flex gap-2">{["SVG", "PNG", "JPG", "PDF"].map((f) => <span key={f} className="rounded-lg bg-[#F1F3F6] px-2 py-1 text-[10px] font-semibold text-[#6B7280]">{f}</span>)}</div>
-                <p className="mt-2 text-[11px]" style={{ color: "#4F46E5" }}>+ Favicon (ICO)</p><p className="text-[11px]" style={{ color: "#4F46E5" }}>+ Monochrome Version</p>
-              </div>
+          <div className={`${card} mt-4 p-5`}>
+            <p className={label}>Logo direction — from your Brand Play</p>
+            <textarea className="mt-2 w-full rounded-lg border border-[#E7E9EE] p-3 text-sm leading-relaxed outline-none focus:border-[#4F46E5]" rows={3}
+              value={note} onChange={(e) => setNote(e.target.value)} />
+            <div className="mt-3 flex gap-2">{["SVG"].map((f) => <span key={f} className="rounded-lg bg-[#F1F3F6] px-2 py-1 text-[10px] font-semibold text-[#6B7280]">{f}</span>)}
+              <span className="text-[11px] text-[#9AA3B0]">— PNG/JPG/PDF export isn&apos;t built yet; SVG is the real, live format today.</span>
             </div>
           </div>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
-            <button className={btnGhost} onClick={onBack}>← Previous: Brand Name</button>
-            <div className="flex gap-2"><button className={btnGhost} disabled={A.busy} onClick={A.saveDraft}>⤓ {A.busy ? "Saving…" : "Save Progress"}</button><button className={btnO} style={{ background: O }} onClick={() => { A.notify(`Logo Option ${String.fromCharCode(65 + selected)} selected`); onBack(); }}>Select This Logo &amp; Continue →</button></div>
+            <button className={btnGhost} onClick={onBack}>← Back to Brand Identity</button>
+            <div className="flex gap-2">
+              <button className={btnGhost} onClick={() => A.openChat("Suggest a different logo direction for my brand.")}>✦ Ask AI to refine</button>
+              <button className={btnGhost} disabled={A.busy} onClick={A.saveDraft}>⤓ {A.busy ? "Saving…" : "Save Progress"}</button>
+              <button className={btnO} style={{ background: O }} disabled={A.busy} onClick={confirm}>Confirm Logo &amp; Continue →</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================ COLOR PALETTE ==================================================
+// Reads the real generated palette (VisualSystem.palette, from generate_visual_system — one call
+// per Brand Play, made when the founder generated their Brand Core in Strategy). We never invent
+// colors here: no palette yet means send the founder to Strategy, not a fake starter set.
+const ROLE_HINT: Record<string, string> = {
+  primary: "Your main brand color — logo, CTAs, links.",
+  ink: "Body text and headlines.",
+  paper: "Page and card backgrounds.",
+  accent: "Highlights, badges, secondary actions.",
+  support: "Borders, dividers, subtle fills.",
+};
+
+function PaletteEditor({ onBack }: { onBack: () => void }) {
+  const A = useW5();
+  const palette = A.brand.visual.palette;
+  const [copied, setCopied] = useState("");
+
+  const setSwatch = (i: number, patch: Partial<{ name: string; hex: string; role: string }>) => {
+    const next = palette.map((s, x) => (x === i ? { ...s, ...patch } : s));
+    A.patch({ visual: { ...A.brand.visual, palette: next } });
+  };
+  const copyHex = (hex: string) => {
+    navigator.clipboard?.writeText(hex);
+    setCopied(hex);
+    setTimeout(() => setCopied(""), 1400);
+  };
+  const confirm = async () => {
+    await A.complete("mod:palette", { silent: true });
+    A.notify("Palette confirmed ✓");
+    onBack();
+  };
+
+  return (
+    <div style={{ fontFamily: "Inter, sans-serif" }}>
+      <BackBar onBack={onBack} to="Brand Identity" />
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl text-white" style={{ background: "#8B5CF6" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-6 w-6"><circle cx="12" cy="12" r="9" /><circle cx="8" cy="10" r="1.3" /><circle cx="12" cy="8" r="1.3" /><circle cx="16" cy="10" r="1.3" /></svg>
+          </span>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">2.2 Color Palette</h1>
+            <p className="text-sm text-[#6B7280]">Generated from your Brand Play — edit any swatch until it's right.</p>
           </div>
         </div>
+        <button className={btnGhost} onClick={() => A.download("color-palette.json", JSON.stringify(palette, null, 2), "application/json")}>⇩ Export JSON</button>
+      </div>
+
+      {palette.length === 0 ? (
+        <div className={`${card} mt-6 p-10 text-center`}>
+          <p className="text-3xl">🎨</p>
+          <p className="mt-3 text-sm font-bold text-[#111827]">No palette yet</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-[#6B7280]">
+            Your palette is generated from your Brand Play, not invented here. Generate your Brand Core in
+            <b> 1. Brand Strategy</b> first and it appears on this screen automatically.
+          </p>
+          <button className={btnO} style={{ background: O, marginTop: 16 }} onClick={onBack}>← Back to Brand Identity</button>
+        </div>
+      ) : (
+        <>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {palette.map((s, i) => (
+              <div key={i} className={`${card} overflow-hidden`}>
+                <button className="h-24 w-full" style={{ background: s.hex }} onClick={() => copyHex(s.hex)} title="Click to copy hex" />
+                <div className="p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <input className="w-full border-none bg-transparent text-sm font-bold text-[#111827] outline-none" value={s.name}
+                      onChange={(e) => setSwatch(i, { name: e.target.value })} onBlur={A.saveDraft} />
+                    <button onClick={() => copyHex(s.hex)} className="shrink-0 font-mono text-xs text-[#6B7280] hover:text-[#111827]">
+                      {copied === s.hex ? "Copied ✓" : s.hex}
+                    </button>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <input type="color" value={/^#[0-9a-f]{6}$/i.test(s.hex) ? s.hex : "#000000"}
+                      onChange={(e) => setSwatch(i, { hex: e.target.value })} onBlur={A.saveDraft}
+                      className="h-8 w-8 shrink-0 cursor-pointer rounded border border-[#E7E9EE] p-0" />
+                    <input className="w-full rounded-lg border border-[#E7E9EE] px-2 py-1 font-mono text-xs uppercase text-[#3A414D] outline-none focus:border-[#8B5CF6]"
+                      value={s.hex} onChange={(e) => setSwatch(i, { hex: e.target.value })} onBlur={A.saveDraft} />
+                  </div>
+                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-[#9AA3B0]">{s.role}</p>
+                  <p className="mt-0.5 text-[11px] text-[#9AA3B0]">{ROLE_HINT[s.role] ?? "Supporting brand color."}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className={`${card} mt-6 p-4`}>
+            <p className="text-xs font-bold uppercase tracking-wide text-[#9AA3B0]">Preview</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl p-5" style={{ background: palette.find((p) => p.role === "paper")?.hex || "#fff" }}>
+              <span className="rounded-lg px-4 py-2 text-sm font-bold text-white" style={{ background: palette.find((p) => p.role === "primary")?.hex || "#111827" }}>
+                Primary button
+              </span>
+              <span className="text-sm font-semibold" style={{ color: palette.find((p) => p.role === "ink")?.hex || "#111827" }}>
+                Body text in your ink color
+              </span>
+              <span className="rounded-full px-3 py-1 text-xs font-bold" style={{ background: palette.find((p) => p.role === "accent")?.hex || "#eee", color: "#fff" }}>
+                Accent badge
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
+            <button className={btnGhost} onClick={onBack}>← Back to Brand Identity</button>
+            <div className="flex gap-2">
+              <button className={btnGhost} onClick={() => A.openChat("Suggest a refined color palette for my brand.")}>✦ Ask AI to refine</button>
+              <button className={btnGhost} disabled={A.busy} onClick={A.saveDraft}>⤓ {A.busy ? "Saving…" : "Save Progress"}</button>
+              <button className={btnO} style={{ background: O }} disabled={A.busy} onClick={confirm}>Confirm Palette &amp; Continue →</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================ TYPOGRAPHY =====================================================
+// Reads the real type pairing from VisualSystem (generate_visual_system, same call as the
+// palette). Two roles: display (headlines) and body (everything else) — a founder edits the
+// font names, sees them live, and confirms.
+const FONT_STACKS: Record<string, string> = {
+  "Inter": "Inter, ui-sans-serif, system-ui, sans-serif",
+  "Sohne": '"Sohne", Inter, ui-sans-serif, sans-serif',
+  "General Sans": '"General Sans", Inter, ui-sans-serif, sans-serif',
+  "Playfair Display": '"Playfair Display", Georgia, serif',
+  "Fraunces": '"Fraunces", Georgia, serif',
+  "Space Grotesk": '"Space Grotesk", Inter, ui-sans-serif, sans-serif',
+  "IBM Plex Mono": '"IBM Plex Mono", ui-monospace, monospace',
+};
+function stackFor(name: string): string {
+  return FONT_STACKS[name] ?? `"${name}", Inter, ui-sans-serif, sans-serif`;
+}
+
+function TypographyEditor({ onBack }: { onBack: () => void }) {
+  const A = useW5();
+  const v = A.brand.visual;
+  const has = Boolean(v.type_display && v.type_body);
+
+  const setField = (k: "type_display" | "type_body", val: string) =>
+    A.patch({ visual: { ...v, [k]: val } });
+  const confirm = async () => {
+    await A.complete("mod:typography", { silent: true });
+    A.notify("Typography confirmed ✓");
+    onBack();
+  };
+
+  return (
+    <div style={{ fontFamily: "Inter, sans-serif" }}>
+      <BackBar onBack={onBack} to="Brand Identity" />
+      <div className="mt-3 flex items-center gap-3">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl text-lg font-extrabold" style={{ background: "#DBEAFE", color: "#3B82F6" }}>Aa</span>
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">2.3 Typography</h1>
+          <p className="text-sm text-[#6B7280]">Generated from your Brand Play — the display/body pairing that carries your voice.</p>
+        </div>
+      </div>
+
+      {!has ? (
+        <div className={`${card} mt-6 p-10 text-center`}>
+          <p className="text-3xl">Aa</p>
+          <p className="mt-3 text-sm font-bold text-[#111827]">No type pairing yet</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-[#6B7280]">
+            Generate your Brand Core in <b>1. Brand Strategy</b> first — the type pairing comes from your Brand Play, not invented here.
+          </p>
+          <button className={btnO} style={{ background: O, marginTop: 16 }} onClick={onBack}>← Back to Brand Identity</button>
+        </div>
+      ) : (
+        <>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className={`${card} p-5`}>
+              <p className="text-xs font-bold uppercase tracking-wide text-[#9AA3B0]">Display — headlines</p>
+              <input className="mt-2 w-full rounded-lg border border-[#E7E9EE] px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
+                value={v.type_display} onChange={(e) => setField("type_display", e.target.value)} onBlur={A.saveDraft} />
+              <p className="mt-4 text-3xl font-bold text-[#111827]" style={{ fontFamily: stackFor(v.type_display) }}>{A.brandName}</p>
+              <p className="text-lg text-[#111827]" style={{ fontFamily: stackFor(v.type_display) }}>{A.core.tagline || "Your tagline goes here"}</p>
+            </div>
+            <div className={`${card} p-5`}>
+              <p className="text-xs font-bold uppercase tracking-wide text-[#9AA3B0]">Body — everything else</p>
+              <input className="mt-2 w-full rounded-lg border border-[#E7E9EE] px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
+                value={v.type_body} onChange={(e) => setField("type_body", e.target.value)} onBlur={A.saveDraft} />
+              <p className="mt-4 text-sm leading-relaxed text-[#3A414D]" style={{ fontFamily: stackFor(v.type_body) }}>
+                {A.core.positioning || A.core.pitch || "Body text uses this font for paragraphs, UI labels, and everything a customer reads."}
+              </p>
+            </div>
+          </div>
+          <p className="mt-2 text-[11px] text-[#9AA3B0]">Preview uses your system font stack if the exact face isn&apos;t installed locally — the name is what ships to your brand kit.</p>
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
+            <button className={btnGhost} onClick={onBack}>← Back to Brand Identity</button>
+            <div className="flex gap-2">
+              <button className={btnGhost} onClick={() => A.openChat("Suggest a different font pairing for my brand.")}>✦ Ask AI to refine</button>
+              <button className={btnGhost} disabled={A.busy} onClick={A.saveDraft}>⤓ {A.busy ? "Saving…" : "Save Progress"}</button>
+              <button className={btnO} style={{ background: O }} disabled={A.busy} onClick={confirm}>Confirm Typography &amp; Continue →</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================ BRAND VOICE ====================================================
+function BrandVoiceEditor({ onBack }: { onBack: () => void }) {
+  const A = useW5();
+  const c = A.core;
+  const [voice, setVoice] = useState(c.voice);
+  const has = Boolean(c.voice);
+
+  const confirm = async () => {
+    await A.patch({ core: { ...A.brand.core, voice } });
+    await A.complete("mod:voice", { silent: true });
+    A.notify("Brand voice confirmed ✓");
+    onBack();
+  };
+
+  return (
+    <div style={{ fontFamily: "Inter, sans-serif" }}>
+      <BackBar onBack={onBack} to="Brand Identity" />
+      <div className="mt-3 flex items-center gap-3">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: "#FEF3C7", color: "#F59E0B" }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-6 w-6"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2" /></svg>
+        </span>
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">2.5 Brand Voice</h1>
+          <p className="text-sm text-[#6B7280]">How your brand sounds, in one paragraph — edit until it&apos;s unmistakably you.</p>
+        </div>
+      </div>
+
+      {!has && !voice ? (
+        <div className={`${card} mt-6 p-6`}>
+          <p className="text-sm font-bold text-[#111827]">No voice set yet</p>
+          <p className="mt-1 text-xs leading-relaxed text-[#6B7280]">
+            Generate your Brand Core in Brand Strategy for a starting draft, or write your own below — voice is one thing worth writing in your own words.
+          </p>
+          <textarea className="mt-3 w-full rounded-lg border border-[#E7E9EE] p-3 text-sm outline-none focus:border-[#F59E0B]" rows={4}
+            placeholder="e.g. Direct, a little irreverent, never corporate. We explain like a sharp friend, not a brochure."
+            value={voice} onChange={(e) => setVoice(e.target.value)} />
+        </div>
+      ) : (
+        <div className={`${card} mt-6 p-6`}>
+          <p className={label}>Voice description</p>
+          <textarea className="mt-2 w-full rounded-lg border border-[#E7E9EE] p-3 text-sm leading-relaxed outline-none focus:border-[#F59E0B]" rows={5}
+            value={voice} onChange={(e) => setVoice(e.target.value)} />
+          <div className="mt-4 rounded-lg bg-[#FFFBEB] p-4">
+            <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "#92600E" }}>Applied to a sample line</p>
+            <p className="mt-1.5 text-sm text-[#3A414D]">&ldquo;{A.core.pitch || A.core.tagline || `${A.brandName} helps you move faster.`}&rdquo;</p>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
+        <button className={btnGhost} onClick={onBack}>← Back to Brand Identity</button>
+        <div className="flex gap-2">
+          <button className={btnGhost} onClick={() => A.openChat("Help me write my brand voice.")}>✦ Ask AI to draft</button>
+          <button className={btnO} style={{ background: O }} disabled={A.busy || !voice.trim()} onClick={confirm}>Confirm Voice &amp; Continue →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================ BRAND STORY ====================================================
+function BrandStoryEditor({ onBack }: { onBack: () => void }) {
+  const A = useW5();
+  const core = A.brand.core;
+  const has = Boolean(core.mission);
+
+  const setField = (k: "mission" | "vision" | "tagline" | "pitch", val: string) =>
+    A.patch({ core: { ...core, [k]: val } });
+  const confirm = async () => {
+    await A.complete("mod:story", { silent: true });
+    A.notify("Brand story confirmed ✓");
+    onBack();
+  };
+
+  return (
+    <div style={{ fontFamily: "Inter, sans-serif" }}>
+      <BackBar onBack={onBack} to="Brand Identity" />
+      <div className="mt-3 flex items-center gap-3">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: "#FCE7F3", color: "#EC4899" }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-6 w-6"><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></svg>
+        </span>
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">2.6 Brand Story</h1>
+          <p className="text-sm text-[#6B7280]">Mission, vision, and the line you lead with — from your validated idea, not invented here.</p>
+        </div>
+      </div>
+
+      {!has ? (
+        <div className={`${card} mt-6 p-10 text-center`}>
+          <p className="text-3xl">📖</p>
+          <p className="mt-3 text-sm font-bold text-[#111827]">No story drafted yet</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-[#6B7280]">
+            Generate your Brand Core in <b>1. Brand Strategy</b> and your mission, vision, and pitch draft from your validated idea automatically.
+          </p>
+          <button className={btnO} style={{ background: O, marginTop: 16 }} onClick={onBack}>← Back to Brand Identity</button>
+        </div>
+      ) : (
+        <>
+          <div className="mt-6 space-y-4">
+            <div className={`${card} p-5`}>
+              <p className={label}>Mission — why we exist, today</p>
+              <textarea className="mt-2 w-full rounded-lg border border-[#E7E9EE] p-3 text-sm outline-none focus:border-[#EC4899]" rows={2}
+                value={core.mission} onChange={(e) => setField("mission", e.target.value)} onBlur={A.saveDraft} />
+            </div>
+            <div className={`${card} p-5`}>
+              <p className={label}>Vision — the world if we win</p>
+              <textarea className="mt-2 w-full rounded-lg border border-[#E7E9EE] p-3 text-sm outline-none focus:border-[#EC4899]" rows={2}
+                value={core.vision} onChange={(e) => setField("vision", e.target.value)} onBlur={A.saveDraft} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className={`${card} p-5`}>
+                <p className={label}>Tagline</p>
+                <input className="mt-2 w-full rounded-lg border border-[#E7E9EE] px-3 py-2 text-sm font-semibold outline-none focus:border-[#EC4899]"
+                  value={core.tagline} onChange={(e) => setField("tagline", e.target.value)} onBlur={A.saveDraft} />
+              </div>
+              <div className={`${card} p-5`}>
+                <p className={label}>Elevator pitch</p>
+                <input className="mt-2 w-full rounded-lg border border-[#E7E9EE] px-3 py-2 text-sm outline-none focus:border-[#EC4899]"
+                  value={core.pitch} onChange={(e) => setField("pitch", e.target.value)} onBlur={A.saveDraft} />
+              </div>
+            </div>
+            {core.values.length > 0 && (
+              <div className={`${card} p-5`}>
+                <p className={label}>Values</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {core.values.map((v) => <span key={v} className="rounded-full border border-[#E7E9EE] px-3 py-1 text-xs font-medium text-[#3A414D]">{v}</span>)}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
+            <button className={btnGhost} onClick={onBack}>← Back to Brand Identity</button>
+            <div className="flex gap-2">
+              <button className={btnGhost} onClick={() => A.openChat("Sharpen my brand story — mission, vision, tagline.")}>✦ Ask AI to refine</button>
+              <button className={btnGhost} disabled={A.busy} onClick={A.saveDraft}>⤓ {A.busy ? "Saving…" : "Save Progress"}</button>
+              <button className={btnO} style={{ background: O }} disabled={A.busy} onClick={confirm}>Confirm Story &amp; Continue →</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================ BRAND GUIDELINES ===============================================
+// A compiled read of everything decided elsewhere — logo, palette, type, voice, story. Nothing
+// new is authored here; this is the "one document" a founder hands to a designer or a hire.
+function guidelinesDoc(A: W5Actions): string {
+  const c = A.brand.core, v = A.brand.visual;
+  return [
+    `# Brand Guidelines — ${A.brandName}`,
+    "",
+    "## Mission", c.mission || "—", "",
+    "## Voice", c.voice || "—", "",
+    "## Tagline", c.tagline || "—", "",
+    "## Palette",
+    ...(v.palette.length ? v.palette.map((s) => `- ${s.name} (${s.role}) — ${s.hex}`) : ["_not set_"]), "",
+    "## Typography",
+    `- Display: ${v.type_display || "—"}`, `- Body: ${v.type_body || "—"}`, "",
+    "_Generated by StartupKit W5 from the Brand Core — nothing here was invented independently._",
+  ].join("\n");
+}
+
+function BrandGuidelines({ onBack }: { onBack: () => void }) {
+  const A = useW5();
+  const c = A.brand.core, v = A.brand.visual;
+  const ready = Boolean(c.mission || c.voice || v.palette.length);
+
+  const confirm = async () => {
+    await A.complete("mod:guidelines", { silent: true });
+    A.notify("Brand Guidelines confirmed ✓");
+    onBack();
+  };
+
+  return (
+    <div style={{ fontFamily: "Inter, sans-serif" }}>
+      <BackBar onBack={onBack} to="Brand Identity" />
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: "#D1FAE5", color: "#10B981" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-6 w-6"><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 7h6M9 11h6M9 15h4" /></svg>
+          </span>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">2.4 Brand Guidelines</h1>
+            <p className="text-sm text-[#6B7280]">One document, compiled from everything decided in the other tabs.</p>
+          </div>
+        </div>
+        <button className={btnGhost} onClick={() => A.download(`${A.brandName.toLowerCase().replace(/ /g, "-")}-brand-guidelines.md`, guidelinesDoc(A), "text/markdown")}>⇩ Download .md</button>
+      </div>
+
+      {!ready ? (
+        <div className={`${card} mt-6 p-10 text-center`}>
+          <p className="text-3xl">📋</p>
+          <p className="mt-3 text-sm font-bold text-[#111827]">Nothing to compile yet</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-[#6B7280]">Guidelines pull from Logo, Palette, Typography, Voice, and Story — fill in a few of those first and this page fills itself in.</p>
+          <button className={btnO} style={{ background: O, marginTop: 16 }} onClick={onBack}>← Back to Brand Identity</button>
+        </div>
+      ) : (
+        <>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className={`${card} p-5`}>
+              <p className={label}>Mission</p>
+              <p className="mt-1 text-sm text-[#3A414D]">{c.mission || "Not set — open Brand Story"}</p>
+            </div>
+            <div className={`${card} p-5`}>
+              <p className={label}>Voice</p>
+              <p className="mt-1 text-sm text-[#3A414D]">{c.voice || "Not set — open Brand Voice"}</p>
+            </div>
+            <div className={`${card} p-5`}>
+              <p className={label}>Palette</p>
+              <div className="mt-2 flex gap-2">
+                {v.palette.length ? v.palette.map((s) => (
+                  <span key={s.hex} className="h-8 w-8 rounded-lg border border-[#E7E9EE]" style={{ background: s.hex }} title={`${s.name} · ${s.hex}`} />
+                )) : <p className="text-sm text-[#9AA3B0]">Not set — open Color Palette</p>}
+              </div>
+            </div>
+            <div className={`${card} p-5`}>
+              <p className={label}>Typography</p>
+              <p className="mt-1 text-sm text-[#3A414D]" style={{ fontFamily: stackFor(v.type_display) }}>{v.type_display || "Not set"} <span className="text-[#9AA3B0]">/ display</span></p>
+              <p className="text-sm text-[#3A414D]" style={{ fontFamily: stackFor(v.type_body) }}>{v.type_body || "Not set"} <span className="text-[#9AA3B0]">/ body</span></p>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
+            <button className={btnGhost} onClick={onBack}>← Back to Brand Identity</button>
+            <button className={btnO} style={{ background: O }} disabled={A.busy} onClick={confirm}>Confirm Guidelines &amp; Continue →</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================ ICONOGRAPHY ====================================================
+// Honest scope: there is no icon-generation engine behind this yet (unlike logo/palette/type,
+// which read from generate_visual_system). This is a founder-curated set — name + a symbol you
+// pick — not AI-generated, and it says so rather than pretending otherwise.
+type IconEntry = { name: string; glyph: string; use: string };
+const GLYPH_CHOICES = ["★", "◆", "●", "▲", "■", "✦", "◉", "◈", "✚", "☰", "⬡", "◍"];
+
+function IconographyEditor({ onBack }: { onBack: () => void }) {
+  const A = useW5();
+  const [icons, setIcons] = useState<IconEntry[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`w5:icons:${A.companyId}`) || "[]"); } catch { return []; }
+  });
+  const [name, setName] = useState("");
+  const [use, setUse] = useState("");
+  const [glyph, setGlyph] = useState(GLYPH_CHOICES[0]);
+
+  const save = (next: IconEntry[]) => {
+    setIcons(next);
+    try { localStorage.setItem(`w5:icons:${A.companyId}`, JSON.stringify(next)); } catch { /* ignore */ }
+  };
+  const add = () => {
+    if (!name.trim()) return;
+    save([...icons, { name: name.trim(), glyph, use: use.trim() }]);
+    setName(""); setUse("");
+  };
+  const confirm = async () => {
+    await A.complete("mod:icons", { silent: true });
+    A.notify("Iconography confirmed ✓");
+    onBack();
+  };
+
+  return (
+    <div style={{ fontFamily: "Inter, sans-serif" }}>
+      <BackBar onBack={onBack} to="Brand Identity" />
+      <div className="mt-3 flex items-center gap-3">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: "#EDE9FE", color: "#8B5CF6" }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-6 w-6"><path d="M12 3l2.5 6.5L21 10l-5 4.5L17.5 21 12 17l-5.5 4L7 14.5 3 10l6.5-.5z" /></svg>
+        </span>
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">2.7 Iconography</h1>
+          <p className="text-sm text-[#6B7280]">Name the icons your product needs — this list guides whoever designs them next.</p>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-lg bg-[#FFFBEB] px-4 py-2.5 text-xs" style={{ color: "#92600E" }}>
+        Honest limit: there&apos;s no icon-generation engine here yet, unlike Logo or Palette. This is a founder-curated
+        list — a placeholder symbol per icon — not a finished icon set.
+      </div>
+
+      <div className={`${card} mt-4 p-5`}>
+        <p className={label}>Add an icon</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <select className="rounded-lg border border-[#E7E9EE] px-3 py-2 text-lg" value={glyph} onChange={(e) => setGlyph(e.target.value)}>
+            {GLYPH_CHOICES.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <input className="min-w-[160px] flex-1 rounded-lg border border-[#E7E9EE] px-3 py-2 text-sm outline-none focus:border-[#8B5CF6]"
+            placeholder="Icon name — e.g. Dashboard" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          <input className="min-w-[160px] flex-1 rounded-lg border border-[#E7E9EE] px-3 py-2 text-sm outline-none focus:border-[#8B5CF6]"
+            placeholder="Used where — e.g. Sidebar nav" value={use} onChange={(e) => setUse(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          <button className={btnO} style={{ background: name.trim() ? "#8B5CF6" : "#D1D5DB" }} disabled={!name.trim()} onClick={add}>Add</button>
+        </div>
+      </div>
+
+      {icons.length > 0 && (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {icons.map((ic, i) => (
+            <div key={i} className={`${card} flex items-center gap-3 p-3`}>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg" style={{ background: "#EDE9FE", color: "#8B5CF6" }}>{ic.glyph}</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-[#111827]">{ic.name}</p>
+                <p className="truncate text-xs text-[#9AA3B0]">{ic.use || "—"}</p>
+              </div>
+              <button className="text-[#C4CCD6] hover:text-[#EF4444]" onClick={() => save(icons.filter((_, x) => x !== i))}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
+        <button className={btnGhost} onClick={onBack}>← Back to Brand Identity</button>
+        <div className="flex gap-2">
+          <button className={btnGhost} onClick={() => A.openChat("What icons does my product actually need?")}>✦ Ask AI what I need</button>
+          <button className={btnO} style={{ background: O }} disabled={A.busy || icons.length === 0} onClick={confirm}>Confirm Iconography &amp; Continue →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================ BRAND ASSETS LIBRARY ===========================================
+// The real download hub — every asset that's actually been generated, not a mockup file list.
+function AssetsLibrary({ onBack }: { onBack: () => void }) {
+  const A = useW5();
+  const v = A.brand.visual;
+  const rows: { name: string; ready: boolean; note: string; action: () => void }[] = [
+    { name: "Wordmark (SVG)", ready: true, note: "Generated live from your visual system", action: () => A.openUrl(brandWordmarkUrl(A.companyId)) },
+    { name: "Favicon (SVG)", ready: true, note: "Generated live from your visual system", action: () => A.openUrl(brandFaviconUrl(A.companyId)) },
+    { name: "Color Palette (JSON)", ready: v.palette.length > 0, note: v.palette.length ? `${v.palette.length} swatches` : "Generate your Brand Core first", action: () => A.download("color-palette.json", JSON.stringify(v.palette, null, 2), "application/json") },
+    { name: "Brand Guidelines (.md)", ready: Boolean(A.brand.core.mission), note: A.brand.core.mission ? "Compiled from your Brand Core" : "Fill in Brand Story first", action: () => A.download(`${A.brandName.toLowerCase().replace(/ /g, "-")}-brand-guidelines.md`, guidelinesDoc(A), "text/markdown") },
+    { name: "Published Website", ready: Boolean(A.brand.site_template), note: A.brand.site_template ? `Template: ${A.brand.site_template}` : "Build it in Digital Presence first", action: () => A.openUrl(publishedSiteUrl(A.companyId)) },
+  ];
+  const readyCount = rows.filter((r) => r.ready).length;
+
+  const confirm = async () => {
+    await A.complete("mod:assets", { silent: true });
+    A.notify("Assets library confirmed ✓");
+    onBack();
+  };
+
+  return (
+    <div style={{ fontFamily: "Inter, sans-serif" }}>
+      <BackBar onBack={onBack} to="Brand Identity" />
+      <div className="mt-3 flex items-center gap-3">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: "#FFEDD5", color: "#F97316" }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-6 w-6"><path d="M4 7h6l2 2h8v9a2 2 0 01-2 2H4z" /></svg>
+        </span>
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]">2.8 Brand Assets Library</h1>
+          <p className="text-sm text-[#6B7280]">{readyCount} of {rows.length} assets ready — everything else says exactly what unlocks it.</p>
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-2">
+        {rows.map((r) => (
+          <div key={r.name} className={`${card} flex items-center gap-3 p-4`}>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={r.ready ? { background: "#D1FAE5", color: GREEN } : { background: "#F1F3F6", color: "#9AA3B0" }}>
+              {r.ready ? "✓" : "○"}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[#111827]">{r.name}</p>
+              <p className="text-xs text-[#9AA3B0]">{r.note}</p>
+            </div>
+            <button className={btnGhost} disabled={!r.ready} onClick={r.action}>{r.ready ? "Open / Download" : "Locked"}</button>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
+        <button className={btnGhost} onClick={onBack}>← Back to Brand Identity</button>
+        <button className={btnO} style={{ background: O }} disabled={A.busy || readyCount === 0} onClick={confirm}>Confirm Library &amp; Continue →</button>
       </div>
     </div>
   );
 }
 
 // ============================ shared: 4-phase bar ============================================
-const PHASES = ["Brand Strategy", "Brand Identity", "Digital Presence", "Launch Assets"];
+const PHASES = ["Brand Strategy", "Brand Identity", "Marketing Assets"];
 function PhaseBar({ active }: { active: number }) {
   return (
     <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-[#E7E9EE] bg-white p-4">
@@ -1754,23 +2412,31 @@ function PhaseBar({ active }: { active: number }) {
 }
 
 // ============================ BRAND IDENTITY ================================================
-type IdCard = { n: number; title: string; desc: string; icon: string; color: string; bg: string; status: "done" | "active" | "pending"; opens?: string; text?: boolean };
+// Status used to be hardcoded here regardless of what the founder had actually done — the "8/8
+// Completed" badge lied by construction. It's now derived from real brand state per card.
+type IdCard = { n: number; title: string; desc: string; icon: string; color: string; bg: string; opens?: string; text?: boolean; done: (b: BrandState) => boolean };
 const ID_CARDS: IdCard[] = [
-  { n: 1, title: "Logo Design", desc: "Create a professional logo that represents your brand.", icon: ICON.brush, color: "#EF4444", bg: "#FEE2E2", status: "done", opens: "logo" },
-  { n: 2, title: "Color Palette", desc: "Choose colors that define your brand personality.", icon: '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.3"/><circle cx="12" cy="8" r="1.3"/><circle cx="16" cy="10" r="1.3"/>', color: "#8B5CF6", bg: "#EDE9FE", status: "active" },
-  { n: 3, title: "Typography", desc: "Select fonts that communicate your brand voice.", icon: "", text: true, color: "#3B82F6", bg: "#DBEAFE", status: "pending" },
-  { n: 4, title: "Brand Guidelines", desc: "Create guidelines for consistent brand usage.", icon: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/>', color: "#10B981", bg: "#D1FAE5", status: "pending" },
-  { n: 5, title: "Brand Voice", desc: "Define your brand voice and tone of communication.", icon: '<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/>', color: "#F59E0B", bg: "#FEF3C7", status: "done" },
-  { n: 6, title: "Brand Story", desc: "Craft your brand story and mission statement.", icon: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>', color: "#EC4899", bg: "#FCE7F3", status: "done" },
-  { n: 7, title: "Iconography", desc: "Create icon set for your product and platform.", icon: '<path d="M12 3l2.5 6.5L21 10l-5 4.5L17.5 21 12 17l-5.5 4L7 14.5 3 10l6.5-.5z"/>', color: "#8B5CF6", bg: "#EDE9FE", status: "pending" },
-  { n: 8, title: "Brand Assets Library", desc: "Organize and download all your brand assets.", icon: '<path d="M4 7h6l2 2h8v9a2 2 0 01-2 2H4z"/>', color: "#F97316", bg: "#FFEDD5", status: "pending" },
+  { n: 1, title: "Logo Design", desc: "Create a professional logo that represents your brand.", icon: ICON.brush, color: "#EF4444", bg: "#FEE2E2", opens: "logo", done: (b) => Boolean(b.visual.logo_direction) },
+  { n: 2, title: "Color Palette", desc: "Choose colors that define your brand personality.", icon: '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.3"/><circle cx="12" cy="8" r="1.3"/><circle cx="16" cy="10" r="1.3"/>', color: "#8B5CF6", bg: "#EDE9FE", opens: "palette", done: (b) => b.visual.palette.length >= 3 },
+  { n: 3, title: "Typography", desc: "Select fonts that communicate your brand voice.", icon: "", text: true, color: "#3B82F6", bg: "#DBEAFE", opens: "typography", done: (b) => Boolean(b.visual.type_display && b.visual.type_body) },
+  { n: 4, title: "Brand Guidelines", desc: "Create guidelines for consistent brand usage.", icon: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/>', color: "#10B981", bg: "#D1FAE5", opens: "guidelines", done: (b) => b.steps_done.includes("mod:guidelines") },
+  { n: 5, title: "Brand Voice", desc: "Define your brand voice and tone of communication.", icon: '<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/>', color: "#F59E0B", bg: "#FEF3C7", opens: "voice", done: (b) => Boolean(b.core.voice) },
+  { n: 6, title: "Brand Story", desc: "Craft your brand story and mission statement.", icon: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>', color: "#EC4899", bg: "#FCE7F3", opens: "story", done: (b) => Boolean(b.core.mission) },
+  { n: 7, title: "Iconography", desc: "Create icon set for your product and platform.", icon: '<path d="M12 3l2.5 6.5L21 10l-5 4.5L17.5 21 12 17l-5.5 4L7 14.5 3 10l6.5-.5z"/>', color: "#8B5CF6", bg: "#EDE9FE", opens: "icons", done: (b) => b.steps_done.includes("mod:icons") },
+  { n: 8, title: "Brand Assets Library", desc: "Organize and download all your brand assets.", icon: '<path d="M4 7h6l2 2h8v9a2 2 0 01-2 2H4z"/>', color: "#F97316", bg: "#FFEDD5", opens: "assets", done: (b) => b.steps_done.includes("mod:assets") },
 ];
 
 function BrandIdentity({ onBack, onOpenSection }: { onBack: () => void; onOpenSection: (s: string) => void }) {
   const A = useW5();
+  const cardStatus = (c: IdCard): "done" | "active" | "pending" => {
+    if (c.done(A.brand)) return "done";
+    const firstNotDone = ID_CARDS.find((x) => !x.done(A.brand));
+    return firstNotDone?.n === c.n ? "active" : "pending";
+  };
+  const doneCount = ID_CARDS.filter((c) => c.done(A.brand)).length;
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
-      <button onClick={onBack} className="text-xs text-[#6B7280] hover:text-[#111827]">← Back · <span className="font-medium text-[#111827]">W5 › Brand &amp; Presence</span></button>
+      <BackBar onBack={onBack} to="W5" />
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-xl text-sm font-extrabold text-white" style={{ background: O }}>W5</span>
@@ -1795,12 +2461,13 @@ function BrandIdentity({ onBack, onOpenSection }: { onBack: () => void; onOpenSe
               <h2 className="text-lg font-extrabold text-[#111827]">2. Brand Identity</h2>
               <p className="text-sm text-[#6B7280]">Create your visual identity including logo, colors, typography, and brand guidelines.</p>
             </div>
-            <span className="rounded-full bg-[#DCFCE7] px-3 py-1 text-xs font-semibold" style={{ color: GREEN }}>8/8 Completed ✓</span>
+            <span className="rounded-full px-3 py-1 text-xs font-semibold" style={doneCount === 8 ? { background: "#DCFCE7", color: GREEN } : { background: "#F1F3F6", color: "#6B7280" }}>{doneCount}/8 Completed{doneCount === 8 ? " ✓" : ""}</span>
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {ID_CARDS.map((c) => {
-              const cur = c.status === "active";
+              const status = cardStatus(c);
+              const cur = status === "active";
               return (
                 <div key={c.n} className={`${card} p-4`} style={cur ? { borderColor: O, borderWidth: 2 } : undefined}>
                   <div className="flex items-center justify-between">
@@ -1813,31 +2480,34 @@ function BrandIdentity({ onBack, onOpenSection }: { onBack: () => void; onOpenSe
                   <p className="mt-3 text-sm font-bold text-[#111827]">{c.title}</p>
                   <p className="mt-1 text-xs text-[#6B7280]">{c.desc}</p>
                   <div className="mt-3">
-                    {c.status === "done" && <p className="text-xs font-medium" style={{ color: GREEN }}>✓ Completed</p>}
-                    {c.status === "active" && <p className="text-xs font-medium" style={{ color: O }}>○ In Progress</p>}
-                    {c.status === "pending" && <p className="text-xs text-[#9AA3B0]">○ Pending</p>}
+                    {status === "done" && <p className="text-xs font-medium" style={{ color: GREEN }}>✓ Completed</p>}
+                    {status === "active" && <p className="text-xs font-medium" style={{ color: O }}>○ In Progress</p>}
+                    {status === "pending" && <p className="text-xs text-[#9AA3B0]">○ Pending</p>}
+                    {!c.opens && <p className="mt-1 text-[10px] text-[#B45309]">Not built yet — opens AI chat for now</p>}
                   </div>
                   <button
-                    className={`mt-2 w-full rounded-lg py-2 text-xs font-semibold ${c.status === "active" ? "text-white" : "border border-[#E7E9EE] text-[#3A414D]"}`}
-                    style={c.status === "active" ? { background: O } : undefined}
+                    className={`mt-2 w-full rounded-lg py-2 text-xs font-semibold ${status === "active" ? "text-white" : "border border-[#E7E9EE] text-[#3A414D]"}`}
+                    style={status === "active" ? { background: O } : undefined}
                     onClick={() => (c.opens ? onOpenSection(c.opens) : A.openChat(`Help me with: ${c.title}.`))}
                   >
-                    {c.status === "done" ? (c.opens ? "View Logo" : "View") : c.status === "active" ? "Continue" : "Start"}
+                    {status === "done" ? (c.opens ? "View" : "Ask AI") : status === "active" ? "Continue" : c.opens ? "Start" : "Ask AI"}
                   </button>
                 </div>
               );
             })}
           </div>
 
-          <div className="mt-4 rounded-xl border border-[#FDE7D2] bg-[#FFF9F3] p-3 text-xs text-[#7A4A1E]">
-            <b>💡 Next up: Typography</b> — Choose fonts that perfectly match your brand personality and improve readability.
-          </div>
+          {doneCount < 8 && (
+            <div className="mt-4 rounded-xl border border-[#FDE7D2] bg-[#FFF9F3] p-3 text-xs text-[#7A4A1E]">
+              <b>💡 Next up: {ID_CARDS.find((c) => !c.done(A.brand))?.title}</b> — {ID_CARDS.find((c) => !c.done(A.brand))?.desc}
+            </div>
+          )}
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF0F3] pt-5">
             <button className={btnGhost} onClick={onBack}>← Previous: Brand Strategy</button>
             <div className="flex gap-2">
               <button className={btnGhost} disabled={A.busy} onClick={A.saveDraft}>⤓ {A.busy ? "Saving…" : "Save Progress"}</button>
-              <button className={btnO} style={{ background: O }} disabled={A.busy} onClick={async () => { await A.complete("mod:identity"); onOpenSection("digital"); }}>Next: Digital Presence →</button>
+              <button className={btnO} style={{ background: O }} disabled={A.busy} onClick={async () => { await A.complete("mod:identity"); onOpenSection("launch"); }}>Next: Marketing Assets →</button>
             </div>
           </div>
         </div>
@@ -1921,7 +2591,7 @@ function CompetitorAnalysis({ onBack }: { onBack: () => void }) {
   ].join("\n");
   return (
     <div style={{ fontFamily: "Inter, sans-serif" }}>
-      <button onClick={onBack} className="text-xs text-[#6B7280] hover:text-[#111827]">← Back to Market Research</button>
+      <BackBar onBack={onBack} to="W5" />
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-[#111827]"><span style={{ color: "#4F46E5" }}>01</span> Competitor Analysis</h1>
@@ -2090,22 +2760,6 @@ function CardHead({ n, title, done }: { n: number; title: string; done?: boolean
       <p className="text-sm font-bold text-[#111827]">{title}</p>
       {done && <span style={{ color: GREEN }}>✓</span>}
       <button onClick={() => A.openChat(`Help me refine my ${title}.`)} className={`${btnGhost} ml-auto !px-3 !py-1 text-xs`}>Edit</button>
-    </div>
-  );
-}
-function StratCard({ n, title, done, cols }: { n: number; title: string; done?: boolean; cols: [string, string][][] }) {
-  return (
-    <div className={`${card} p-5`}>
-      <CardHead n={n} title={title} done={done} />
-      <div className="mt-3 grid gap-4 md:grid-cols-2">
-        {cols.map((col, i) => (
-          <div key={i} className="space-y-3">
-            {col.map(([k, v]) => (
-              <div key={k}><p className="text-xs text-[#9AA3B0]">{k}</p><p className="text-sm font-medium text-[#111827]">{v}</p></div>
-            ))}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

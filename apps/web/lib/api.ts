@@ -20,8 +20,11 @@ import type {
   PeopleState,
   CompanyRisk,
   CompanySnapshot,
+  CustomerSuccessView,
+  OpsState,
   ComplianceItem,
   PlayMatch,
+  PresenceItem,
   GenerateResult,
   SubmitResult,
   GuardrailAction,
@@ -219,6 +222,15 @@ export async function getBrandPlays(id: string): Promise<PlayMatch[]> {
   return json(await fetch(`${BASE}/api/companies/${id}/brand/plays`));
 }
 
+export async function checkNamePresence(name: string): Promise<PresenceItem[]> {
+  const res = await fetch(`${BASE}/api/brand/check-name`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  return json(res);
+}
+
 export async function generateBrand(id: string, playId: string): Promise<BrandState> {
   const res = await fetch(`${BASE}/api/companies/${id}/brand/generate`, {
     method: "POST",
@@ -311,6 +323,11 @@ export async function getGtmAttribution(id: string): Promise<Attribution> {
   return json(await fetch(`${BASE}/api/companies/${id}/gtm/attribution`, { cache: "no-store" }));
 }
 
+/** Retention and referrals for won accounts — closing isn't the finish line. */
+export async function getCustomerSuccess(id: string): Promise<CustomerSuccessView> {
+  return json(await fetch(`${BASE}/api/companies/${id}/gtm/customer-success`, { cache: "no-store" }));
+}
+
 /** GTM Q&A grounded in the founder's own pipeline numbers. */
 export async function gtmChat(id: string, message: string, history: string[]): Promise<ChatReply> {
   const res = await fetch(`${BASE}/api/companies/${id}/gtm/chat`, {
@@ -338,6 +355,15 @@ export async function generateGtm(id: string): Promise<GtmDraft> {
 
 export async function saveGtm(id: string, state: GtmState): Promise<CompanySnapshot> {
   const res = await fetch(`${BASE}/api/companies/${id}/gtm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(state),
+  });
+  return json(res);
+}
+
+export async function saveOps(id: string, state: OpsState): Promise<CompanySnapshot> {
+  const res = await fetch(`${BASE}/api/companies/${id}/ops`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(state),

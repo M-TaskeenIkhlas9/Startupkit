@@ -49,6 +49,7 @@ class TargetAccount(BaseModel):
     owner: str = ""  # who on YOUR side owns this account
     contact: str = ""  # the human at THEIR side you're writing to
     email: str = ""  # their address. We don't enrich — you paste it, or export to Clay/Apollo.
+    referred_by: str = ""  # name of the existing customer who sent them, empty if not a referral
 
 
 class Sequence(BaseModel):
@@ -134,6 +135,28 @@ class Experiment(BaseModel):
     decision: str = ""  # keep | kill | scale — what you'll DO about it
 
 
+class OnboardingStep(BaseModel):
+    label: str = ""
+    done: bool = False
+
+
+class CustomerRecord(BaseModel):
+    """A won account, tracked past the close — the funnel doesn't stop at 'Won'.
+
+    Lazily created: `customer_success()` computes sensible defaults for any won account that
+    doesn't have one yet, so nothing is persisted until the founder actually logs a contact,
+    ticks an onboarding step, or writes a note. `status` is founder-set only — we have no real
+    product-usage telemetry, so we never infer "churned"; we only ever infer "at risk" (a real,
+    computable proxy: no logged contact in 30+ days).
+    """
+
+    account: str = ""  # matches TargetAccount.name
+    onboarding: list[OnboardingStep] = Field(default_factory=list)
+    last_contact: str = ""  # ISO date the founder last actually talked to them
+    status: str = "active"  # active | churned — founder-set, never inferred
+    notes: str = ""
+
+
 class GtmInputs(BaseModel):
     """What the founder chose or corrected us on.
 
@@ -175,4 +198,5 @@ class GtmState(BaseModel):
     partners: list[DesignPartner] = Field(default_factory=list)
     content: list[ContentIdea] = Field(default_factory=list)
     experiments: list[Experiment] = Field(default_factory=list)
+    customers: list[CustomerRecord] = Field(default_factory=list)
     steps_done: list[str] = Field(default_factory=list)  # W7 module/step ids completed

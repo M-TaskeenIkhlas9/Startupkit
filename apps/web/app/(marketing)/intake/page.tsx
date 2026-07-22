@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { createCompany } from "@/lib/api";
-import type { FounderIntake, IdeaAssessment, IdeaValidationAnswers, IntakeRequest, Stage } from "@/lib/types";
+import { checkNamePresence, createCompany } from "@/lib/api";
+import type { FounderIntake, IdeaAssessment, IdeaValidationAnswers, IntakeRequest, PresenceItem, Stage } from "@/lib/types";
 
 const STAGES: { value: Stage; label: string }[] = [
   { value: "pre-founder", label: "Pre-founder (just an idea)" },
@@ -112,21 +112,22 @@ export default function IntakePage() {
   });
   const setP0 = (patch: Partial<Phase0>) => setPhase0((p) => ({ ...p, ...patch }));
 
-  // Name availability — a preliminary check right here in onboarding (Delaware / trademark / domain).
-  const [nameStatus, setNameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  // Name availability — a real heuristic domain/handle/trademark read, shared with W5's
+  // Naming & Validation module (same /api/brand/check-name engine, called before a company
+  // even exists). An early nudge here, not a substitute for the full check in W5.
+  const [nameStatus, setNameStatus] = useState<"idle" | "checking" | "done">("idle");
+  const [presence, setPresence] = useState<PresenceItem[]>([]);
   async function checkNameAvailability() {
-    const n = form.company_name
-      .toLowerCase()
-      .replace(/[^a-z0-9 ]/g, "")
-      .replace(/\b(inc|llc|corp|co|the)\b/g, "")
-      .trim();
+    const n = form.company_name.trim();
     if (!n) return;
     setNameStatus("checking");
-    await new Promise((r) => setTimeout(r, 700));
-    const taken = "google apple stripe meta amazon microsoft openai uber airbnb tesla netflix spotify slack notion figma".split(
-      " ",
-    );
-    setNameStatus(taken.some((t) => n.includes(t)) ? "taken" : "available");
+    try {
+      const items = await checkNamePresence(n);
+      setPresence(items);
+      setNameStatus("done");
+    } catch {
+      setNameStatus("idle");
+    }
   }
 
   useEffect(() => {
@@ -290,6 +291,7 @@ export default function IntakePage() {
                   onChange={(e) => {
                     set({ company_name: e.target.value });
                     setNameStatus("idle");
+                    setPresence([]);
                   }}
                   placeholder="Acme AI, Inc."
                 />
@@ -302,16 +304,15 @@ export default function IntakePage() {
                   {nameStatus === "checking" ? "Checking…" : "Check availability"}
                 </button>
               </div>
-              {nameStatus === "available" && (
-                <p className="mt-1.5 text-xs text-teal">
-                  ✓ Looks available — Delaware, trademark, and domain all clear (preliminary check).
-                </p>
-              )}
-              {nameStatus === "taken" && (
-                <p className="mt-1.5 text-xs text-amber">
-                  ⚠ A well-known company uses a similar name — pick a more distinct one to avoid
-                  trademark conflicts.
-                </p>
+              {nameStatus === "done" && (
+                <div className="mt-1.5 space-y-0.5">
+                  {presence.map((p) => (
+                    <p key={p.kind} className={`text-xs ${p.status === "taken" ? "text-amber" : p.status === "available" ? "text-teal" : "text-muted"}`}>
+                      {p.status === "taken" ? "⚠" : p.status === "available" ? "✓" : "·"} {p.kind}: {p.handle} — {p.status === "unknown" ? p.detail : p.status}
+                    </p>
+                  ))}
+                  <p className="text-[11px] text-muted">Heuristic web-presence read, not a registration check — the full check runs again in W5.</p>
+                </div>
               )}
               {form.company_name.trim() !== "" && !hasSignifier(form.company_name) && (
                 <p className="mt-1.5 text-xs text-amber">

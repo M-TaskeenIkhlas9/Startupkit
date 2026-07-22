@@ -4,11 +4,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   saveGtm, generateGtm, completePhase, getGtmHealth, gtmExportUrl, gtmDocUrl, discoverAccounts,
   readMotion, researchPricing, getDeliverability, generateContent, getChannelMatrix,
-  getGtmGuardrails, getGtmAttribution, gtmChat,
+  getGtmGuardrails, getGtmAttribution, gtmChat, getCustomerSuccess,
 } from "@/lib/api";
 import type {
-  Attribution, BrandState, Campaign, ChannelMatrix, ContentIdea, Deliverability, DesignPartner,
-  Experiment, GtmGuardrail, GtmHealth, GtmState, MotionRead, PriceComp, PricingTier,
+  Attribution, BrandState, Campaign, ChannelMatrix, ContentIdea, CustomerSuccessView, Deliverability,
+  DesignPartner, Experiment, GtmGuardrail, GtmHealth, GtmState, MotionRead, PriceComp, PricingTier,
   TargetAccount, Task, WorkflowView,
 } from "@/lib/types";
 
@@ -91,6 +91,11 @@ const MODULES: Module[] = [
     desc: "Call script, battlecards, and an objection library.",
     why: "The first 8–16 weeks of selling yourself is what produces the objection library a rep would need later. Log it while you learn it.",
   },
+  {
+    n: 11, phase: 3, id: "success", built: true, title: "Customer Success & Growth",
+    desc: "Onboard won accounts, keep them, and track who refers who.",
+    why: "The funnel doesn't stop at 'Won' — a customer you lose quietly is a customer you have to re-sell from zero. This tracks onboarding, flags anyone with no contact in 30+ days before it's too late, and turns referrals into your cheapest channel.",
+  },
 ];
 
 // Module completion → the 3 phases the catalog tracks. Completing these marks W7 complete.
@@ -117,6 +122,7 @@ const EMPTY_GTM: GtmState = {
   partners: [],
   content: [],
   experiments: [],
+  customers: [],
   steps_done: [],
 };
 
@@ -312,6 +318,7 @@ export function W7Workflow({
   else if (section === "discovery") body = <DiscoveryTool onBack={() => setSection(null)} />;
   else if (section === "partners") body = <PartnersTool onBack={() => setSection(null)} />;
   else if (section === "content") body = <ContentTool onBack={() => setSection(null)} />;
+  else if (section === "success") body = <SuccessTool onBack={() => setSection(null)} />;
   else body = <Hub onOpenSection={setSection} />;
 
   return (
@@ -356,7 +363,7 @@ function Hub({ onOpenSection }: { onOpenSection: (s: string) => void }) {
             <div className="h-full rounded-full transition-all" style={{ width: `${A.overallPct}%`, background: R }} />
           </div>
           <p className="mt-1 font-mono text-[11px] text-[#9AA3B0]">
-            {answeredCount(A.gtm)} of 5 questions answered
+            {answeredCount(A.gtm)} of {QUESTIONS.length} questions answered
           </p>
         </div>
       </div>
@@ -366,7 +373,7 @@ function Hub({ onOpenSection }: { onOpenSection: (s: string) => void }) {
 
       {/* tabs */}
       <div className="mt-4 flex gap-1 border-b border-[#EEF0F3]">
-        {([["modules", "Overview", ""], ["campaigns", "Campaigns", String(A.gtm.campaigns.length)], ["metrics", "Metrics", ""], ["exports", "Exports", "10"], ["connections", "Connections", `${A.gtm.connections.length}/4`]] as const).map(([id, label, cnt]) => (
+        {([["modules", "Overview", ""], ["campaigns", "Campaigns", String(A.gtm.campaigns.length)], ["metrics", "Metrics", ""], ["exports", "Exports", "11"], ["connections", "Connections", `${A.gtm.connections.length}/4`]] as const).map(([id, label, cnt]) => (
           <button key={id} onClick={() => setTab(id)} className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold"
             style={tab === id ? { color: R, borderBottom: `2px solid ${R}` } : { color: "#6B7280", borderBottom: "2px solid transparent" }}>
             {label}
@@ -1091,7 +1098,7 @@ function IcpTool({ onBack }: { onBack: () => void }) {
     if (!draft.name.trim()) return A.notify("Give the account a name first");
     A.patch(
       {
-        accounts: [...accounts, { name: draft.name.trim(), domain: draft.domain.trim(), size: band, trigger: draft.trigger, stage: "prospect", owner: A.companyName, contact: "", email: "" }],
+        accounts: [...accounts, { name: draft.name.trim(), domain: draft.domain.trim(), size: band, trigger: draft.trigger, stage: "prospect", owner: A.companyName, contact: "", email: "", referred_by: "" }],
       },
       `${draft.name.trim()} added`,
     );
@@ -2465,6 +2472,7 @@ const DOCS: { key: string; name: string }[] = [
   { key: "sales-scripts", name: "Sales Scripts" },
   { key: "design-partner-agreement", name: "Design Partner Agreement" },
   { key: "order-form", name: "Order Form" },
+  { key: "customer-success-playbook", name: "Customer Success Playbook" },
 ];
 
 function ExportsView() {
@@ -3139,6 +3147,164 @@ function PartnersTool({ onBack }: { onBack: () => void }) {
 }
 
 // ============================================================================================
+// Customer Success & Growth — the funnel doesn't stop at "Won". No product-usage telemetry
+// exists, so "at risk" is a real, computed proxy (no logged contact in 30+ days) and "churned"
+// is founder-set, never inferred. Referrals are read straight off TargetAccount.referred_by.
+// ============================================================================================
+function SuccessTool({ onBack }: { onBack: () => void }) {
+  const A = useW7();
+  const won = A.gtm.accounts.filter((a) => a.stage === "won");
+  const [cs, setCs] = useState<CustomerSuccessView | null>(null);
+  const [referralDraft, setReferralDraft] = useState<Record<string, string>>({});
+  const done = A.has("mod:success");
+  const stamp = JSON.stringify([
+    A.gtm.accounts.map((a) => [a.name, a.stage, a.referred_by]),
+    A.gtm.customers,
+  ]);
+  useEffect(() => {
+    getCustomerSuccess(A.companyId).then(setCs).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [A.companyId, stamp]);
+
+  const template = cs?.onboarding_template ?? [];
+  const recordFor = (account: string) =>
+    A.gtm.customers.find((c) => c.account === account) ??
+    ({ account, onboarding: template.map((label) => ({ label, done: false })), last_contact: "", status: "active", notes: "" } as const);
+  const healthFor = (account: string) => cs?.customers.find((c) => c.account === account);
+
+  const upsert = (account: string, patch: Partial<{ onboarding: { label: string; done: boolean }[]; last_contact: string; status: string; notes: string }>, note?: string) => {
+    const base = recordFor(account);
+    const next = { ...base, ...patch };
+    A.patch({ customers: [...A.gtm.customers.filter((c) => c.account !== account), next] }, note);
+  };
+  const toggleStep = (account: string, idx: number) => {
+    const steps = recordFor(account).onboarding.map((s, i) => (i === idx ? { ...s, done: !s.done } : s));
+    upsert(account, { onboarding: steps });
+  };
+  const logContact = (account: string) =>
+    upsert(account, { last_contact: new Date().toISOString().slice(0, 10) }, "Contact logged ✓");
+  const logReferral = (account: string) => {
+    const name = (referralDraft[account] || "").trim();
+    if (!name) return A.notify("Name the referred company first");
+    A.patch(
+      { accounts: [...A.gtm.accounts, { name, domain: "", size: "", trigger: "referral", stage: "prospect", owner: "", contact: "", email: "", referred_by: account }] },
+      `${name} added — referred by ${account} ✓`,
+    );
+    setReferralDraft((d) => ({ ...d, [account]: "" }));
+  };
+
+  return (
+    <SectionShell title="Customer Success & Growth" desc="Onboard who you've won, keep them, and turn referrals into your cheapest channel." onBack={onBack}
+      right={
+        <button className={btnInk} style={{ background: R }} disabled={A.busy}
+          onClick={() => A.patch({ steps_done: done ? A.gtm.steps_done : [...A.gtm.steps_done, "mod:success"] }, "Marked complete ✓")}>
+          {done ? "Completed ✓" : "Mark complete"}
+        </button>
+      }>
+      <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
+        <div className="space-y-4">
+          {won.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#DDE1DC] bg-[#FAFBFA] p-8 text-center">
+              <p className="text-sm font-bold text-[#111827]">Nothing to track yet</p>
+              <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-[#6B7280]">
+                This fills in the moment your first account&apos;s stage hits <b>Won</b> in CRM &amp; Pipeline. Onboarding, retention, and referrals all key off that.
+              </p>
+              <button onClick={onBack} className={`${btnGhost} mt-4`}>← Back to Overview</button>
+            </div>
+          ) : (
+            won.map((a) => {
+              const rec = recordFor(a.name);
+              const h = healthFor(a.name);
+              return (
+                <div key={a.name} className={`${card} p-5`} style={h?.at_risk ? { borderColor: "#EAD9A8" } : undefined}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="min-w-0 flex-1 text-sm font-bold text-[#111827]">{a.name}</p>
+                    {h?.at_risk && (
+                      <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" style={{ background: "#FDFAF1", color: "#B98A0E" }}>⚠ At risk</span>
+                    )}
+                    {a.referred_by && (
+                      <span className="rounded-full bg-[#F1F3F6] px-2 py-0.5 text-[10px] text-[#6B7280]">referred by {a.referred_by}</span>
+                    )}
+                    <select value={rec.status} disabled={A.busy} onChange={(e) => upsert(a.name, { status: e.target.value }, e.target.value === "churned" ? "Marked churned" : "Marked active")}
+                      className="rounded-lg border border-[#EBECE9] px-2 py-1 text-[11px]">
+                      <option value="active">Active</option>
+                      <option value="churned">Churned</option>
+                    </select>
+                  </div>
+
+                  <div className="mt-3 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <p className={label}>Onboarding <span className="font-normal normal-case text-[#9AA3B0]">({h?.onboarding_pct ?? 0}%)</span></p>
+                      <div className="mt-1.5 space-y-1">
+                        {rec.onboarding.map((s, i) => (
+                          <label key={s.label} className="flex items-center gap-2 text-xs text-[#3A414D]">
+                            <input type="checkbox" checked={s.done} disabled={A.busy} onChange={() => toggleStep(a.name, i)} />
+                            <span className={s.done ? "line-through text-[#9AA3B0]" : ""}>{s.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className={label}>Last contact</p>
+                      <p className="mt-1 text-xs text-[#3A414D]">
+                        {h?.days_since_contact != null ? `${h.days_since_contact} day${h.days_since_contact === 1 ? "" : "s"} ago` : "Never logged"}
+                      </p>
+                      <button className={`${btnGhost} mt-2 !py-1.5 !text-xs`} disabled={A.busy} onClick={() => logContact(a.name)}>Log contact today</button>
+                      <div className="mt-3 flex gap-2">
+                        <input className={`${input} flex-1`} placeholder="Referred company" value={referralDraft[a.name] || ""}
+                          onChange={(e) => setReferralDraft((d) => ({ ...d, [a.name]: e.target.value }))} />
+                        <button className={btnGhost} disabled={A.busy} onClick={() => logReferral(a.name)}>+ Referral</button>
+                      </div>
+                    </div>
+                  </div>
+                  <textarea className={`${input} mt-3`} rows={2} placeholder="Notes…" value={rec.notes}
+                    onChange={(e) => upsert(a.name, { notes: e.target.value })} />
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <aside className="space-y-4">
+          <div className={`${card} p-5`}>
+            <p className={label}>Won customers</p>
+            <div className="mt-2 grid grid-cols-2 gap-3 text-center">
+              <div><p className="font-mono text-xl font-extrabold text-[#111827]">{cs?.won_count ?? 0}</p><p className="text-[10px] text-[#9AA3B0]">Won</p></div>
+              <div><p className="font-mono text-xl font-extrabold" style={{ color: (cs?.at_risk_count ?? 0) > 0 ? "#B98A0E" : GREEN }}>{cs?.at_risk_count ?? 0}</p><p className="text-[10px] text-[#9AA3B0]">At risk</p></div>
+              <div><p className="font-mono text-xl font-extrabold text-[#111827]">{cs?.active_count ?? 0}</p><p className="text-[10px] text-[#9AA3B0]">Active</p></div>
+              <div><p className="font-mono text-xl font-extrabold text-[#9AA3B0]">{cs?.churned_count ?? 0}</p><p className="text-[10px] text-[#9AA3B0]">Churned</p></div>
+            </div>
+          </div>
+          <div className={`${card} p-5`}>
+            <p className={label}>Referrals</p>
+            <p className="mt-1 font-mono text-2xl font-extrabold text-[#111827]">
+              {cs?.referred_count ?? 0}<span className="text-sm font-normal text-[#9AA3B0]"> of {cs?.won_count ?? 0} won</span>
+            </p>
+            <p className="mt-1 text-[11px] text-[#6B7280]">{cs ? Math.round(cs.referral_rate * 100) : 0}% of customers referred someone.</p>
+            {cs && cs.top_referrers.length > 0 && (
+              <div className="mt-3 space-y-1.5 border-t border-[#EEF0F3] pt-3">
+                {cs.top_referrers.map((r) => (
+                  <p key={r.account} className="text-[11px] text-[#3A414D]"><b className="text-[#111827]">{r.account}</b> → {r.referred.join(", ")}</p>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className={`${card} p-5`}>
+            <p className={label}>Why this matters</p>
+            <p className="mt-2 text-xs leading-relaxed text-[#6B7280]">
+              We have no product-usage data, so &quot;at risk&quot; means one real thing: no contact logged in 30+ days. &quot;Churned&quot; is never guessed — only you can mark it, because only you know if they actually left.
+            </p>
+            <button className={`${btnGhost} mt-3 w-full`} onClick={() => { window.open(gtmDocUrl(A.companyId, "customer-success-playbook"), "_blank"); A.notify("Playbook downloaded"); }}>
+              ⤓ Customer Success Playbook
+            </button>
+          </div>
+        </aside>
+      </div>
+    </SectionShell>
+  );
+}
+
+// ============================================================================================
 // Content Engine — the Motion tool recommends content for PLG/hybrid; this is where that stops
 // being a dead end. Ideas generated from the Brand Core, scheduled by week, ticked when shipped.
 // ============================================================================================
@@ -3285,6 +3451,16 @@ const QUESTIONS: Question[] = [
       `${g.connections.find((c) => c.kind === "crm")?.provider ?? "CRM"} connected` +
       (g.inputs.payment_link ? " · payment link live" : ""),
     cta: "Connect a CRM", section: "crm",
+  },
+  {
+    n: 6, q: "How do I keep and grow them?", modules: ["success"],
+    answered: (g) => g.customers.length > 0,
+    answer: (g) => {
+      const won = g.accounts.filter((a) => a.stage === "won").length;
+      const tracked = g.customers.length;
+      return won > 0 ? `${tracked} of ${won} won account${won === 1 ? "" : "s"} tracked` : "";
+    },
+    cta: "Track my customers", section: "success",
   },
 ];
 

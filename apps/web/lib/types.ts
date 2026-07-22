@@ -129,6 +129,7 @@ export interface CompanySnapshot {
   brand?: BrandState;
   people?: PeopleState;
   gtm?: GtmState;
+  ops?: OpsState;
   founders: FounderView[];
   domains: DomainView[];
   intake_complete: boolean;
@@ -485,6 +486,7 @@ export interface BrandState {
   presence: PresenceItem[];
   site_template: string;
   steps_done: string[];
+  asset_edits: Record<string, string>;
 }
 
 export interface ChatReply {
@@ -509,20 +511,50 @@ export interface HiringRole {
   start_date: string;
 }
 
+export interface TeamMember {
+  id: string;
+  name: string;
+  title: string;
+}
+
+export interface DocRecord {
+  generated: boolean;
+  text: string;
+  status: string; // unsigned | signed
+  delivery_mode: string; // "" | manual | auto
+  reminder_hours: number;
+  sent_confirm: string;
+  uploaded_file: string;
+}
+
+export interface PayrollPacket {
+  work_state: string;
+  tax_form: string;
+  i9: string;
+  bank: string;
+  deposit: string;
+}
+
 export interface Employee {
   id: string;
   name: string;
   role: string;
   email: string;
   start_date: string;
-  docs_generated: boolean;
+  docs: Record<string, DocRecord>;
+  onboarding_link: string;
+  onboarding_send_mode: string; // email | copy
   onboarding_sent: boolean;
   onboarding_complete: boolean;
+  onboarding_confirm: string;
+  payroll_packet: PayrollPacket | null;
   tier: string;
   access_granted: boolean;
+  access_confirm: string;
 }
 
 export interface PeopleState {
+  existing_team: TeamMember[];
   roles: HiringRole[];
   employees: Employee[];
   done_steps: number[];
@@ -563,6 +595,7 @@ export interface TargetAccount {
   owner: string; // who on YOUR side owns this
   contact: string; // the human at THEIR side
   email: string; // their address — you paste it; we don't enrich
+  referred_by: string; // name of the existing customer who sent them, empty if not a referral
 }
 
 export interface Sequence {
@@ -767,6 +800,45 @@ export interface Attribution {
   note: string;
 }
 
+export interface OnboardingStep {
+  label: string;
+  done: boolean;
+}
+
+export interface CustomerRecord {
+  account: string; // matches TargetAccount.name
+  onboarding: OnboardingStep[];
+  last_contact: string; // ISO date
+  status: string; // active | churned — founder-set, never inferred
+  notes: string;
+}
+
+export interface CustomerHealthItem {
+  account: string;
+  onboarding_pct: number;
+  status: string; // active | churned
+  days_since_contact: number | null;
+  at_risk: boolean; // real, computed: active but no contact logged in 30+ days
+  referred_by: string;
+}
+
+export interface ReferralStat {
+  account: string;
+  referred: string[];
+}
+
+export interface CustomerSuccessView {
+  customers: CustomerHealthItem[];
+  won_count: number;
+  active_count: number;
+  at_risk_count: number;
+  churned_count: number;
+  referred_count: number;
+  referral_rate: number;
+  top_referrers: ReferralStat[];
+  onboarding_template: string[];
+}
+
 export interface GtmState {
   inputs: GtmInputs;
   strategy: GtmStrategy;
@@ -780,6 +852,7 @@ export interface GtmState {
   partners: DesignPartner[];
   content: ContentIdea[];
   experiments: Experiment[];
+  customers: CustomerRecord[];
   steps_done: string[];
 }
 
@@ -810,4 +883,148 @@ export interface BrandHealth {
   score: number;
   label: string;
   dimensions: BrandDimension[];
+}
+
+// --- W8 · Operations & Tooling -------------------------------------------------------------------
+
+export interface Cadence {
+  name: string;
+  freq: string;
+  kind: string; // weekly | monthly | quarterly
+  day: string;
+  time: string;
+  mins: number;
+  attendees: string;
+  purpose: string;
+  booked: boolean;
+}
+
+export interface DecisionRight {
+  decision: string;
+  owner: string;
+  note: string;
+}
+
+export interface AreaOwner {
+  area: string;
+  owner: string;
+}
+
+export interface QuarterGoal {
+  text: string;
+  metric: string;
+  code: string;
+}
+
+export interface Sop {
+  id: string;
+  title: string;
+  why: string;
+  status: string; // proposed | drafted | adopted
+  owner: string;
+  trigger: string;
+  steps: string[];
+  done_means: string;
+  runs: number;
+  last_run: string;
+}
+
+export interface OpsVendor {
+  id: string;
+  name: string;
+  category: string;
+  cost: string;
+  renewal: string;
+  owner: string;
+  access: string;
+  critical: boolean;
+  source: string;
+}
+
+export interface OpsRisk {
+  id: string;
+  key: string;
+  title: string;
+  category: string;
+  likelihood: number;
+  impact: number;
+  severity: string;
+  evidence: string;
+  mitigation: string;
+  status: string; // open | mitigated | accepted | resolved
+  workflow: string;
+}
+
+export interface Policy {
+  id: string;
+  name: string;
+  summary: string;
+  rules: string[];
+  adopted: boolean;
+  adopted_on: string;
+  agreed_by: string;
+}
+
+export interface OpsReview {
+  date: string;
+  wins: string;
+  priority: string;
+}
+
+export interface Initiative {
+  id: string;
+  title: string;
+  owner: string;
+  target: string;
+  status: string; // planned | active | done | blocked
+  note: string;
+}
+
+export interface KnowledgeItem {
+  id: string;
+  title: string;
+  category: string;
+  owner: string;
+  location: string;
+  last_reviewed: string;
+}
+
+export interface Asset {
+  id: string;
+  name: string;
+  category: string;
+  assignee: string;
+  cost: string;
+  purchased: string;
+  status: string; // active | retired
+}
+
+export interface Automation {
+  id: string;
+  name: string;
+  trigger: string;
+  action: string;
+  tool: string;
+  owner: string;
+  status: string; // active | broken | retired
+}
+
+export interface OpsState {
+  mission: string;
+  stakes: string;
+  cadences: Cadence[];
+  decisions: DecisionRight[];
+  owners: AreaOwner[];
+  goals: QuarterGoal[];
+  sops: Sop[];
+  vendors: OpsVendor[];
+  risks: OpsRisk[];
+  policies: Policy[];
+  reviews: OpsReview[];
+  initiatives: Initiative[];
+  knowledge: KnowledgeItem[];
+  assets: Asset[];
+  automations: Automation[];
+  steps_done: string[];
+  generated: boolean;
 }

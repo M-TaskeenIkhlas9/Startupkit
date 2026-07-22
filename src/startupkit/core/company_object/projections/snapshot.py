@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from startupkit.core.company_object.brand_types import BrandState
 from startupkit.core.company_object.events import EventEnvelope
 from startupkit.core.company_object.gtm_types import GtmState
+from startupkit.core.company_object.ops_types import OpsState
 from startupkit.core.company_object.people_types import PeopleState
 
 Domain = Literal[
@@ -162,6 +163,7 @@ class CompanySnapshot(BaseModel):
     brand: BrandState = Field(default_factory=BrandState)  # W5 living Brand Core
     people: PeopleState = Field(default_factory=PeopleState)  # W6 hiring plan + roster
     gtm: GtmState = Field(default_factory=GtmState)  # W7 revenue engine
+    ops: OpsState = Field(default_factory=OpsState)  # W8 operating system
     intake_complete: bool = False
     version: int = 0  # = number of events folded; every edit bumps this (the 'versioned' twin)
 
@@ -312,13 +314,17 @@ def project_snapshot(events: list[EventEnvelope]) -> CompanySnapshot:
                 presence=e.presence,
                 site_template=e.site_template,
                 steps_done=e.steps_done,
+                asset_edits=e.asset_edits,
             )
             fields["brand"].update(
                 positioning=e.core.positioning, tagline=e.core.tagline, play=e.core.play_name
             )
         elif e.type == "people.state.set":
             snap.people = PeopleState(
-                roles=e.roles, employees=e.employees, done_steps=e.done_steps
+                existing_team=e.existing_team,
+                roles=e.roles,
+                employees=e.employees,
+                done_steps=e.done_steps,
             )
             fields["people"]["hires_planned"] = str(len(e.roles))
             fields["people"]["employees"] = str(len(e.employees))
@@ -336,6 +342,7 @@ def project_snapshot(events: list[EventEnvelope]) -> CompanySnapshot:
                 partners=e.partners,
                 content=e.content,
                 experiments=e.experiments,
+                customers=e.customers,
                 steps_done=e.steps_done,
             )
             if e.strategy.motion:
@@ -348,6 +355,36 @@ def project_snapshot(events: list[EventEnvelope]) -> CompanySnapshot:
                 fields["gtm"]["target_accounts"] = str(len(e.accounts))
             if e.campaigns:
                 fields["gtm"]["campaigns"] = str(len(e.campaigns))
+        elif e.type == "ops.state.set":
+            snap.ops = OpsState(
+                mission=e.mission,
+                stakes=e.stakes,
+                cadences=e.cadences,
+                decisions=e.decisions,
+                owners=e.owners,
+                goals=e.goals,
+                sops=e.sops,
+                vendors=e.vendors,
+                risks=e.risks,
+                policies=e.policies,
+                reviews=e.reviews,
+                initiatives=e.initiatives,
+                knowledge=e.knowledge,
+                assets=e.assets,
+                automations=e.automations,
+                steps_done=e.steps_done,
+                generated=e.generated,
+            )
+            if e.mission:
+                fields["operations"]["mission"] = e.mission
+            if e.sops:
+                adopted = len([s for s in e.sops if s.status == "adopted"])
+                fields["operations"]["sops_adopted"] = str(adopted)
+            if e.vendors:
+                fields["operations"]["vendors"] = str(len(e.vendors))
+            if e.risks:
+                open_n = len([r for r in e.risks if r.status == "open"])
+                fields["operations"]["open_risks"] = str(open_n)
         elif e.type == "intake.completed":
             snap.intake_complete = True
 

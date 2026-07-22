@@ -16,6 +16,7 @@ from startupkit.core.company_object.gtm_types import (
     Campaign,
     Connection,
     ContentIdea,
+    CustomerRecord,
     DesignPartner,
     Experiment,
     GtmInputs,
@@ -26,7 +27,24 @@ from startupkit.core.company_object.gtm_types import (
     TargetAccount,
     Task,
 )
-from startupkit.core.company_object.people_types import Employee, HiringRole
+from startupkit.core.company_object.ops_types import (
+    AreaOwner,
+    Asset,
+    Automation,
+    Cadence,
+    DecisionRight,
+    Initiative,
+    KnowledgeItem,
+    OpsReview,
+    Policy,
+    QuarterGoal,
+    Risk,
+    Sop,
+)
+from startupkit.core.company_object.ops_types import (
+    Vendor as OpsVendor,
+)
+from startupkit.core.company_object.people_types import Employee, HiringRole, TeamMember
 from startupkit.domain import EntityType
 
 # --- Phase 1: Foundation (intake) ---------------------------------------------------------------
@@ -246,6 +264,7 @@ class BrandStateSet(BaseModel):
     presence: list[PresenceItem] = Field(default_factory=list)
     site_template: str = "minimal"
     steps_done: list[str] = Field(default_factory=list)
+    asset_edits: dict[str, str] = Field(default_factory=dict)
 
 
 class PeopleStateSet(BaseModel):
@@ -255,6 +274,7 @@ class PeopleStateSet(BaseModel):
     """
 
     type: Literal["people.state.set"] = "people.state.set"
+    existing_team: list[TeamMember] = Field(default_factory=list)
     roles: list[HiringRole] = Field(default_factory=list)
     employees: list[Employee] = Field(default_factory=list)
     done_steps: list[int] = Field(default_factory=list)
@@ -280,7 +300,36 @@ class GtmStateSet(BaseModel):
     partners: list[DesignPartner] = Field(default_factory=list)
     content: list[ContentIdea] = Field(default_factory=list)
     experiments: list[Experiment] = Field(default_factory=list)
+    customers: list[CustomerRecord] = Field(default_factory=list)
     steps_done: list[str] = Field(default_factory=list)
+
+
+class OpsStateSet(BaseModel):
+    """W8 · Operations & Tooling — the operating system: cadences, SOPs, vendors, risks, policies.
+
+    Replaces the ops state wholesale (last-write-wins), same contract as the brand and GTM state.
+    Derivation stays a pure frontend read of the Company Object; only the founder-edited or
+    founder-confirmed result is persisted here.
+    """
+
+    type: Literal["ops.state.set"] = "ops.state.set"
+    mission: str = ""
+    stakes: str = ""
+    cadences: list[Cadence] = Field(default_factory=list)
+    decisions: list[DecisionRight] = Field(default_factory=list)
+    owners: list[AreaOwner] = Field(default_factory=list)
+    goals: list[QuarterGoal] = Field(default_factory=list)
+    sops: list[Sop] = Field(default_factory=list)
+    vendors: list[OpsVendor] = Field(default_factory=list)
+    risks: list[Risk] = Field(default_factory=list)
+    policies: list[Policy] = Field(default_factory=list)
+    reviews: list[OpsReview] = Field(default_factory=list)
+    initiatives: list[Initiative] = Field(default_factory=list)
+    knowledge: list[KnowledgeItem] = Field(default_factory=list)
+    assets: list[Asset] = Field(default_factory=list)
+    automations: list[Automation] = Field(default_factory=list)
+    steps_done: list[str] = Field(default_factory=list)
+    generated: bool = False
 
 
 CompanyEvent = (
@@ -306,6 +355,7 @@ CompanyEvent = (
     | BrandStateSet
     | PeopleStateSet
     | GtmStateSet
+    | OpsStateSet
 )
 
 

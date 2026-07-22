@@ -33,10 +33,12 @@ from startupkit.core.company_object.events import (
     IntegrationConnected,
     MilestoneLogged,
     NoteRecorded,
+    OpsStateSet,
     PeopleStateSet,
     WorkflowPhaseCompleted,
 )
 from startupkit.core.company_object.gtm_types import GtmState
+from startupkit.core.company_object.ops_types import OpsState
 from startupkit.core.company_object.people_types import PeopleState
 from startupkit.core.company_object.projections.health_score import (
     HealthScore,
@@ -220,6 +222,7 @@ class CompanyObjectService:
                 presence=state.presence,
                 site_template=state.site_template,
                 steps_done=state.steps_done,
+                asset_edits=state.asset_edits,
             ),
         )
 
@@ -227,7 +230,10 @@ class CompanyObjectService:
         await self._append(
             company_id,
             PeopleStateSet(
-                roles=state.roles, employees=state.employees, done_steps=state.done_steps
+                existing_team=state.existing_team,
+                roles=state.roles,
+                employees=state.employees,
+                done_steps=state.done_steps,
             ),
         )
 
@@ -247,7 +253,32 @@ class CompanyObjectService:
                 partners=state.partners,
                 content=state.content,
                 experiments=state.experiments,
+                customers=state.customers,
                 steps_done=state.steps_done,
+            ),
+        )
+
+    async def set_ops(self, company_id: str, state: OpsState) -> None:
+        await self._append(
+            company_id,
+            OpsStateSet(
+                mission=state.mission,
+                stakes=state.stakes,
+                cadences=state.cadences,
+                decisions=state.decisions,
+                owners=state.owners,
+                goals=state.goals,
+                sops=state.sops,
+                vendors=state.vendors,
+                risks=state.risks,
+                policies=state.policies,
+                reviews=state.reviews,
+                initiatives=state.initiatives,
+                knowledge=state.knowledge,
+                assets=state.assets,
+                automations=state.automations,
+                steps_done=state.steps_done,
+                generated=state.generated,
             ),
         )
 

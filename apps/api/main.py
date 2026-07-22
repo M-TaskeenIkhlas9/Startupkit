@@ -23,7 +23,7 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
 from startupkit.adapters.model_template import TemplateModelAdapter
-from startupkit.core.company_object.brand_types import BrandState
+from startupkit.core.company_object.brand_types import BrandState, PresenceItem
 from startupkit.core.company_object.events import (
     DocumentGenerated,
     DocumentSubmitted,
@@ -31,6 +31,7 @@ from startupkit.core.company_object.events import (
 )
 from startupkit.core.company_object.gtm_types import GtmState
 from startupkit.core.company_object.memory_store import InMemoryEventStore
+from startupkit.core.company_object.ops_types import OpsState
 from startupkit.core.company_object.people_types import PeopleState
 from startupkit.core.company_object.projections.health_score import HealthScore
 from startupkit.core.company_object.projections.snapshot import CompanySnapshot, DocumentRecord
@@ -63,6 +64,7 @@ from startupkit.core.services.gtm import (
     Attribution,
     ChannelMatrix,
     ContentPlanDraft,
+    CustomerSuccessView,
     Deliverability,
     Discovery,
     GtmDraft,
@@ -73,6 +75,7 @@ from startupkit.core.services.gtm import (
     attribution,
     channel_matrix,
     check_deliverability,
+    customer_success,
     discover_accounts,
     export_crm_csv,
     export_sequence_csv,
@@ -308,6 +311,20 @@ async def check_guardrail(company_id: str, action: GuardrailAction) -> Guardrail
 # --- W5 · Brand & Product Foundation -----------------------------------------------------------
 
 
+class CheckNameInput(BaseModel):
+    name: str
+
+
+@app.post("/api/brand/check-name")
+async def brand_check_name(req: CheckNameInput) -> list[PresenceItem]:
+    """Heuristic domain/handle/trademark read for a name — no company required.
+
+    Shared by intake (an early nudge before formation) and W5 (the authoritative check,
+    persisted onto the Brand Core) so there is one real engine behind both, not two.
+    """
+    return await check_presence(req.name, search=_search)
+
+
 @app.get("/api/companies/{company_id}/brand/plays")
 async def brand_plays(company_id: str) -> list[PlayMatch]:
     """Rank the proven Brand Plays for this company (backed by real named brands)."""
@@ -350,6 +367,14 @@ async def save_gtm(company_id: str, state: GtmState) -> CompanySnapshot:
     """W7 · Persist the revenue engine — motion, pricing, accounts, sequences, connections."""
     await _snapshot_or_404(company_id)
     await _service.set_gtm(company_id, state)
+    return await _service.snapshot(company_id)
+
+
+@app.post("/api/companies/{company_id}/ops")
+async def save_ops(company_id: str, state: OpsState) -> CompanySnapshot:
+    """W8 · Persist the operating system — cadences, SOPs, vendors, risks, policies."""
+    await _snapshot_or_404(company_id)
+    await _service.set_ops(company_id, state)
     return await _service.snapshot(company_id)
 
 
@@ -425,6 +450,13 @@ async def gtm_attribution(company_id: str) -> Attribution:
     """W7 · Which trigger is producing conversations, computed from real stages."""
     snap = await _snapshot_or_404(company_id)
     return attribution(snap.gtm)
+
+
+@app.get("/api/companies/{company_id}/gtm/customer-success")
+async def gtm_customer_success(company_id: str) -> CustomerSuccessView:
+    """W7 · Retention and referrals for won accounts — closing isn't the finish line."""
+    snap = await _snapshot_or_404(company_id)
+    return customer_success(snap.gtm)
 
 
 class GtmChatInput(BaseModel):

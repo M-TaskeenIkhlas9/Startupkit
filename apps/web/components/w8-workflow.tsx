@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { completePhase, getHealth, gtmChat } from "@/lib/api";
+import type { ReactNode } from "react";
+import { completePhase, getHealth, gtmChat, saveOps } from "@/lib/api";
 import type { CompanySnapshot, HealthScore, WorkflowView } from "@/lib/types";
 
 // W8 · Operations & Tooling — the founder's design (orange, phase strip, task tables, and the
@@ -11,12 +12,15 @@ import type { CompanySnapshot, HealthScore, WorkflowView } from "@/lib/types";
 // MRR comes from W7's won accounts × the locked tier. Open risks come from the register. Where a
 // source isn't connected (runway needs W3 accounting), the tile says so instead of inventing.
 //
-// Deliberately NOT built, even in this design: a kanban board (ClickUp's job), automation-run
-// counters and "time saved" stats (Zapier's numbers, not ours), SSO/endpoint management
-// (enterprise IT — irrelevant before ~20 people).
+// Deliberately NOT built: a kanban board (ClickUp's job), automation *execution* or "time saved"
+// counters (Zapier's numbers, not ours — the Automation Layer here is a registry, not an engine),
+// SSO/endpoint management (enterprise IT — irrelevant before ~20 people). Knowledge Base is a
+// pointer registry, not a wiki — Notion/Confluence hold the content, we track what exists and
+// whether it's stale. Asset Management tracks discrete owned/licensed items, distinct from the
+// Vendor registry's recurring tool subscriptions.
 //
-// NOTE ON PERSISTENCE: front-end preview. State lives in localStorage per company while the
-// `ops.state.set` backend event is built next — the footer says so honestly.
+// PERSISTENCE: real, event-sourced — `ops.state.set` on the Company Object, same contract as
+// W5's brand state and W7's GTM state. Seeded from `snapshot.ops` on load, saved via `saveOps`.
 const R = "#F26B1D"; // W8 orange (matches the catalog + the founder's design)
 const BLUE = "#2563EB"; // primary action, like the mock's Continue buttons
 const GREEN = "#16A34A";
@@ -102,6 +106,40 @@ type OpsReview = {
   wins: string; // what moved this week
   priority: string; // the ONE priority for next week
 };
+type Initiative = {
+  id: string;
+  title: string;
+  owner: string;
+  target: string; // ISO date
+  status: string; // planned | active | done | blocked
+  note: string;
+};
+type KnowledgeItem = {
+  id: string;
+  title: string;
+  category: string;
+  owner: string;
+  location: string; // a link, or "Notion" / "Confluence" / ... — we point, we don't host
+  last_reviewed: string; // ISO date
+};
+type Asset = {
+  id: string;
+  name: string;
+  category: string;
+  assignee: string;
+  cost: string;
+  purchased: string; // ISO date
+  status: string; // active | retired
+};
+type Automation = {
+  id: string;
+  name: string;
+  trigger: string;
+  action: string;
+  tool: string;
+  owner: string;
+  status: string; // active | broken | retired
+};
 
 type OpsState = {
   mission: string;
@@ -115,6 +153,10 @@ type OpsState = {
   risks: Risk[];
   policies: Policy[];
   reviews: OpsReview[]; // the weekly review, run in the Operator — newest first
+  initiatives: Initiative[]; // company-level projects — not a kanban board
+  knowledge: KnowledgeItem[]; // what documentation exists and where, not a wiki
+  assets: Asset[]; // discrete owned/licensed items, distinct from vendor subscriptions
+  automations: Automation[]; // a registry of what runs, not an execution engine
   steps_done: string[];
   generated: boolean;
 };
@@ -131,6 +173,10 @@ const EMPTY_OPS: OpsState = {
   risks: [],
   policies: [],
   reviews: [],
+  initiatives: [],
+  knowledge: [],
+  assets: [],
+  automations: [],
   steps_done: [],
   generated: false,
 };
@@ -751,6 +797,33 @@ function policyCheck(
   }
 }
 
+// ---------------- a real popup dialog — collect everything, then one Add ----------------
+// Escape + backdrop-click close it; background scroll locks while it's open. Same contract as
+// the document modal elsewhere in the app.
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <p className="text-base font-bold text-[#111827]">{title}</p>
+          <button onClick={onClose} className="text-[#9AA3B0] hover:text-[#111827]" aria-label="Close">✕</button>
+        </div>
+        <div className="mt-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 // ---------------- docs (generated client-side, downloaded as .md) ----------------
 
 function download(filename: string, body: string) {
@@ -923,6 +996,7 @@ type W8Actions = {
   generate: () => void;
   notify: (msg: string) => void;
   goWorkflow: (code: string) => void;
+  busy: boolean;
 };
 const W8Context = createContext<W8Actions | null>(null);
 function useW8(): W8Actions {
@@ -975,9 +1049,9 @@ function phaseDone(n: number, o: OpsState): boolean {
 }
 
 const PHASES: { n: number; name: string; sub: string; about: string; why: string }[] = [
-  { n: 1, name: "Foundation Setup", sub: "Mission, cadence on the calendar, decision rights, ownership, quarter goals.", about: "Define the operating model — then install it: the cadence isn't done until it's on your real calendar, and the quarter's goals are derived from your actual W3/W7/W8 state.", why: "Companies with a written operating cadence make decisions ~2x faster. A cadence that isn't booked is a paragraph — that's why this phase completes on the calendar click, not the text." },
-  { n: 2, name: "SOPs & Processes", sub: "The processes that must survive you being away — drafted, edited, then RUN.", about: "W8 drafts the actual steps from your company's shape (your CRM, your payment link, your severity ladder). You edit them until they're true, then run the SOP as a checklist — the first completed run is what adopts it.", why: "Well-documented processes cut onboarding time by ~60% — and a run counter beats a promise. Scribe documents what you already do; W8 drafts what you're missing." },
-  { n: 3, name: "Vendors & Tools", sub: "Every tool: cost, owner, renewal countdown, and who has access.", about: "The registry seeds itself from W3/W7. You fill cost + renewal + access — and the access column generates the offboarding checklist your access-control policy promises.", why: "Unowned tools are how spend and access leak. Vendr sells this discipline for $36k/yr; yours fits on one screen — and it knows who to lock out on someone's last day." },
+  { n: 1, name: "Foundation Setup", sub: "Mission, cadence on the calendar, decision rights, ownership, quarter goals, initiatives.", about: "Define the operating model — then install it: the cadence isn't done until it's on your real calendar, and the quarter's goals are derived from your actual W3/W7/W8 state. Initiatives track the handful of company-level projects that matter — not a sprint board.", why: "Companies with a written operating cadence make decisions ~2x faster. A cadence that isn't booked is a paragraph — that's why this phase completes on the calendar click, not the text." },
+  { n: 2, name: "SOPs & Processes", sub: "The processes that must survive you being away — drafted, edited, then RUN — plus a knowledge index.", about: "W8 drafts the actual steps from your company's shape (your CRM, your payment link, your severity ladder). You edit them until they're true, then run the SOP as a checklist — the first completed run is what adopts it. The Knowledge Index tracks what documentation exists and where — Notion/Confluence hold the content, this flags what's gone stale.", why: "Well-documented processes cut onboarding time by ~60% — and a run counter beats a promise. Scribe documents what you already do; W8 drafts what you're missing." },
+  { n: 3, name: "Vendors, Tools & Assets", sub: "Every tool: cost, owner, renewal countdown, who has access — plus owned assets and automations.", about: "The vendor registry seeds itself from W3/W7. You fill cost + renewal + access — and the access column generates the offboarding checklist your access-control policy promises. Assets track discrete owned/licensed items (laptops, per-seat licenses); the Automation Layer registers what automations exist and who owns them, without executing anything itself.", why: "Unowned tools are how spend and access leak. Vendr sells this discipline for $36k/yr; yours fits on one screen — and it knows who to lock out on someone's last day." },
   { n: 4, name: "Risk & Continuity", sub: "Derived from your state — and re-verified against it.", about: "Each risk is derived from your actual company state, plotted on likelihood × impact. Fix the cause in its workflow and the re-scan resolves it for you — 'resolved' is never a click. The continuity plan writes itself from this register.", why: "A risk register you act on is the difference between a bad week and a dead company — and one that watches reality never goes stale." },
   { n: 5, name: "Policies & Governance", sub: "Editable rules, a recorded adoption, and live checks against your state.", about: "Edit each policy's rules until your team can live by them, adopt with names and a date, and watch the live check — every policy is verified against your actual registries where the state can answer, and says 'on your honour' where it can't.", why: "An adoption record with names and dates is what a SOC 2 auditor asks for first — and a policy reality violates is flagged, not framed." },
   { n: 6, name: "AI Company Operator", sub: "Your command center — live tiles, the weekly review, the exec report.", about: "Live numbers from W1–W8, a weekly review generated from this week's actual state (run it here, it's remembered here), an ask box grounded in your pipeline AND your ops registries, and an investor-ready report on one click.", why: "No competitor can build this screen — they don't have eight workflows writing to one Company Object. The Operator goes ✓ when the first weekly review runs, because a cockpit nobody sits in is a poster." },
@@ -993,44 +1067,16 @@ export function W8Workflow({
   snapshot: CompanySnapshot;
   view: WorkflowView;
 }) {
-  const storageKey = `w8:v7:${companyId}`; // v7 — operator gained the weekly review history
-  const [ops, setOps] = useState<OpsState>(EMPTY_OPS);
+  const [ops, setOps] = useState<OpsState>(() => ({ ...EMPTY_OPS, ...(snapshot.ops ?? {}) }));
   const [phase, setPhase] = useState(1);
   const [toast, setToast] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [catPhases, setCatPhases] = useState<Set<number>>(new Set(view.completed_phases ?? []));
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(storageKey);
-      if (raw) setOps({ ...EMPTY_OPS, ...JSON.parse(raw) });
-    } catch {
-      /* fresh start */
-    }
-  }, [storageKey]);
 
   const notify = useCallback((msg: string) => {
     setToast(msg);
     window.setTimeout(() => setToast(null), 2600);
   }, []);
-
-  // The register watches reality: once per visit, re-scan the derived risks against live state.
-  // Fixed causes resolve themselves; returned causes reopen. Founder edits survive.
-  const didRescan = useRef(false);
-  useEffect(() => {
-    if (!ops.generated || !ops.risks.length || didRescan.current) return;
-    didRescan.current = true;
-    const next = reconcileRisks(ops.risks, snapshot);
-    if (JSON.stringify(next) !== JSON.stringify(ops.risks)) {
-      setOps((prev) => {
-        const merged = { ...prev, risks: next };
-        try {
-          window.localStorage.setItem(storageKey, JSON.stringify(merged));
-        } catch { /* session-only */ }
-        return merged;
-      });
-      notify("Risk register re-scanned against your live state ✓");
-    }
-  }, [ops.generated, ops.risks, snapshot, storageKey, notify]);
 
   // UI phases → the 3 catalog phases (1: foundation · 2: SOPs · 3: vendors+risks+policies).
   const syncCatalog = useCallback(
@@ -1051,22 +1097,44 @@ export function W8Workflow({
     [companyId, catPhases],
   );
 
+  const persist = useCallback(
+    async (next: OpsState, note?: string) => {
+      setOps(next);
+      setBusy(true);
+      try {
+        const snap = await saveOps(companyId, next);
+        const saved = snap.ops ? { ...EMPTY_OPS, ...snap.ops } : next;
+        setOps(saved);
+        syncCatalog(saved);
+        if (note) notify(note);
+      } catch {
+        notify("Couldn't save — check your connection.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [companyId, notify, syncCatalog],
+  );
+
   const patch = useCallback(
     (partial: Partial<OpsState>, note?: string) => {
-      setOps((prev) => {
-        const next = { ...prev, ...partial };
-        try {
-          window.localStorage.setItem(storageKey, JSON.stringify(next));
-        } catch {
-          /* session-only */
-        }
-        syncCatalog(next);
-        return next;
-      });
-      if (note) notify(note);
+      persist({ ...ops, ...partial }, note);
     },
-    [storageKey, notify, syncCatalog],
+    [ops, persist],
   );
+
+  // The register watches reality: once per visit, re-scan the derived risks against live state.
+  // Fixed causes resolve themselves; returned causes reopen. Founder edits survive.
+  const didRescan = useRef(false);
+  useEffect(() => {
+    if (!ops.generated || !ops.risks.length || didRescan.current) return;
+    didRescan.current = true;
+    const next = reconcileRisks(ops.risks, snapshot);
+    if (JSON.stringify(next) !== JSON.stringify(ops.risks)) {
+      persist({ ...ops, risks: next }, "Risk register re-scanned against your live state ✓");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ops.generated, ops.risks, snapshot]);
 
   // ✦ Derive the whole operating system from the Company Object. Fills what's empty; never
   // overwrites what the founder edited.
@@ -1096,7 +1164,7 @@ export function W8Workflow({
     [companyId],
   );
 
-  const actions: W8Actions = { companyId, snap: snapshot, ops, patch, generate, notify, goWorkflow };
+  const actions: W8Actions = { companyId, snap: snapshot, ops, patch, generate, notify, goWorkflow, busy };
 
   return (
     <W8Context.Provider value={actions}>
@@ -1115,9 +1183,10 @@ export function W8Workflow({
               tiles read W3/W6/W7/W8 directly. Where a source isn&apos;t connected, the tile says so.
             </p>
             <p>
-              <b className="text-[#111827]">Deliberately not built:</b> a kanban board (ClickUp&apos;s job) · automation-run
-              and time-saved counters (Zapier&apos;s numbers, not ours) · SSO/endpoint management (enterprise IT).{" "}
-              <b>Preview note:</b> W8 state saves on this device; the Company-Object event (`ops.state.set`) is the next build step.
+              <b className="text-[#111827]">Deliberately not built:</b> a kanban board (ClickUp&apos;s job) · automation
+              *execution* or time-saved counters (Zapier&apos;s numbers, not ours — the Automation Layer here tracks
+              what exists, it doesn&apos;t run it) · a wiki (Knowledge Index points at Notion/Confluence, it doesn&apos;t
+              host content) · SSO/endpoint management (enterprise IT).
             </p>
           </div>
         </details>
@@ -1332,6 +1401,14 @@ function TaskPhase({ n, goOperator }: { n: number; goOperator: () => void }) {
             ))}
           </div>
         </div>
+        {o.generated && n === 1 && <InitiativesCard />}
+        {o.generated && n === 2 && <KnowledgeCard />}
+        {o.generated && n === 3 && (
+          <>
+            <AssetsCard />
+            <AutomationsCard />
+          </>
+        )}
       </div>
 
       {/* right rail — about / why / deliverables / related, like the mock */}
@@ -1348,6 +1425,305 @@ function TaskPhase({ n, goOperator }: { n: number; goOperator: () => void }) {
         <GuardrailsCard />
         <RelatedWorkflows goOperator={goOperator} />
       </aside>
+    </div>
+  );
+}
+
+function daysSince(iso: string): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.round((Date.now() - d.getTime()) / 86400000);
+}
+
+// ---------------- Initiatives (Phase 1 addition) — company-level projects, not a sprint board ----
+const INIT_STATUS: [string, string][] = [["planned", "Planned"], ["active", "Active"], ["done", "Done"], ["blocked", "Blocked"]];
+function InitiativesCard() {
+  const A = useW8();
+  const items = A.ops.initiatives;
+  const [open, setOpen] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ title: "", owner: "" });
+  const update = (id: string, part: Partial<Initiative>, note?: string) =>
+    A.patch({ initiatives: items.map((i) => (i.id === id ? { ...i, ...part } : i)) }, note);
+  const add = () => {
+    if (!draft.title.trim()) return A.notify("Name the initiative first");
+    const id = `init-${Date.now()}`;
+    A.patch(
+      { initiatives: [...items, { id, title: draft.title.trim(), owner: draft.owner, target: "", status: "planned", note: "" }] },
+      `${draft.title.trim()} added`,
+    );
+    setDraft({ title: "", owner: "" });
+    setAdding(false);
+  };
+  const remove = (id: string) => A.patch({ initiatives: items.filter((i) => i.id !== id) }, "Removed");
+
+  return (
+    <div className={`${card} p-6`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-[#111827]">Initiatives</h3>
+          <p className="mt-0.5 text-xs text-[#6B7280]">The company-level projects that matter this quarter — not a sprint board. Deliberately no tickets, no swimlanes.</p>
+        </div>
+        <button className={btnGhost} onClick={() => setAdding((v) => !v)}>{adding ? "Cancel" : "+ Add initiative"}</button>
+      </div>
+      {adding && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <input className={`${input} flex-1`} placeholder="Initiative" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+          <input className={`${input} flex-1`} placeholder="Owner" value={draft.owner} onChange={(e) => setDraft({ ...draft, owner: e.target.value })} />
+          <button className={btnBlue} style={{ background: BLUE }} onClick={add}>Add</button>
+        </div>
+      )}
+      {items.length === 0 ? (
+        <p className="mt-4 rounded-lg bg-[#FAFBFA] p-4 text-center text-xs text-[#9AA3B0]">No initiatives tracked yet — add the handful of company-level bets that matter this quarter.</p>
+      ) : (
+        <div className="mt-3 overflow-hidden rounded-xl border border-[#EBECE9]">
+          {items.map((it, i) => (
+            <Row key={it.id} step={`I.${i + 1}`} title={it.title} desc={`${it.owner || "unassigned"}${it.target ? ` · due ${it.target}` : ""}`}
+              state={it.status === "done" ? "done" : it.status === "active" ? "doing" : "todo"}
+              open={open === it.id} onToggle={() => setOpen(open === it.id ? null : it.id)}
+              action={
+                <>
+                  <select value={it.status} onChange={(e) => update(it.id, { status: e.target.value })} className="rounded-lg border border-[#EBECE9] px-2 py-1 text-[11px]">
+                    {INIT_STATUS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                  <button className={btnGhost} onClick={() => setOpen(open === it.id ? null : it.id)}>{open === it.id ? "Close" : "Edit"}</button>
+                </>
+              }>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div><p className={label}>Owner</p><input className={`${input} mt-1`} value={it.owner} onChange={(e) => update(it.id, { owner: e.target.value })} /></div>
+                <div><p className={label}>Target date</p><input type="date" className={`${input} mt-1`} value={it.target} onChange={(e) => update(it.id, { target: e.target.value })} /></div>
+              </div>
+              <div className="mt-2"><p className={label}>Note</p><textarea className={`${input} mt-1`} rows={2} value={it.note} onChange={(e) => update(it.id, { note: e.target.value })} /></div>
+              <button onClick={() => remove(it.id)} className="mt-2 text-[11px] text-[#9AA3B0] hover:text-[#DC2626]">Remove</button>
+            </Row>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------- Knowledge Index (Phase 2 addition) — a pointer registry, not a wiki -------------
+function KnowledgeCard() {
+  const A = useW8();
+  const items = A.ops.knowledge;
+  const [open, setOpen] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ title: "", category: "", location: "" });
+  const update = (id: string, part: Partial<KnowledgeItem>, note?: string) =>
+    A.patch({ knowledge: items.map((k) => (k.id === id ? { ...k, ...part } : k)) }, note);
+  const add = () => {
+    if (!draft.title.trim()) return A.notify("Title it first");
+    const id = `kb-${Date.now()}`;
+    A.patch(
+      { knowledge: [...items, { id, title: draft.title.trim(), category: draft.category, owner: "", location: draft.location, last_reviewed: "" }] },
+      `${draft.title.trim()} added`,
+    );
+    setDraft({ title: "", category: "", location: "" });
+    setAdding(false);
+  };
+  const remove = (id: string) => A.patch({ knowledge: items.filter((k) => k.id !== id) }, "Removed");
+  // seed one Knowledge Index entry per adopted SOP — the SOP library IS company knowledge
+  const seedFromSops = () => {
+    const known = new Set(items.map((k) => k.title));
+    const fresh = A.ops.sops.filter((s) => s.status === "adopted" && !known.has(s.title))
+      .map((s) => ({ id: `kb-sop-${s.id}`, title: s.title, category: "SOP", owner: s.owner, location: "W8 · SOPs & Processes", last_reviewed: s.last_run }));
+    if (!fresh.length) return A.notify("No new adopted SOPs to add");
+    A.patch({ knowledge: [...items, ...fresh] }, `${fresh.length} SOP${fresh.length === 1 ? "" : "s"} added from your library`);
+  };
+
+  return (
+    <div className={`${card} p-6`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-[#111827]">Knowledge Index</h3>
+          <p className="mt-0.5 text-xs text-[#6B7280]">What documentation exists and where — not a wiki. Notion/Confluence hold the content; this tracks whether it&apos;s current.</p>
+        </div>
+        <div className="flex gap-2">
+          <button className={btnGhost} onClick={seedFromSops}>↻ Add adopted SOPs</button>
+          <button className={btnGhost} onClick={() => setAdding((v) => !v)}>{adding ? "Cancel" : "+ Add doc"}</button>
+        </div>
+      </div>
+      {adding && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <input className={`${input} flex-1`} placeholder="Title" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+          <input className={`${input} flex-1`} placeholder="Category" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} />
+          <input className={`${input} flex-1`} placeholder="Location — a link, or Notion/Confluence/..." value={draft.location} onChange={(e) => setDraft({ ...draft, location: e.target.value })} />
+          <button className={btnBlue} style={{ background: BLUE }} onClick={add}>Add</button>
+        </div>
+      )}
+      {items.length === 0 ? (
+        <p className="mt-4 rounded-lg bg-[#FAFBFA] p-4 text-center text-xs text-[#9AA3B0]">Nothing indexed yet. Start with your adopted SOPs, then add anything a new hire would need to find.</p>
+      ) : (
+        <div className="mt-3 overflow-hidden rounded-xl border border-[#EBECE9]">
+          {items.map((k, i) => {
+            const stale = daysSince(k.last_reviewed);
+            const isStale = stale !== null && stale >= 90;
+            return (
+              <Row key={k.id} step={`K.${i + 1}`} title={k.title} desc={`${k.category || "uncategorized"}${k.location ? ` · ${k.location}` : ""}`}
+                state={k.last_reviewed ? (isStale ? "doing" : "done") : "todo"}
+                open={open === k.id} onToggle={() => setOpen(open === k.id ? null : k.id)}
+                action={
+                  <>
+                    {isStale && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "#FEF3C7", color: "#92600E" }}>stale ({stale}d)</span>}
+                    <button className={btnGhost} onClick={() => setOpen(open === k.id ? null : k.id)}>{open === k.id ? "Close" : "Edit"}</button>
+                  </>
+                }>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div><p className={label}>Owner</p><input className={`${input} mt-1`} value={k.owner} onChange={(e) => update(k.id, { owner: e.target.value })} /></div>
+                  <div><p className={label}>Location</p><input className={`${input} mt-1`} value={k.location} onChange={(e) => update(k.id, { location: e.target.value })} /></div>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="flex-1"><p className={label}>Last reviewed</p><input type="date" className={`${input} mt-1`} value={k.last_reviewed} onChange={(e) => update(k.id, { last_reviewed: e.target.value })} /></div>
+                  <button className={`${btnGhost} mt-4`} onClick={() => update(k.id, { last_reviewed: new Date().toISOString().slice(0, 10) })}>Mark reviewed today</button>
+                </div>
+                <button onClick={() => remove(k.id)} className="mt-2 text-[11px] text-[#9AA3B0] hover:text-[#DC2626]">Remove</button>
+              </Row>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------- Asset Management (Phase 3 addition) — owned/licensed items, not vendors --------
+function AssetsCard() {
+  const A = useW8();
+  const items = A.ops.assets;
+  const [open, setOpen] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ name: "", category: "", assignee: "" });
+  const update = (id: string, part: Partial<Asset>, note?: string) =>
+    A.patch({ assets: items.map((a) => (a.id === id ? { ...a, ...part } : a)) }, note);
+  const add = () => {
+    if (!draft.name.trim()) return A.notify("Name the asset first");
+    const id = `asset-${Date.now()}`;
+    A.patch(
+      { assets: [...items, { id, name: draft.name.trim(), category: draft.category, assignee: draft.assignee, cost: "", purchased: "", status: "active" }] },
+      `${draft.name.trim()} added`,
+    );
+    setDraft({ name: "", category: "", assignee: "" });
+    setAdding(false);
+  };
+  const remove = (id: string) => A.patch({ assets: items.filter((a) => a.id !== id) }, "Removed");
+  const activeValue = items.filter((a) => a.status === "active").reduce((s, a) => s + (Number(a.cost) || 0), 0);
+
+  return (
+    <div className={`${card} mt-4 p-6`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-[#111827]">Assets <span className="font-normal text-[#9AA3B0]">— {items.length ? `$${activeValue.toLocaleString()} tracked` : "none yet"}</span></h3>
+          <p className="mt-0.5 text-xs text-[#6B7280]">Discrete owned or licensed items assigned to a person — laptops, per-seat licenses, domains. Distinct from Vendors, which are recurring tool spend.</p>
+        </div>
+        <button className={btnGhost} onClick={() => setAdding((v) => !v)}>{adding ? "Cancel" : "+ Add asset"}</button>
+      </div>
+      {adding && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <input className={`${input} flex-1`} placeholder="Asset" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          <input className={`${input} flex-1`} placeholder="Category" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} />
+          <input className={`${input} flex-1`} placeholder="Assigned to" value={draft.assignee} onChange={(e) => setDraft({ ...draft, assignee: e.target.value })} />
+          <button className={btnBlue} style={{ background: BLUE }} onClick={add}>Add</button>
+        </div>
+      )}
+      {items.length === 0 ? (
+        <p className="mt-4 rounded-lg bg-[#FAFBFA] p-4 text-center text-xs text-[#9AA3B0]">No assets tracked yet — start with laptops and per-seat software licenses.</p>
+      ) : (
+        <div className="mt-3 overflow-hidden rounded-xl border border-[#EBECE9]">
+          {items.map((a, i) => (
+            <Row key={a.id} step={`A.${i + 1}`} title={a.name} desc={`${a.category || "uncategorized"} · ${a.assignee || "unassigned"}${a.cost ? ` · $${a.cost}` : ""}${a.status === "retired" ? " · retired" : ""}`}
+              state={a.status === "retired" ? "done" : a.assignee ? "done" : "todo"}
+              open={open === a.id} onToggle={() => setOpen(open === a.id ? null : a.id)}
+              action={<button className={btnGhost} onClick={() => setOpen(open === a.id ? null : a.id)}>{open === a.id ? "Close" : "Edit"}</button>}>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div><p className={label}>Assigned to</p><input className={`${input} mt-1`} value={a.assignee} onChange={(e) => update(a.id, { assignee: e.target.value })} /></div>
+                <div><p className={label}>Cost</p><input className={`${input} mt-1`} placeholder="We never guess a price" value={a.cost} onChange={(e) => update(a.id, { cost: e.target.value.replace(/[^0-9.]/g, "") })} /></div>
+                <div><p className={label}>Purchased</p><input type="date" className={`${input} mt-1`} value={a.purchased} onChange={(e) => update(a.id, { purchased: e.target.value })} /></div>
+                <div>
+                  <p className={label}>Status</p>
+                  <select value={a.status} onChange={(e) => update(a.id, { status: e.target.value })} className={`${input} mt-1`}>
+                    <option value="active">Active</option>
+                    <option value="retired">Retired</option>
+                  </select>
+                </div>
+              </div>
+              <button onClick={() => remove(a.id)} className="mt-2 text-[11px] text-[#9AA3B0] hover:text-[#DC2626]">Remove</button>
+            </Row>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------- Automation Layer (Phase 3 addition) — a registry, not an execution engine ------
+function AutomationsCard() {
+  const A = useW8();
+  const items = A.ops.automations;
+  const [open, setOpen] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ name: "", trigger: "", action: "", tool: "" });
+  const update = (id: string, part: Partial<Automation>, note?: string) =>
+    A.patch({ automations: items.map((x) => (x.id === id ? { ...x, ...part } : x)) }, note);
+  const add = () => {
+    if (!draft.name.trim()) return A.notify("Name the automation first");
+    const id = `auto-${Date.now()}`;
+    A.patch(
+      { automations: [...items, { id, name: draft.name.trim(), trigger: draft.trigger, action: draft.action, tool: draft.tool, owner: "", status: "active" }] },
+      `${draft.name.trim()} added`,
+    );
+    setDraft({ name: "", trigger: "", action: "", tool: "" });
+    setAdding(false);
+  };
+  const remove = (id: string) => A.patch({ automations: items.filter((x) => x.id !== id) }, "Removed");
+  const broken = items.filter((x) => x.status === "broken").length;
+
+  return (
+    <div className={`${card} mt-4 p-6`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-[#111827]">Automation Layer{broken > 0 && <span className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "#FCF6F5", color: "#B4231F" }}>{broken} broken</span>}</h3>
+          <p className="mt-0.5 text-xs text-[#6B7280]">What automations exist and who owns them — a registry, not an execution engine. We never run these or claim a &quot;time saved&quot; number.</p>
+        </div>
+        <button className={btnGhost} onClick={() => setAdding((v) => !v)}>{adding ? "Cancel" : "+ Add automation"}</button>
+      </div>
+      {adding && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <input className={input} placeholder="Name — e.g. New payment → Slack" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          <input className={input} placeholder="Tool — e.g. Zapier" value={draft.tool} onChange={(e) => setDraft({ ...draft, tool: e.target.value })} />
+          <input className={input} placeholder="Trigger" value={draft.trigger} onChange={(e) => setDraft({ ...draft, trigger: e.target.value })} />
+          <input className={input} placeholder="Action" value={draft.action} onChange={(e) => setDraft({ ...draft, action: e.target.value })} />
+          <button className={`${btnBlue} sm:col-span-2`} style={{ background: BLUE }} onClick={add}>Add</button>
+        </div>
+      )}
+      {items.length === 0 ? (
+        <p className="mt-4 rounded-lg bg-[#FAFBFA] p-4 text-center text-xs text-[#9AA3B0]">No automations tracked yet — add the ones that would go unnoticed if they broke.</p>
+      ) : (
+        <div className="mt-3 overflow-hidden rounded-xl border border-[#EBECE9]">
+          {items.map((x, i) => (
+            <Row key={x.id} step={`M.${i + 1}`} title={x.name} desc={`${x.trigger || "trigger tbd"} → ${x.action || "action tbd"} · ${x.tool || "tool tbd"}`}
+              state={x.status === "broken" ? "todo" : x.owner ? "done" : "doing"}
+              open={open === x.id} onToggle={() => setOpen(open === x.id ? null : x.id)}
+              action={<button className={btnGhost} onClick={() => setOpen(open === x.id ? null : x.id)}>{open === x.id ? "Close" : "Edit"}</button>}>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div><p className={label}>Trigger</p><input className={`${input} mt-1`} value={x.trigger} onChange={(e) => update(x.id, { trigger: e.target.value })} /></div>
+                <div><p className={label}>Action</p><input className={`${input} mt-1`} value={x.action} onChange={(e) => update(x.id, { action: e.target.value })} /></div>
+                <div><p className={label}>Owner</p><input className={`${input} mt-1`} value={x.owner} onChange={(e) => update(x.id, { owner: e.target.value })} /></div>
+                <div>
+                  <p className={label}>Status</p>
+                  <select value={x.status} onChange={(e) => update(x.id, { status: e.target.value })} className={`${input} mt-1`}>
+                    <option value="active">Active</option>
+                    <option value="broken">Broken</option>
+                    <option value="retired">Retired</option>
+                  </select>
+                </div>
+              </div>
+              <button onClick={() => remove(x.id)} className="mt-2 text-[11px] text-[#9AA3B0] hover:text-[#DC2626]">Remove</button>
+            </Row>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1736,21 +2112,9 @@ const CATEGORIES = ["Sales", "Finance", "Engineering", "Data", "Comms", "Legal",
 function VendorRows({ open, setOpen }: { open: string | null; setOpen: (s: string | null) => void }) {
   const A = useW8();
   const o = A.ops;
-  const [name, setName] = useState("");
+  const [adding, setAdding] = useState(false);
   const update = (id: string, part: Partial<Vendor>, note?: string) =>
     A.patch({ vendors: o.vendors.map((v) => (v.id === id ? { ...v, ...part } : v)) }, note);
-
-  const add = () => {
-    if (!name.trim()) return;
-    A.patch({
-      vendors: [...o.vendors, {
-        id: `v-${Date.now()}`, name: name.trim(), category: "Ops", cost: "", renewal: "",
-        owner: A.snap.founders?.[0]?.name || "", access: A.snap.founders?.[0]?.name || "",
-        critical: false, source: "you added it",
-      }],
-    }, "Vendor added ✓");
-    setName("");
-  };
 
   // Spend, computed only from costs the founder typed — never inferred.
   const spend = o.vendors.reduce((s, v) => s + (Number(v.cost) || 0), 0);
@@ -1828,7 +2192,7 @@ function VendorRows({ open, setOpen }: { open: string | null; setOpen: (s: strin
                 {renewChip(v)}
                 <button className={state === "done" ? btnGhost : btnBlue} style={state === "done" ? undefined : { background: BLUE }}
                   onClick={() => setOpen(open === v.id ? null : v.id)}>
-                  {open === v.id ? "Close" : state === "done" ? "View" : "Complete"}
+                  {open === v.id ? "Close" : state === "done" ? "Edit" : "Fill in details →"}
                 </button>
               </>
             }>
@@ -1879,17 +2243,106 @@ function VendorRows({ open, setOpen }: { open: string | null; setOpen: (s: strin
       })}
 
       <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-        <input className={`${input} min-w-[220px] flex-1`} placeholder="Add a tool we couldn't see (e.g. Figma, AWS…)" value={name}
-          onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
-        <button className={btnBlue} style={{ background: name.trim() ? R : "#C4CCD6" }} disabled={!name.trim()} onClick={add}>
-          Add
+        <button className={btnBlue} style={{ background: R }} onClick={() => setAdding(true)}>
+          + Add a tool
         </button>
-        <p className="w-full text-[11px] text-[#9AA3B0]">
+        <p className="text-[11px] text-[#9AA3B0]">
           Seeded from W3/W7 connections — Vendr sells this registry for $36k/yr at enterprise scale. The access column is
           what makes the offboarding checklist real.
         </p>
       </div>
+
+      {adding && (
+        <AddVendorModal
+          founder={A.snap.founders?.[0]?.name || ""}
+          onClose={() => setAdding(false)}
+          onAdd={(v) => {
+            A.patch({ vendors: [...o.vendors, v] }, "Vendor added ✓");
+            setAdding(false);
+          }}
+        />
+      )}
     </>
+  );
+}
+
+// Everything up front, one confirm. Only the name is truly required — cost stays optional
+// everywhere in this app because we never ask a founder to guess a price they don't know.
+function AddVendorModal({
+  founder,
+  onClose,
+  onAdd,
+}: {
+  founder: string;
+  onClose: () => void;
+  onAdd: (v: Vendor) => void;
+}) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("Ops");
+  const [cost, setCost] = useState("");
+  const [renewal, setRenewal] = useState("");
+  const [owner, setOwner] = useState(founder);
+  const [access, setAccess] = useState(founder);
+  const [critical, setCritical] = useState(false);
+
+  const canAdd = name.trim().length > 0;
+  const submit = () => {
+    if (!canAdd) return;
+    onAdd({
+      id: `v-${Date.now()}`, name: name.trim(), category,
+      cost: cost.replace(/[^0-9.]/g, ""), renewal, owner: owner.trim(), access: access.trim(),
+      critical, source: "you added it",
+    });
+  };
+
+  return (
+    <Modal title="Add a tool" onClose={onClose}>
+      <div className="space-y-3">
+        <div>
+          <p className={label}>Tool name *</p>
+          <input className={`${input} mt-1`} autoFocus placeholder="Figma, AWS, Notion…" value={name}
+            onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className={label}>Cost $/mo</p>
+            <input className={`${input} mt-1`} placeholder="Leave blank if unsure" value={cost}
+              onChange={(e) => setCost(e.target.value.replace(/[^0-9.]/g, ""))} />
+          </div>
+          <div>
+            <p className={label}>Category</p>
+            <select className={`${input} mt-1`} value={category} onChange={(e) => setCategory(e.target.value)}>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className={label}>Renewal date</p>
+            <input type="date" className={`${input} mt-1`} value={renewal} onChange={(e) => setRenewal(e.target.value)} />
+          </div>
+          <div>
+            <p className={label}>Owner — grants &amp; revokes</p>
+            <input className={`${input} mt-1`} value={owner} onChange={(e) => setOwner(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <p className={label}>Who has access — comma-separated; writes the offboarding checklist</p>
+          <input className={`${input} mt-1`} placeholder="Zara, Sam…" value={access} onChange={(e) => setAccess(e.target.value)} />
+        </div>
+        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[#3A414D]">
+          <input type="checkbox" className="h-3.5 w-3.5 accent-[#B4231F]" checked={critical} onChange={() => setCritical((c) => !c)} />
+          Critical — the company stops without it
+        </label>
+        <div className="flex items-center justify-end gap-2 border-t border-[#EEF0F3] pt-3">
+          <button className={btnGhost} onClick={onClose}>Cancel</button>
+          <button className={btnBlue} style={{ background: canAdd ? R : "#C4CCD6" }} disabled={!canAdd} onClick={submit}>
+            Add vendor
+          </button>
+        </div>
+        <p className="text-[11px] text-[#9AA3B0]">* Only the name is required — we never ask you to guess a price or a date you don&apos;t know.</p>
+      </div>
+    </Modal>
   );
 }
 
@@ -2202,16 +2655,20 @@ function Deliverables({ n }: { n: number }) {
          ["Cadence on the calendar", o.cadences.length > 0 && o.cadences.every((c) => c.booked), null],
          ["Decision-rights matrix", o.decisions.length > 0, null],
          ["Ownership map", o.owners.length > 0 && o.owners.every((x) => x.owner), null],
-         ["Quarter goals (3 max)", o.goals.length > 0, null]]
+         ["Quarter goals (3 max)", o.goals.length > 0, null],
+         ["Initiatives tracked", o.initiatives.length > 0, null]]
       : n === 2
         ? [["SOP Library", o.sops.some((s) => s.status !== "proposed"), null],
-           [`${o.sops.filter((s) => s.status === "adopted").length} adopted SOPs`, o.sops.some((s) => s.status === "adopted"), null]]
+           [`${o.sops.filter((s) => s.status === "adopted").length} adopted SOPs`, o.sops.some((s) => s.status === "adopted"), null],
+           ["Knowledge Index", o.knowledge.length > 0, null]]
         : n === 3
           ? [["Vendor database (.csv)", o.vendors.length > 0, () => download(`${slug}-vendors.csv`, vendorsCsv(o))],
              ["Every tool owned", o.vendors.length > 0 && o.vendors.every((v) => v.owner), null],
              ["Known monthly spend", o.vendors.some((v) => v.cost), null],
              ["Renewal dates set", o.vendors.length > 0 && o.vendors.every((v) => v.renewal), null],
-             ["Offboarding checklist", o.vendors.some((v) => v.access), () => download(`${slug}-offboarding-checklist.md`, offboardingDoc(A.snap, o))]]
+             ["Offboarding checklist", o.vendors.some((v) => v.access), () => download(`${slug}-offboarding-checklist.md`, offboardingDoc(A.snap, o))],
+             ["Asset inventory", o.assets.length > 0, null],
+             ["Automation registry", o.automations.length > 0, null]]
           : n === 4
             ? [["Risk register", o.risks.length > 0, null],
                ["Business Continuity Plan", o.risks.length > 0, () => download(`${slug}-business-continuity-plan.md`, continuityPlan(A.snap, o))],

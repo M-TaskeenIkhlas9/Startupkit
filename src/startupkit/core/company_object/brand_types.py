@@ -62,3 +62,4 @@ class BrandState(BaseModel):
     presence: list[PresenceItem] = Field(default_factory=list)
     site_template: str = "minimal"  # which published-site template: minimal | bold | classic
     steps_done: list[str] = Field(default_factory=list)  # W5 dashboard module/step ids completed
+    asset_edits: dict[str, str] = Field(default_factory=dict)  # founder edits to Marketing Assets

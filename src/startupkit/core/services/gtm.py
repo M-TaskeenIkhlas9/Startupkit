@@ -334,9 +334,105 @@ def gtm_health(state: GtmState) -> GtmHealth:
             ]),
         ),
     ]
+    won_n = stage_in("won")
+    cs = customer_success(state)
+    dims.append(GtmDimension(
+        name="Customer Success",
+        hint="Won customers stay in contact and get onboarded — closing isn't the finish line",
+        score=0 if won_n == 0 else pct([
+            any(c.days_since_contact is not None for c in cs.customers),
+            cs.at_risk_count == 0,
+            any(c.onboarding_pct >= 100 for c in cs.customers),
+        ]),
+    ))
     score = round(sum(d.score for d in dims) / len(dims))
     label = "Strong" if score >= 75 else "Emerging" if score >= 40 else "Weak"
     return GtmHealth(score=score, label=label, dimensions=dims)
+
+
+# ================================ Customer Success & Growth =======================================
+# W7 used to stop at "Won" — the funnel doesn't. This scores retention and referrals from what
+# actually happened, never from inferred product usage (we have none). "At risk" is a real,
+# computable proxy (no logged contact in 30+ days); "churned" is never inferred, only founder-set.
+
+ONBOARDING_TEMPLATE: list[str] = [
+    "Kickoff call booked",
+    "Product access granted",
+    "First value milestone hit",
+    "30-day check-in done",
+]
+
+
+class CustomerHealthItem(BaseModel):
+    account: str
+    onboarding_pct: int
+    status: str  # active | churned
+    days_since_contact: int | None
+    at_risk: bool  # real, computed: active but no contact logged in 30+ days
+    referred_by: str = ""
+
+
+class ReferralStat(BaseModel):
+    account: str
+    referred: list[str]  # names of accounts this customer referred
+
+
+class CustomerSuccessView(BaseModel):
+    customers: list[CustomerHealthItem]
+    won_count: int
+    active_count: int
+    at_risk_count: int
+    churned_count: int
+    referred_count: int  # how many won accounts came from a referral
+    referral_rate: float  # referred_count / won_count, 0 if no won accounts yet
+    top_referrers: list[ReferralStat]
+    onboarding_template: list[str]  # the suggested checklist — one source of truth, not in the UI
+
+
+def customer_success(state: GtmState) -> CustomerSuccessView:
+    """Retention and referrals, scored from what actually happened."""
+    won = [a for a in state.accounts if a.stage == "won"]
+    by_account = {c.account: c for c in state.customers}
+    today = date.today()
+    items: list[CustomerHealthItem] = []
+    for a in won:
+        rec = by_account.get(a.name)
+        onboarding_pct = 0
+        status = "active"
+        days: int | None = None
+        if rec:
+            steps = rec.onboarding
+            done_n = sum(1 for s in steps if s.done)
+            onboarding_pct = round(100 * done_n / len(steps)) if steps else 0
+            status = rec.status
+            if rec.last_contact:
+                try:
+                    days = (today - date.fromisoformat(rec.last_contact)).days
+                except ValueError:
+                    days = None
+        at_risk = status == "active" and (days is None or days >= 30)
+        items.append(CustomerHealthItem(
+            account=a.name, onboarding_pct=onboarding_pct, status=status,
+            days_since_contact=days, at_risk=at_risk, referred_by=a.referred_by,
+        ))
+
+    referred = [a for a in won if a.referred_by]
+    by_referrer: dict[str, list[str]] = {}
+    for a in referred:
+        by_referrer.setdefault(a.referred_by, []).append(a.name)
+    top_referrers = [ReferralStat(account=k, referred=v) for k, v in by_referrer.items()]
+
+    return CustomerSuccessView(
+        customers=items,
+        won_count=len(won),
+        active_count=len([i for i in items if i.status == "active"]),
+        at_risk_count=len([i for i in items if i.at_risk]),
+        churned_count=len([i for i in items if i.status == "churned"]),
+        referred_count=len(referred),
+        referral_rate=round(len(referred) / len(won), 2) if won else 0.0,
+        top_referrers=top_referrers,
+        onboarding_template=list(ONBOARDING_TEMPLATE),
+    )
 
 
 # ================================ Export / handoff ===============================================
@@ -510,12 +606,50 @@ def _doc_scripts(snap: CompanySnapshot) -> str:
     return "\n".join(lines)
 
 
+def _doc_customer_success(snap: CompanySnapshot) -> str:
+    cs = customer_success(snap.gtm)
+    lines = [
+        f"# Customer Success Playbook — {snap.name}",
+        "",
+        "> Closing isn't the finish line. This is the checklist and the retention rule this "
+        "company actually runs — not a generic template.",
+        "",
+        "## Onboarding checklist (every new customer)",
+    ]
+    lines += [f"- [ ] {step}" for step in cs.onboarding_template]
+    lines += [
+        "",
+        "## The retention rule",
+        "A customer is **at risk** the moment 30 days pass with no logged contact — not when",
+        "they cancel. By then it's too late. Check in before the 30 days are up.",
+        "",
+        "## Referrals",
+        "Every customer who refers someone is your cheapest, highest-trust acquisition channel.",
+        "Ask at the first sign of a genuine win — a milestone hit, a compliment, a renewal.",
+        "",
+        f"## Current state ({cs.won_count} won)",
+    ]
+    if cs.customers:
+        lines.append("| Account | Onboarding | Status | Last contact |")
+        lines.append("|---|---|---|---|")
+        for c in cs.customers:
+            d = c.days_since_contact
+            contact = f"{d}d ago" if d is not None else "never logged"
+            status = "⚠ at risk" if c.at_risk else c.status
+            lines.append(f"| {c.account} | {c.onboarding_pct}% | {status} | {contact} |")
+    else:
+        lines.append("_No won accounts yet — this fills in as deals close._")
+    lines += ["", _stamp()]
+    return "\n".join(lines)
+
+
 GTM_DOCS: dict[str, str] = {
     "icp-and-buyer-personas": "ICP & Buyer Personas",
     "pricing-and-packaging": "Pricing & Packaging",
     "gtm-strategy": "GTM Strategy",
     "email-outreach-sequences": "Email Outreach Sequences",
     "sales-scripts": "Sales Scripts",
+    "customer-success-playbook": "Customer Success Playbook",
 }
 
 
@@ -528,6 +662,7 @@ def render_gtm_doc(snap: CompanySnapshot, doc_key: str) -> str:
         "gtm-strategy": _doc_strategy,
         "email-outreach-sequences": _doc_sequences,
         "sales-scripts": _doc_scripts,
+        "customer-success-playbook": _doc_customer_success,
     }
     build = builders.get(doc_key)
     if build is None:
@@ -1409,6 +1544,13 @@ def stage_guardrails(state: GtmState) -> list[Guardrail]:
             severity="stop", link="discovery",
             text=f"{price_losses} deals lost on price. That's positioning, not sales — "
             "re-open the value story in W5 before sending more.",
+        ))
+    cs = customer_success(state)
+    if cs.at_risk_count > 0:
+        out.append(Guardrail(
+            severity="warn", link="success",
+            text=f"{cs.at_risk_count} won customer{'s' if cs.at_risk_count != 1 else ''} with no "
+            "contact logged in 30+ days — check in before they churn quietly.",
         ))
     return out
 
