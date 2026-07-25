@@ -2,12 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "builds": [
     {
-      "src": "apps/api/main.py",
+      "src": "main.py",
       "use": "@vercel/python",
-      "config": { "includeFiles": ["src/**"] }
+      "config": { "includeFiles": ["../../src/**"] }
     }
   ],
   "routes": [
-    { "src": "/(.*)", "dest": "apps/api/main.py" }
+    { "src": "/(.*)", "dest": "main.py" }
   ]
 }

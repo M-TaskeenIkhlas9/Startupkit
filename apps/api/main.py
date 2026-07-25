@@ -10,11 +10,13 @@ Storage: InMemoryEventStore locally/Docker, or RedisEventStore (Vercel KV) when 
 is set — both implement the same EventStore Protocol, chosen in _build_store() below.
 Run locally: `uv run uvicorn apps.api.main:app --reload`
 
-On Vercel, this file is deployed via the ASGI @vercel/python builder (see vercel.json at the repo
-root) with `includeFiles: ["src/**"]` bundling the src/startupkit package alongside this file —
-the sys.path insert immediately below makes `from startupkit...` resolve in that environment
-without the project needing to be pip-installed (it works locally too; the insert is a no-op
-there since the editable install already puts src/ on the path).
+On Vercel, this file is deployed via the ASGI @vercel/python builder (see apps/api/vercel.json —
+deliberately NOT at the repo root, since a root-level vercel.json gets read by every Vercel
+project connected to this repo, not just this one, and silently breaks the separate frontend
+project's Next.js build). `includeFiles: ["../../src/**"]` bundles the src/startupkit package
+alongside this file — the sys.path insert immediately below makes `from startupkit...` resolve in
+that environment without the project needing to be pip-installed (it works locally too; the
+insert is a no-op there since the editable install already puts src/ on the path).
 """
 
 from __future__ import annotations
