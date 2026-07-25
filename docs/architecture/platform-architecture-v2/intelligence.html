@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intelligence & Scoring — System Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topbar"><div class="inner">
+  <a class="home" href="index.html">◆ System Design v2</a>
+  <a href="journey.html">Journey</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="knowledge-graph.html">Graph</a>
+  <a href="workflows.html">Workflows</a>
+  <a href="assessment.html">Assessment</a>
+  <a href="ai-cofounder.html">Co-Founder</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="input-layer.html">Inputs</a>
+  <a href="access-sharing.html">Access</a>
+  <a href="admin-console.html">Admin</a>
+  <span class="spacer"></span>
+  <span class="badge">10 · Intelligence</span>
+</div></nav>
+
+<header class="page">
+  <div class="wrap" style="padding:34px 28px 24px">
+    <div class="eyebrow">10 · Intelligence &amp; scoring</div>
+    <h1>Health score, case studies, co-founder</h1>
+    <p class="sub">The three interpretive engines that turn the Company Object into <em>judgment</em> rather than just data. None of them owns a source of truth — each reads the same object and produces advice, a number, or a matched lesson. Two are detailed here in full; the third (AI Co-Founder) has its <a href="ai-cofounder.html">own page</a> and is summarised at the end.</p>
+    <div class="meta">
+      <span><b>Reads</b>&nbsp;<code>getHealth</code>, <code>getCaseStudies</code>, <code>askCofounder</code></span>
+      <span><b>Writes</b>&nbsp;nothing — all three are read-only projections</span>
+      <span><b>Diagrams</b>&nbsp;health: 4 · case studies: 4 · co-founder: recap</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section>
+  <div class="kicker">Overview</div>
+  <h2>Three engines, one object, three surfaces</h2>
+  <p class="purpose">Where each engine's output actually shows up in the product.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  CO[("Company Object")]:::data
+  H["Health scorer"]:::core
+  C["Case-study matcher"]:::core
+  A["AI Co-Founder"]:::core
+  CO --> H
+  CO --> C
+  CO --> A
+  H -->|"gauge + sidebar number"| DASH["Dashboard / sidebar"]:::client
+  C -->|"'lessons from founders like you'"| DASH
+  C -->|"winner move per node"| JRN["Journey"]:::client
+  A -->|"answers + suggested actions"| COF["Co-Founder chat"]:::client
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>All three are pure functions of the Company Object — so they can never disagree with the underlying facts, and adding a fourth engine is additive.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="kicker">Part A · Health score</div>
+  <h2>A weighted roll-up, recomputed on read</h2>
+  <p>The score is not stored. Each visit, per-dimension scorers each read a slice of the Company Object, produce a 0–100 dimension score, and the overall is <code>Σ(dimension.score × weight)</code> mapped to a status band (<code>strong · healthy · moderate · at-risk · critical</code>). Weights live in config, so re-weighting or adding a dimension is a data change.</p>
+  <div class="diagram-index">
+    <a href="#h-conceptual">1 Conceptual</a><a href="#h-component">2 Component</a><a href="#h-sequence">3 Sequence</a><a href="#h-dfd">5 Data-flow</a>
+    <a href="index.html#p-deploy">6 Deployment (shared)</a>
+  </div>
+
+  <div class="dtype" id="h-conceptual">1 · Conceptual overview</div>
+  <h3>Dimensions in, one number + band out</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  CO[("Company Object")]:::data
+  HS{{"Health scorer<br/>Σ(score × weight) → band"}}:::core
+  F["Founder"]:::client
+  CO -->|"per-dimension slices"| HS
+  HS -->|"overall 0–100"| F
+  HS -->|"status band + per-dimension breakdown"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>The founder sees the gauge (overall + band) and the breakdown bars (each dimension's score and weight).</figcaption>
+  </figure>
+
+  <div class="dtype" id="h-component">2 · Component level</div>
+  <h3>One scorer per dimension, one aggregator</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  HSVC["Health service"]:::core
+  FIN["Financial scorer"]:::core
+  PROD["Product scorer"]:::core
+  GRO["Growth scorer"]:::core
+  COMP["Compliance scorer"]:::core
+  TEAM["Team scorer"]:::core
+  WEIGHTS["Dimension weights (config)"]:::admin
+  AGG["Aggregator<br/>Σ(score × weight)"]:::core
+  BAND["Status band mapper"]:::core
+  PG[("PostgreSQL<br/>workflow_state · facts · compliance · assessments")]:::data
+  HSVC --> FIN & PROD & GRO & COMP & TEAM
+  FIN --> PG
+  PROD --> PG
+  GRO --> PG
+  COMP --> PG
+  TEAM --> PG
+  FIN & PROD & GRO & COMP & TEAM --> AGG
+  WEIGHTS --> AGG
+  AGG --> BAND
+  BAND -->|"overall + dimensions[]"| HSVC
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>Each scorer is independent and reads only its slice (Financial ← W3/banking facts, Growth ← W7 pipeline, Compliance ← the calendar, etc.). Adding a dimension is a new scorer + a weight row.</figcaption>
+  </figure>
+
+  <div class="dtype" id="h-sequence">3 · Sequence</div>
+  <h3>Computing the score on a page load</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Founder
+  participant P as Dashboard / sidebar
+  participant HS as Health service
+  participant PG as PostgreSQL
+  participant AG as Aggregator
+  U->>P: load page
+  P->>HS: getHealth(company)
+  HS->>PG: read workflow_state, facts, compliance, assessments (RLS)
+  PG-->>HS: slices
+  par per dimension
+    HS->>HS: score Financial, Product, Growth, Compliance, Team
+  end
+  HS->>AG: dimension scores + weights
+  AG-->>HS: overall + contributions
+  HS->>HS: map overall to status band
+  HS-->>U: gauge (overall + band) + breakdown bars
+    </pre>
+    <figcaption>Everything happens at read time — there is no stored score to go stale, and no write path to secure.</figcaption>
+  </figure>
+
+  <div class="dtype" id="h-dfd">5 · Data-flow (DFD)</div>
+  <h3>Slices in, weighted number out</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  P1(["Score each dimension"]):::core
+  P2(["Weight & aggregate"]):::core
+  P3(["Map to status band"]):::core
+  D1[("workflow_state")]:::data
+  D2[("facts")]:::data
+  D3[("compliance")]:::data
+  D4[("assessments")]:::data
+  W[("dimension weights (config)")]:::data
+  D1 --> P1
+  D2 --> P1
+  D3 --> P1
+  D4 --> P1
+  P1 -->|"dimension scores"| P2
+  W --> P2
+  P2 -->|"overall"| P3
+  P3 -->|"score + band + breakdown"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>Four read-only slices plus a weights config; nothing is written back. The same output feeds both the sidebar number and the dashboard gauge.</figcaption>
+  </figure>
+
+  <div class="note data"><b>Storage note.</b> Health adds no tables and stores no score. Weights are the only new persisted thing — a tiny config table (or a seeded constant) in the one Postgres. Recomputing on read is cheap and keeps the score honest.</div>
+</section>
+
+<section>
+  <div class="kicker">Part B · Case studies</div>
+  <h2>A curated library, matched to <em>this</em> company</h2>
+  <p>Case studies are content, not company data: a library of real founder outcomes (<code>outcome</code>, <code>category</code>, <code>story</code>, <code>lesson</code>, <code>action</code>, <code>workflow</code>). A matcher ranks them by relevance to the company's current stage, category, and active workflow, then attaches the top matches wherever context calls for a lesson — the dashboard's "lessons from founders like you", each journey node's "winner move", and recommendation cards.</p>
+  <div class="diagram-index">
+    <a href="#c-conceptual">1 Conceptual</a><a href="#c-component">2 Component</a><a href="#c-sequence">3 Sequence</a><a href="#c-dfd">5 Data-flow</a>
+    <a href="index.html#p-deploy">6 Deployment (shared)</a>
+  </div>
+
+  <div class="dtype" id="c-conceptual">1 · Conceptual overview</div>
+  <h3>Library + matcher → three surfaces</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  LIB[("Case-study library<br/>(curated content)")]:::data
+  PROFILE[("Company profile<br/>stage · category · workflow")]:::data
+  M{{"Case-study matcher<br/>rank by relevance"}}:::core
+  DASH["Dashboard cards"]:::client
+  JRN["Journey winner moves"]:::client
+  REC["Recommendations"]:::client
+  LIB --> M
+  PROFILE --> M
+  M --> DASH
+  M --> JRN
+  M --> REC
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>The same matcher feeds three surfaces; each just asks for "studies relevant to X" and renders them its own way.</figcaption>
+  </figure>
+
+  <div class="dtype" id="c-component">2 · Component level</div>
+  <h3>Content store + ranking service</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  CONSUMERS["Dashboard · Journey · Recommendations"]:::client
+  CSVC["Case-study service"]:::core
+  MATCH["Matcher<br/>(stage · category · workflow → score)"]:::core
+  COSVC["Company service"]:::core
+  PG[("PostgreSQL<br/>case_studies (content) · company profile")]:::data
+  CONSUMERS -->|"getCaseStudies / relevant-to(node)"| CSVC
+  CSVC --> MATCH
+  MATCH -->|"read profile"| COSVC
+  COSVC --> PG
+  MATCH -->|"read library"| PG
+  MATCH -->|"ranked studies"| CSVC
+  CSVC --> CONSUMERS
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>The library is authored content in its own table; matching is a read-time ranking, so new case studies appear the moment they're added — no per-company wiring.</figcaption>
+  </figure>
+
+  <div class="dtype" id="c-sequence">3 · Sequence</div>
+  <h3>Attaching a lesson to a journey node</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Founder
+  participant P as Journey / dashboard
+  participant CS as Case-study service
+  participant CO as Company service
+  participant PG as PostgreSQL
+  U->>P: open page
+  P->>CS: relevant case studies (for stage / node.workflow)
+  CS->>CO: read company profile (stage, category)
+  CO->>PG: SELECT profile (RLS)
+  PG-->>CO: profile
+  CS->>PG: SELECT case_studies WHERE category / workflow matches
+  PG-->>CS: candidate studies
+  CS->>CS: rank by relevance, take top N
+  CS-->>U: winner move + lesson per node / card
+    </pre>
+    <figcaption>Matching reads two things — the company's profile and the content library — and joins them at request time.</figcaption>
+  </figure>
+
+  <div class="dtype" id="c-dfd">5 · Data-flow (DFD)</div>
+  <h3>Profile + library → ranked lessons</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  AUTHOR["Content author (internal)"]:::admin
+  P1(["Match & rank"]):::core
+  D1[("case_studies (content)")]:::data
+  D2[("company profile")]:::data
+  AUTHOR -->|"curate studies"| D1
+  D1 --> P1
+  D2 --> P1
+  P1 -->|"top lessons (with action → workflow)"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>The only writer is an internal author curating the library; per-company it's read-only. Each matched study carries an <code>action → workflow</code> so a lesson turns into a next step.</figcaption>
+  </figure>
+
+  <div class="note data"><b>Storage note.</b> One new table — <code>case_studies</code> — holding authored content (shared across all companies, not tenant-scoped). Matching is a query plus ranking; no per-company copies. Fits comfortably in the one Postgres; a future upgrade path is embedding-based similarity, still inside Postgres via <code>pgvector</code> if we ever outgrow attribute matching.</div>
+</section>
+
+<section style="border-bottom:0">
+  <div class="kicker">Part C · AI Co-Founder</div>
+  <h2>The third engine — already detailed</h2>
+  <p>The AI Co-Founder is the interactive sibling of the other two: where health <em>scores</em> and case studies <em>illustrate</em>, the co-founder <em>answers</em>. It retrieves the relevant slice of the Company Object, grounds a prompt, calls a swappable LLM, and returns an answer plus suggested actions that route into workflows — and it can cite a health dimension or a case study in its reasoning. It has its own full six-way treatment.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  H["Health scorer"]:::core
+  C["Case-study matcher"]:::core
+  A{{"AI Co-Founder"}}:::core
+  F["Founder"]:::client
+  H -->|"'your Growth dimension is weak'"| A
+  C -->|"'a company like you failed here'"| A
+  A -->|"grounded answer + next step"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    </pre>
+    <figcaption>The co-founder can fold the other two engines' outputs into its answers — one reason all three read the same object.</figcaption>
+  </figure>
+  <div class="note"><b>Full detail:</b> conceptual, component, sequence, communication, and data-flow for the co-founder — including the PII-redaction trust boundary before anything reaches the LLM — are on the <a href="ai-cofounder.html">AI Co-Founder page →</a></div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  StartupKit · system design v2 · Intelligence &amp; scoring · <a href="index.html">← all sections</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="diagram.js"></script>
+</body>
+</html>

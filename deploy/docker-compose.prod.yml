@@ -1,0 +1,45 @@
+# Production topology — api + web + postgres. Load real secrets from deploy/env/.env.production
+# (copied from .env.production.example), never commit that file.
+#
+# Honest caveat: apps/api doesn't read DATABASE_URL yet — the event store is still in-memory
+# (src/startupkit/core/company_object/memory_store.py). Postgres is here so the shape of the
+# deployment is right; wiring the app to actually use it is separate, real work.
+#
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env/.env.production up -d
+
+services:
+  api:
+    build:
+      context: ../
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    ports: ["8000:8000"]
+    depends_on: [postgres]
+
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+
+volumes:
+  pgdata:

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StartupKit — System Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topbar"><div class="inner">
+  <a class="home" href="index.html">◆ System Design v2</a>
+  <a href="journey.html">Journey</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="knowledge-graph.html">Graph</a>
+  <a href="workflows.html">Workflows</a>
+  <a href="assessment.html">Assessment</a>
+  <a href="ai-cofounder.html">Co-Founder</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="input-layer.html">Inputs</a>
+  <a href="access-sharing.html">Access</a>
+  <a href="admin-console.html">Admin</a>
+  <span class="spacer"></span>
+  <span class="badge">Postgres-only · HTML draft</span>
+</div></nav>
+
+<header class="page">
+  <div class="wrap" style="padding:38px 28px 26px">
+    <div class="eyebrow">StartupKit · Platform System Design</div>
+    <h1>Every section, six ways.</h1>
+    <p class="sub">The system behind the app running on <code>:3200</code>, drawn with the six standard system-design diagram types — conceptual, component, sequence, communication, data-flow, deployment — once for the whole platform and once per section. Grounded in the real route + API surface of <code>apps/web</code>.</p>
+    <div class="meta">
+      <span><b>Storage</b>&nbsp;self-managed PostgreSQL only — no managed DB, no object storage (yet)</span>
+      <span><b>Rendering</b>&nbsp;Mermaid (auto-layout) — needs an internet connection to draw</span>
+      <span><b>Status</b>&nbsp;v2 draft · not ported to eraser.io</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section>
+  <div class="kicker">How to read these</div>
+  <h2>Six diagram types, one color language</h2>
+  <p>Each section page answers the same six questions. Not every type is meaningful for every section, so pages carry the ones that are (noted at the top of each page); <strong>Deployment</strong> is one shared topology for the whole platform, shown here and referenced elsewhere.</p>
+  <div class="legend">
+    <span><i class="sw" style="background:#E5EFFC;border-color:#1D5FBF"></i>Client / UI</span>
+    <span><i class="sw" style="background:#E1F5EE;border-color:#0F6E56"></i>App service / core</span>
+    <span><i class="sw" style="background:#E2F3F4;border-color:#0E7C86"></i>PostgreSQL / data store</span>
+    <span><i class="sw" style="background:#ECEBFB;border-color:#4338CA"></i>AI / generation</span>
+    <span><i class="sw" style="background:#EEE7FC;border-color:#6B3FD6"></i>Auth / RBAC / internal</span>
+    <span><i class="sw" style="background:#FBEEDA;border-color:#B4740E"></i>External read-only</span>
+    <span><i class="sw" style="background:#FBEAE0;border-color:#C24A1E"></i>Third-party provider</span>
+  </div>
+  <div class="note data"><b>The storage rule, applied everywhere below.</b> One self-managed PostgreSQL instance is the single source of truth. Relational tables for structured facts; <code>JSONB</code> columns for the shape-shifting per-workflow state; <code>bytea</code> for document templates and (for now) the filled/signed document bytes too — there is no separate object store in this version. We run, patch, and back up Postgres ourselves.</div>
+</section>
+
+<section>
+  <div class="kicker">Section directory</div>
+  <h2>Pick a section</h2>
+  <div class="dir">
+    <a href="#platform"><span class="n">00 · this page</span><span class="t">Whole platform</span><span class="d">The seven-layer system as one picture.</span><span class="types">all 6 types</span></a>
+    <a href="journey.html"><span class="n">01</span><span class="t">Journey</span><span class="d">The single next-step spine across W1–W8.</span><span class="types">conceptual · component · sequence · data-flow</span></a>
+    <a href="dashboard.html"><span class="n">02</span><span class="t">Dashboard</span><span class="d">Health, risks, compliance, recommendations.</span><span class="types">conceptual · component · sequence · data-flow</span></a>
+    <a href="knowledge-graph.html"><span class="n">03</span><span class="t">Knowledge graph</span><span class="d">The Company Object as projected clusters.</span><span class="types">conceptual · component · comm · data-flow</span></a>
+    <a href="workflows.html"><span class="n">04</span><span class="t">Workflows W1–W8</span><span class="d">Shared engine + what differs per workflow.</span><span class="types">all 6 + per-workflow</span></a>
+    <a href="assessment.html"><span class="n">05</span><span class="t">Assessment</span><span class="d">Catalog-driven questionnaire → scores.</span><span class="types">conceptual · component · sequence · data-flow</span></a>
+    <a href="ai-cofounder.html"><span class="n">06</span><span class="t">AI Co-Founder</span><span class="d">Grounded Q&amp;A over the Company Object.</span><span class="types">conceptual · component · sequence · comm · data-flow</span></a>
+    <a href="intelligence.html"><span class="n">10</span><span class="t">Intelligence &amp; scoring</span><span class="d">Health score + case-study matching (+ co-founder recap).</span><span class="types">health: 4 · case studies: 4</span></a>
+    <a href="input-layer.html"><span class="n">07</span><span class="t">Input layer</span><span class="d">Raw facts &amp; PII capture, the write path.</span><span class="types">conceptual · component · sequence · data-flow</span></a>
+    <a href="access-sharing.html"><span class="n">08</span><span class="t">Access &amp; sharing</span><span class="d">Granular RBAC grants, founder-facing.</span><span class="types">conceptual · component · sequence · comm · data-flow</span></a>
+    <a href="admin-console.html"><span class="n">09</span><span class="t">Admin console</span><span class="d">Break-glass, cross-tenant health, audit.</span><span class="types">conceptual · component · sequence · comm · data-flow</span></a>
+  </div>
+</section>
+
+<section id="platform">
+  <div class="kicker">00 · Whole platform</div>
+  <h2>The platform, all six ways</h2>
+  <p class="purpose">The same system a section page zooms into — here at full altitude so the per-section diagrams have a frame to sit in.</p>
+  <div class="diagram-index">
+    <a href="#p-conceptual">1 Conceptual</a>
+    <a href="#p-component">2 Component</a>
+    <a href="#p-sequence">3 Sequence</a>
+    <a href="#p-comm">4 Communication</a>
+    <a href="#p-dfd">5 Data-flow</a>
+    <a href="#p-deploy">6 Deployment</a>
+  </div>
+
+  <div class="dtype" id="p-conceptual">1 · Conceptual overview</div>
+  <h3>What is StartupKit, and who does it talk to?</h3>
+  <p class="purpose">Bird's-eye: the core system, the humans, and the outside services — no internals.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  subgraph USERS[People]
+    direction TB
+    F["Founder & team"]:::client
+    ADV["Advisor / investor"]:::advisor
+    EXT["Lawyer / accountant"]:::ext
+    OPS["Internal ops / admin"]:::admin
+  end
+  SK{{"StartupKit<br/>company operating system<br/>W1–W8 · Company Object · RBAC"}}:::core
+  subgraph PROV[Third-party providers]
+    direction TB
+    INC["Incorporation"]:::ext
+    BANK["Banking / payments"]:::ext
+    SIGN["E-sign"]:::ext
+    CRM["CRM / analytics"]:::ext
+    LLM["LLM provider"]:::ai
+    GOV["IRS / gov e-file"]:::ext
+  end
+  F -->|"run every workflow"| SK
+  ADV -->|"read shared health"| SK
+  EXT -->|"review scoped workflow"| SK
+  OPS -->|"break-glass support"| SK
+  SK <-->|"file formation"| INC
+  SK <-->|"connect accounts"| BANK
+  SK <-->|"send / receive signed docs"| SIGN
+  SK <-->|"push pipeline data"| CRM
+  SK <-->|"grounded generation"| LLM
+  SK -->|"founder-submitted filings"| GOV
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+  classDef advisor fill:#FBEEDA,stroke:#B4740E,color:#402A05;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>One core, four kinds of humans, six kinds of provider. Everything below is inside the green box.</figcaption>
+  </figure>
+
+  <div class="dtype" id="p-component">2 · Component level</div>
+  <h3>The seven layers as services</h3>
+  <p class="purpose">Decompose the core into bounded services and the interfaces between them. Two services everything leans on (Auth&amp;RBAC, Company); five domain services; one data layer.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  subgraph L1[Clients]
+    direction LR
+    WEB["Founder & team web app"]:::client
+    PORTAL["Advisor / external portal"]:::advisor
+    ADMINUI["Internal admin console"]:::admin
+  end
+  subgraph L2[Access edge]
+    direction LR
+    GW["API gateway"]:::core
+    AUTH["Auth · sessions"]:::admin
+    RBAC["RBAC policy engine"]:::admin
+  end
+  subgraph L3[Application services]
+    direction LR
+    CO["Company service<br/>(only writer of the Company Object)"]:::core
+    WF["Workflow engine"]:::core
+    ASSESS["Assessment"]:::core
+    COF["AI Co-Founder"]:::core
+    DOC["Document service"]:::core
+    ACC["Access & invitations"]:::core
+  end
+  subgraph L4[AI / document intelligence]
+    direction LR
+    GROUND["Ground"]:::ai
+    GEN["Generate"]:::ai
+    VAL["Validate + approve"]:::ai
+  end
+  subgraph L5[Data — self-managed PostgreSQL]
+    PG[("PostgreSQL<br/>tables · JSONB · bytea")]:::data
+  end
+  subgraph L6[Support]
+    direction LR
+    NOTIF["Notifications"]:::core
+    AUDIT["Audit log (hash-chained)"]:::admin
+  end
+  subgraph L7[Integrations]
+    direction LR
+    ADPT["Provider adapters<br/>incorporation · banking · e-sign · CRM · LLM"]:::ext
+  end
+  L1 --> GW --> AUTH --> RBAC
+  RBAC --> L3
+  WF --> L4
+  DOC --> L4
+  L3 --> CO
+  CO --> PG
+  L3 -.writes events.-> AUDIT
+  L3 -.fires.-> NOTIF
+  L4 --> ADPT
+  WF --> ADPT
+  AUDIT --> PG
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+  classDef advisor fill:#FBEEDA,stroke:#B4740E,color:#402A05;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>No domain service calls another domain service directly — they read/write through the Company service and fire events into Audit / Notifications.</figcaption>
+  </figure>
+
+  <div class="dtype" id="p-sequence">3 · Sequence</div>
+  <h3>A representative authenticated request</h3>
+  <p class="purpose">The path every page load and mutation takes — RBAC checked at the edge, enforced again at the row. Shown for "open a workflow &amp; generate a document."</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Founder
+  participant GW as API gateway
+  participant R as RBAC engine
+  participant WF as Workflow engine
+  participant CO as Company service
+  participant PG as PostgreSQL
+  participant AI as Doc intelligence
+  participant LLM as LLM provider
+  U->>GW: GET /workflows/W2 (session cookie)
+  GW->>R: authorize(user, W2, view)
+  R->>PG: read access_grants (RLS)
+  PG-->>R: allow
+  R-->>GW: allow
+  GW->>WF: load W2
+  WF->>CO: read company object
+  CO->>PG: SELECT (row-level security on company_id)
+  PG-->>CO: facts + workflow_state
+  CO-->>WF: snapshot
+  WF-->>U: rendered workflow
+  U->>GW: POST generate document
+  GW->>R: authorize(user, W2, generate)
+  R-->>GW: allow
+  GW->>AI: ground + generate
+  AI->>LLM: structured generation call
+  LLM-->>AI: draft
+  AI->>AI: validate (schema, required fields)
+  AI->>PG: INSERT document (bytea, version, status)
+  AI-->>U: draft + issues[]
+    </pre>
+    <figcaption>Two RBAC checks, two Postgres touches; the LLM is reached only through the document-intelligence service, never directly by the workflow.</figcaption>
+  </figure>
+
+  <div class="dtype" id="p-comm">4 · Communication</div>
+  <h3>Same actors, message-numbered</h3>
+  <p class="purpose">A communication diagram shows the same interaction as the sequence but emphasizes <em>who links to whom</em>, with messages numbered in order rather than laid out on a timeline.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  U["Founder"]:::client
+  GW["API gateway"]:::core
+  R["RBAC engine"]:::admin
+  WF["Workflow engine"]:::core
+  CO["Company service"]:::core
+  PG[("PostgreSQL")]:::data
+  AI["Doc intelligence"]:::ai
+  U ---|"1: request"| GW
+  GW ---|"2: authorize()"| R
+  R ---|"3: read grants"| PG
+  GW ---|"4: load"| WF
+  WF ---|"5: read object"| CO
+  CO ---|"6: SELECT (RLS)"| PG
+  WF ---|"7: generate"| AI
+  AI ---|"8: INSERT doc"| PG
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>Every arrow is an association; the number is call order. PostgreSQL is the hub three different services talk to — which is exactly why RLS lives there, not only at the edge.</figcaption>
+  </figure>
+
+  <div class="dtype" id="p-dfd">5 · Data-flow (DFD)</div>
+  <h3>Where the data lands</h3>
+  <p class="purpose">Rectangles are external entities, rounded shapes are processes, cylinders are data stores. All stores are tables/columns in the one PostgreSQL instance.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  PROV["Providers<br/>(bank, e-sign, IRS)"]:::ext
+  P1(["Validate & route request"]):::core
+  P2(["Run workflow / assessment"]):::core
+  P3(["Generate & validate document"]):::ai
+  P4(["Score health & compliance"]):::core
+  D1[("companies · founders")]:::data
+  D2[("workflow_state (JSONB)")]:::data
+  D3[("documents (bytea)")]:::data
+  D4[("access_grants")]:::data
+  D5[("audit_log")]:::data
+  F -->|form data| P1
+  P1 -->|check| D4
+  P1 --> P2
+  P2 -->|facts| D1
+  P2 -->|per-workflow state| D2
+  P2 --> P3
+  P3 -->|templates + fields| D3
+  P3 -->|version + status| D3
+  PROV -->|signed / callback| P3
+  D1 --> P4
+  D2 --> P4
+  P4 -->|health, risks| F
+  P2 -.event.-> D5
+  P3 -.event.-> D5
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>Five data stores, all inside one Postgres. This is the diagram the last version rendered badly — here it's laid out automatically so the flow reads left-to-right without crossed wires.</figcaption>
+  </figure>
+
+  <div class="dtype" id="p-deploy">6 · Deployment</div>
+  <h3>What actually runs, self-managed</h3>
+  <p class="purpose">The one shared topology. Deliberately minimal: no managed database, no object storage — a PostgreSQL we operate ourselves, on infrastructure we control.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  BROWSER["Founder / advisor / admin browser"]:::client
+  subgraph EDGE[Edge]
+    CDN["CDN + TLS<br/>Next.js static + SSR"]:::client
+    LB["Load balancer"]:::neutral
+  end
+  subgraph APPHOST["App host (VM / container we run)"]
+    APP1["App server #1<br/>(all services, one image)"]:::core
+    APP2["App server #2"]:::core
+    WORKER["Background worker<br/>(reminders, deadline fuses)"]:::core
+  end
+  subgraph DBHOST["DB host (VM we run & back up ourselves)"]
+    PG[("PostgreSQL<br/>tables · JSONB · bytea<br/>RLS · column encryption for PII")]:::data
+    BKP["pg_dump / WAL archive<br/>to our own backup volume"]:::neutral
+    REDIS["Redis (sessions)"]:::neutral
+  end
+  subgraph KEYS[Secrets]
+    KMS["Key store<br/>(SSN/EIN column keys)"]:::admin
+  end
+  EXTAPIS["External APIs<br/>incorporation · bank · e-sign · CRM · LLM"]:::ext
+  BROWSER --> CDN --> LB --> APP1
+  LB --> APP2
+  APP1 --> PG
+  APP2 --> PG
+  WORKER --> PG
+  APP1 --> REDIS
+  PG --> BKP
+  APP1 -->|decrypt PII| KMS
+  APP1 -->|HTTPS, scoped tokens| EXTAPIS
+  WORKER --> EXTAPIS
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+  classDef neutral fill:#EEF0F6,stroke:#9aa3b2,color:#3a4150;
+    </pre>
+    <figcaption>Everything in the data host is ours to run: we install, patch, and back up PostgreSQL and Redis. The only thing outside our walls is the third-party APIs, reached over HTTPS. No S3, no RDS, no Supabase.</figcaption>
+  </figure>
+
+  <div class="note warn"><b>Trade-off we're accepting for now.</b> Self-managing Postgres means we own backups, failover, patching, and connection pooling ourselves — real operational work a managed option would absorb. It's the right call while the schema and team are small and cost/control matter most; the escape hatch is that nothing in the app code assumes anything but plain PostgreSQL, so moving to a managed Postgres later is an ops migration, not a rewrite.</div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  StartupKit · system design v2 · self-managed PostgreSQL only · Mermaid diagrams · companion draft, no eraser.io port yet ·
+  <a href="../platform-architecture/index.html">v1 architecture doc</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="diagram.js"></script>
+</body>
+</html>

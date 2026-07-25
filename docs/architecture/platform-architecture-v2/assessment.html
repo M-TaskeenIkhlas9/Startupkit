@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assessment — System Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topbar"><div class="inner">
+  <a class="home" href="index.html">◆ System Design v2</a>
+  <a href="journey.html">Journey</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="knowledge-graph.html">Graph</a>
+  <a href="workflows.html">Workflows</a>
+  <a href="assessment.html">Assessment</a>
+  <a href="ai-cofounder.html">Co-Founder</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="input-layer.html">Inputs</a>
+  <a href="access-sharing.html">Access</a>
+  <a href="admin-console.html">Admin</a>
+  <span class="spacer"></span>
+  <span class="badge">05 · Assessment</span>
+</div></nav>
+
+<header class="page">
+  <div class="wrap" style="padding:34px 28px 24px">
+    <div class="eyebrow">05 · Assessment · <code>/company/[id]/assessment/[phase]</code></div>
+    <h1>Assessment questionnaire</h1>
+    <p class="sub">A structured intake driven entirely by a <strong>catalog</strong> (phases → modules → questions) that lives as data, not code. Answers are saved per phase and become inputs to the health score, the knowledge graph's "answers" cluster, and the journey. Add a question by editing the catalog — no schema change.</p>
+    <div class="meta">
+      <span><b>Reads</b>&nbsp;<code>ASSESSMENT</code> catalog, <code>getCompany</code></span>
+      <span><b>Writes</b>&nbsp;<code>saveAssessment(phase, answers)</code></span>
+      <span><b>Diagrams</b>&nbsp;conceptual · component · sequence · data-flow</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+<section>
+  <div class="diagram-index">
+    <a href="#conceptual">1 Conceptual</a><a href="#component">2 Component</a><a href="#sequence">3 Sequence</a><a href="#dfd">5 Data-flow</a>
+    <a href="index.html#p-deploy">6 Deployment (shared)</a>
+  </div>
+
+  <div class="dtype" id="conceptual">1 · Conceptual overview</div>
+  <h3>Catalog-driven questions, scored answers</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  A{{"Assessment<br/>catalog-driven questionnaire"}}:::core
+  CAT["Assessment catalog<br/>(phases · modules · questions)"]:::core
+  CO[("Company Object<br/>assessments{}")]:::data
+  SCORE["Health / readiness scoring"]:::core
+  F -->|"answers questions"| A
+  A -->|"structure from"| CAT
+  A -->|"saves answers"| CO
+  CO -->|"feeds"| SCORE
+  SCORE -->|"readiness score"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>The catalog is the only thing that defines what's asked — the engine just renders and stores.</figcaption>
+  </figure>
+
+  <div class="dtype" id="component">2 · Component level</div>
+  <h3>Renderer + save endpoint</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  PAGE["Assessment page (per phase)"]:::client
+  CAT["Assessment catalog (static data)"]:::core
+  FORM["Question renderer<br/>(modules → questions)"]:::client
+  COSVC["Company service"]:::core
+  SCORE["Scoring"]:::core
+  PG[("PostgreSQL<br/>assessments (JSONB)")]:::data
+  PAGE --> CAT
+  CAT --> FORM
+  FORM -->|"saveAssessment(phase, answers)"| COSVC
+  COSVC --> PG
+  COSVC --> SCORE
+  SCORE --> PG
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>Answers persist as a JSONB map keyed by phase then question id — flexible enough that new questions need no migration.</figcaption>
+  </figure>
+
+  <div class="dtype" id="sequence">3 · Sequence</div>
+  <h3>Answer a phase</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Founder
+  participant P as Assessment page
+  participant CAT as Catalog
+  participant R as RBAC engine
+  participant CO as Company service
+  participant PG as PostgreSQL
+  P->>CAT: load phase modules + questions
+  CAT-->>P: question set
+  P-->>U: render form
+  U->>P: submit answers
+  P->>R: authorize(user, assessment, edit)
+  R-->>P: allow
+  P->>CO: saveAssessment(phase, answers)
+  CO->>PG: UPSERT assessments[phase] (JSONB)
+  CO->>CO: recompute readiness score
+  CO->>PG: read facts for score
+  CO-->>U: updated snapshot + score
+    </pre>
+    <figcaption>Each phase is an independent upsert — a founder can complete phases in any order, and scores update on save.</figcaption>
+  </figure>
+
+  <div class="dtype" id="dfd">5 · Data-flow (DFD)</div>
+  <h3>Questions out, answers in, score out</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  P1(["Render questions"]):::core
+  P2(["Store answers"]):::core
+  P3(["Compute readiness"]):::core
+  D1[("assessment catalog")]:::data
+  D2[("assessments (JSONB)")]:::data
+  D3[("facts")]:::data
+  D1 --> P1
+  P1 -->|"questions"| F
+  F -->|"answers"| P2
+  P2 --> D2
+  D2 --> P3
+  D3 --> P3
+  P3 -->|"readiness score"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>The catalog is a read-only data store; answers are the only thing written.</figcaption>
+  </figure>
+
+  <div class="note data"><b>Storage note.</b> Answers live in an <code>assessments</code> JSONB column keyed <code>phase → question_id → value</code>. Because the catalog is data and answers are schemaless JSONB, extending the questionnaire never touches the database schema. Shared <a href="index.html#p-deploy">deployment</a>.</div>
+</section>
+</main>
+
+<footer class="wrap">
+  StartupKit · system design v2 · Assessment · <a href="index.html">← all sections</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="diagram.js"></script>
+</body>
+</html>

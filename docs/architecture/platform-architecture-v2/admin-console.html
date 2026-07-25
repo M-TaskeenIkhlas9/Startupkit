@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Console — System Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topbar"><div class="inner">
+  <a class="home" href="index.html">◆ System Design v2</a>
+  <a href="journey.html">Journey</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="knowledge-graph.html">Graph</a>
+  <a href="workflows.html">Workflows</a>
+  <a href="assessment.html">Assessment</a>
+  <a href="ai-cofounder.html">Co-Founder</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="input-layer.html">Inputs</a>
+  <a href="access-sharing.html">Access</a>
+  <a href="admin-console.html">Admin</a>
+  <span class="spacer"></span>
+  <span class="badge">09 · Admin</span>
+</div></nav>
+
+<header class="page">
+  <div class="wrap" style="padding:34px 28px 24px">
+    <div class="eyebrow">09 · Admin console · <em>internal, proposed</em></div>
+    <h1>Admin console</h1>
+    <p class="sub">Internal staff surface with <strong>zero standing access</strong> to any company's data. Support happens through a break-glass session: reason required, time-boxed, and written to the audit log before the first read. Cross-tenant views show only aggregate, non-PII health. <span style="color:var(--muted)">(UI mocked in <a href="../platform-architecture/ui-admin-console.html">v1</a>.)</span></p>
+    <div class="meta">
+      <span><b>Principle</b>&nbsp;default-deny into tenant data; every view here is itself audited</span>
+      <span><b>Diagrams</b>&nbsp;conceptual · component · sequence · communication · data-flow</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+<section>
+  <div class="diagram-index">
+    <a href="#conceptual">1 Conceptual</a><a href="#component">2 Component</a><a href="#sequence">3 Sequence</a><a href="#comm">4 Communication</a><a href="#dfd">5 Data-flow</a>
+    <a href="index.html#p-deploy">6 Deployment (shared)</a>
+  </div>
+
+  <div class="dtype" id="conceptual">1 · Conceptual overview</div>
+  <h3>Support without standing access</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  STAFF["Internal staff"]:::admin
+  ADM{{"Admin console<br/>break-glass · health · audit"}}:::admin
+  AGG["Cross-tenant health<br/>(aggregate, no PII)"]:::core
+  BG["Break-glass grant<br/>(time-boxed, reason-logged)"]:::admin
+  TENANT[("A single company's data")]:::data
+  AUDIT[("Audit log")]:::data
+  STAFF --> ADM
+  ADM --> AGG
+  ADM -->|"open session"| BG
+  BG -->|"temporary scoped grant"| TENANT
+  ADM -.every action.-> AUDIT
+  BG -.logged before first read.-> AUDIT
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>The only path into a company's data is a break-glass grant — and it exists in the audit log before staff can read a single row.</figcaption>
+  </figure>
+
+  <div class="dtype" id="component">2 · Component level</div>
+  <h3>Admin services over the same policy engine</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  ADMINUI["Admin console (client)"]:::admin
+  HEALTHSVC["Cross-tenant health service<br/>(aggregate only)"]:::core
+  BGSVC["Break-glass service"]:::admin
+  AUDITSVC["Audit viewer service"]:::admin
+  POL["RBAC policy engine"]:::admin
+  PG[("PostgreSQL<br/>access_grants · audit_log")]:::data
+  AGGV["Aggregated health view<br/>(no EIN/SSN/docs)"]:::data
+  ADMINUI --> HEALTHSVC --> AGGV
+  ADMINUI -->|"open session (reason)"| BGSVC
+  BGSVC -->|"write grant + audit BEFORE read"| PG
+  BGSVC --> POL
+  ADMINUI --> AUDITSVC --> PG
+  POL --> PG
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>The break-glass service uses the same <code>access_grants</code> mechanism as founder invites — an admin grant is just a grant with a short expiry and a mandatory reason.</figcaption>
+  </figure>
+
+  <div class="dtype" id="sequence">3 · Sequence</div>
+  <h3>Open a break-glass session</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor S as Staff
+  participant UI as Admin console
+  participant BG as Break-glass service
+  participant AU as Audit log
+  participant PG as PostgreSQL
+  participant POL as RBAC engine
+  S->>UI: open session (company, reason, 2h)
+  UI->>BG: request break-glass
+  BG->>BG: require non-empty reason
+  BG->>AU: append 'break-glass.opened' (before any read)
+  AU->>PG: store event (hash-chained)
+  BG->>PG: INSERT access_grants (admin, this company, expires +2h)
+  BG-->>S: session active — EIN/SSN unmasked for 2h
+  S->>POL: read company record
+  POL->>PG: grant valid + not expired?
+  PG-->>POL: allow
+  POL-->>S: data (read is also logged)
+  Note over BG,PG: on expiry or "end now" → grant removed, closure logged
+    </pre>
+    <figcaption>The audit entry is written first, deliberately — so even a session that reads nothing still leaves a trace of intent.</figcaption>
+  </figure>
+
+  <div class="dtype" id="comm">4 · Communication</div>
+  <h3>Audit log is the spine</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  S["Staff"]:::admin
+  BG["Break-glass service"]:::admin
+  POL["RBAC engine"]:::admin
+  PG[("access_grants")]:::data
+  AU[("audit_log")]:::data
+  S ---|"1: open (reason)"| BG
+  BG ---|"2: log opened"| AU
+  BG ---|"3: write grant"| PG
+  S ---|"4: read company"| POL
+  POL ---|"5: check grant"| PG
+  POL ---|"6: log read"| AU
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>Every arrow that touches tenant data also touches the audit log — that redundancy is the control.</figcaption>
+  </figure>
+
+  <div class="dtype" id="dfd">5 · Data-flow (DFD)</div>
+  <h3>Aggregate out, sensitive gated</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  S["Staff"]:::admin
+  P1(["Aggregate health<br/>(strip PII)"]):::core
+  P2(["Open break-glass"]):::admin
+  P3(["Read tenant data"]):::admin
+  D1[("all companies<br/>(read for aggregates)")]:::data
+  D2[("access_grants")]:::data
+  D3[("audit_log")]:::data
+  D4[("one company (gated)")]:::data
+  D1 --> P1
+  P1 -->|"scores only, no PII"| S
+  S -->|"reason"| P2
+  P2 --> D2
+  P2 -.logged first.-> D3
+  S --> P3
+  D2 --> P3
+  P3 --> D4
+  P3 -.logged.-> D3
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>Two very different reads: aggregate health (always allowed, PII stripped) versus a single tenant's data (gated by a logged, expiring grant).</figcaption>
+  </figure>
+
+  <div class="note data"><b>Storage note.</b> No new storage engine — the admin console rides on the same <code>access_grants</code> and hash-chained <code>audit_log</code> tables in the one Postgres. The aggregate health view is a query that deliberately projects away every PII column. Shared <a href="index.html#p-deploy">deployment</a>.</div>
+</section>
+</main>
+
+<footer class="wrap">
+  StartupKit · system design v2 · Admin console · <a href="index.html">← all sections</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="diagram.js"></script>
+</body>
+</html>

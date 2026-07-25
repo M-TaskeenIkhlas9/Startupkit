@@ -40,6 +40,11 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.per-file-ignores]
+# The sys.path shim (for Vercel's bundled-but-not-installed src/ layout) must run before the
+# startupkit imports below it, which ruff's import-position check doesn't have an exception for.
+"apps/api/main.py" = ["E402"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

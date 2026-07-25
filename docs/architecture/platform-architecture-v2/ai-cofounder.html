@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Co-Founder — System Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topbar"><div class="inner">
+  <a class="home" href="index.html">◆ System Design v2</a>
+  <a href="journey.html">Journey</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="knowledge-graph.html">Graph</a>
+  <a href="workflows.html">Workflows</a>
+  <a href="assessment.html">Assessment</a>
+  <a href="ai-cofounder.html">Co-Founder</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="input-layer.html">Inputs</a>
+  <a href="access-sharing.html">Access</a>
+  <a href="admin-console.html">Admin</a>
+  <span class="spacer"></span>
+  <span class="badge">06 · AI Co-Founder</span>
+</div></nav>
+
+<header class="page">
+  <div class="wrap" style="padding:34px 28px 24px">
+    <div class="eyebrow">06 · AI Co-Founder · <code>/company/[id]/cofounder</code></div>
+    <h1>AI Co-Founder</h1>
+    <p class="sub">Grounded Q&amp;A: the founder asks a question, the system retrieves the relevant slice of <em>their</em> Company Object, asks the LLM with that context, and returns an answer plus <strong>suggested actions that link into workflows</strong>. The same grounded-chat pattern also powers the in-workflow assistants (idea, brand, GTM).</p>
+    <div class="meta">
+      <span><b>Reads</b>&nbsp;<code>askCofounder</code>, <code>ideaChat</code>, <code>brandChat</code>, <code>gtmChat</code></span>
+      <span><b>Depends on</b>&nbsp;LLM provider (swappable)</span>
+      <span><b>Diagrams</b>&nbsp;conceptual · component · sequence · communication · data-flow</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+<section>
+  <div class="diagram-index">
+    <a href="#conceptual">1 Conceptual</a><a href="#component">2 Component</a><a href="#sequence">3 Sequence</a><a href="#comm">4 Communication</a><a href="#dfd">5 Data-flow</a>
+    <a href="index.html#p-deploy">6 Deployment (shared)</a>
+  </div>
+
+  <div class="dtype" id="conceptual">1 · Conceptual overview</div>
+  <h3>Answers grounded in this company</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  COF{{"AI Co-Founder<br/>grounded Q&A + suggested actions"}}:::core
+  CO[("Company Object")]:::data
+  LLM["LLM provider<br/>(swappable adapter)"]:::ai
+  WF["Workflows"]:::core
+  F -->|"asks a question"| COF
+  COF -->|"retrieves relevant facts"| CO
+  COF -->|"asks with context"| LLM
+  COF -->|"answer + actions route to"| WF
+  COF -->|"answer"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+    </pre>
+    <figcaption>The LLM never sees the raw database — only the retrieved, permission-checked slice the co-founder service assembles.</figcaption>
+  </figure>
+
+  <div class="dtype" id="component">2 · Component level</div>
+  <h3>Retrieve → ground → generate → suggest</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  UI["Co-Founder chat (client)"]:::client
+  SVC["Co-Founder service"]:::core
+  RET["Context retriever<br/>(relevant facts for the question)"]:::core
+  GROUND["Prompt grounding"]:::ai
+  MODEL["Model adapter"]:::ai
+  ACT["Action mapper<br/>(answer → workflow links)"]:::core
+  COSVC["Company service"]:::core
+  PG[("PostgreSQL")]:::data
+  LLM["LLM provider"]:::ext
+  UI -->|"ask"| SVC
+  SVC --> RET
+  RET --> COSVC
+  COSVC --> PG
+  RET --> GROUND
+  GROUND --> MODEL
+  MODEL --> LLM
+  MODEL --> ACT
+  ACT -->|"answer + suggested[]"| UI
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>The model is behind an adapter, so the provider is swappable; retrieval and action-mapping are ours.</figcaption>
+  </figure>
+
+  <div class="dtype" id="sequence">3 · Sequence</div>
+  <h3>Ask a question</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Founder
+  participant UI as Co-Founder chat
+  participant R as RBAC engine
+  participant SVC as Co-Founder service
+  participant CO as Company service
+  participant PG as PostgreSQL
+  participant LLM as LLM provider
+  U->>UI: "Am I ready to raise?"
+  UI->>R: authorize(user, cofounder, use)
+  R-->>UI: allow
+  UI->>SVC: ask(question)
+  SVC->>CO: retrieve relevant facts
+  CO->>PG: SELECT (RLS, no unmasked PII)
+  PG-->>CO: facts slice
+  CO-->>SVC: grounded context
+  SVC->>LLM: prompt(context + question)
+  LLM-->>SVC: answer
+  SVC->>SVC: map to suggested actions
+  SVC-->>U: headline + detail + actions → workflows
+    </pre>
+    <figcaption>RBAC gates the whole chat; retrieval deliberately excludes unmasked PII from what the LLM sees.</figcaption>
+  </figure>
+
+  <div class="dtype" id="comm">4 · Communication</div>
+  <h3>Service at the hub</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  U["Founder"]:::client
+  SVC["Co-Founder service"]:::core
+  CO["Company service"]:::core
+  PG[("PostgreSQL")]:::data
+  LLM["LLM provider"]:::ext
+  U ---|"1: ask"| SVC
+  SVC ---|"2: retrieve context"| CO
+  CO ---|"3: SELECT (RLS)"| PG
+  SVC ---|"4: prompt + context"| LLM
+  LLM ---|"5: answer"| SVC
+  SVC ---|"6: answer + actions"| U
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>The co-founder service is the only thing that talks to the LLM — retrieval and the model call are separate hops so context can be filtered in between.</figcaption>
+  </figure>
+
+  <div class="dtype" id="dfd">5 · Data-flow (DFD)</div>
+  <h3>Question + facts → grounded answer</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  LLM["LLM provider"]:::ext
+  P1(["Retrieve relevant facts"]):::core
+  P2(["Ground prompt"]):::ai
+  P3(["Map answer → actions"]):::core
+  D1[("facts · workflow_state")]:::data
+  D2[("assessments")]:::data
+  F -->|"question"| P1
+  D1 --> P1
+  D2 --> P1
+  P1 -->|"context slice"| P2
+  P2 -->|"prompt"| LLM
+  LLM -->|"answer"| P3
+  P3 -->|"answer + suggested actions"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>Read-only over the Company Object; the only thing leaving our walls is the filtered context sent to the LLM.</figcaption>
+  </figure>
+
+  <div class="note warn"><b>Trust boundary.</b> The retrieval step is also a redaction step: raw PII (EIN/SSN) is never placed into the prompt sent to the external LLM. The co-founder can reason about "you have an EIN" without the number itself crossing the boundary. Shared <a href="index.html#p-deploy">deployment</a>.</div>
+</section>
+</main>
+
+<footer class="wrap">
+  StartupKit · system design v2 · AI Co-Founder · <a href="index.html">← all sections</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="diagram.js"></script>
+</body>
+</html>

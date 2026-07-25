@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin console — StartupKit internal (mock)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Same base tokens as the founder app (ink/paper/Inter/JetBrains Mono), but the primary accent
+   is violet, not teal — deliberately, so this internal surface never reads as a tenant screen. */
+:root{
+  --ink:#171A21; --ink-soft:#2A2F39; --muted:#5C6573;
+  --paper:#F3F5F2; --panel:#FFFFFF; --surface-2:#FAFBF9; --line:#E3E7E2; --line-strong:#CDD3CC;
+  --adm:#6B3FD6; --adm-50:#EEE7FC; --adm-100:#DED0FA; --adm-600:#5A2FC2; --adm-900:#2B1458;
+  --danger:#B23A2E; --danger-50:#FBEAE8;
+  --ok:#1E9E63; --ok-50:#E6F5EC;
+  --warn:#B5780F; --warn-50:#FAF0DC;
+  --disp:"Inter",system-ui,sans-serif; --mono:"JetBrains Mono",monospace;
+  --card-shadow:0 1px 2px rgba(23,26,33,0.04), 0 10px 28px -16px rgba(23,26,33,0.12);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--disp);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.mockbar{background:#171A21;color:#fff;font-family:var(--mono);font-size:11.5px;padding:7px 20px;display:flex;justify-content:space-between;gap:12px}
+.mockbar a{color:#9aa3b2;text-decoration:none;border-bottom:1px dashed #454c5a}
+.mockbar a:hover{color:#fff}
+
+.stripe{background:repeating-linear-gradient(135deg, var(--adm-900), var(--adm-900) 10px, #1f1147 10px, #1f1147 20px);color:#fff;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:6px}
+
+topbar{display:block;background:var(--panel);border-bottom:1px solid var(--line)}
+.tb-inner{max-width:1180px;margin:0 auto;padding:14px 32px;display:flex;align-items:center;gap:28px}
+.tb-brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px}
+.tb-brand .mark{width:26px;height:26px;border-radius:7px;background:var(--adm);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700}
+.tb-tag{font-family:var(--mono);font-size:10.5px;background:var(--adm-50);color:var(--adm-900);border-radius:5px;padding:2px 8px;font-weight:700;letter-spacing:.04em}
+.tb-nav{display:flex;gap:4px;margin-left:auto}
+.tb-nav a{font-size:13.5px;font-weight:600;color:var(--muted);text-decoration:none;padding:8px 12px;border-radius:8px}
+.tb-nav a:hover{background:var(--surface-2);color:var(--ink)}
+.tb-who{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+
+main{max-width:1180px;margin:0 auto;padding:34px 32px 90px}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:0.12em;text-transform:uppercase;color:var(--adm-600)}
+h1{font-size:30px;font-weight:800;letter-spacing:-0.02em;margin:.2em 0 .1em}
+.sub{color:var(--muted);font-size:14.5px;max-width:70ch;margin:0 0 26px}
+h2{font-size:17px;font-weight:700;margin:0 0 4px;letter-spacing:-0.01em}
+.hint{font-size:13px;color:var(--muted);margin:0 0 16px}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 24px;box-shadow:var(--card-shadow);margin-bottom:28px}
+
+.row3{display:grid;grid-template-columns:1.4fr 1fr .8fr;gap:16px;align-items:end}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px}
+.field input, .field select, .field textarea{
+  width:100%;border:1px solid var(--line-strong);border-radius:10px;padding:10px 12px;font-size:14px;
+  font-family:var(--disp);color:var(--ink);background:var(--surface-2);
+}
+.field textarea{resize:vertical;min-height:44px}
+.field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--adm-100);outline-offset:1px;border-color:var(--adm)}
+
+.btn{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:10px;padding:11px 20px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:var(--disp)}
+.btn-adm{background:var(--adm);color:#fff}
+.btn-adm:hover{background:var(--adm-600)}
+.btn-end{background:transparent;color:var(--danger);border:1px solid rgba(178,58,46,0.3);padding:6px 11px;font-size:12px}
+.btn-end:hover{background:var(--danger-50)}
+
+.warnbox{display:flex;gap:10px;align-items:flex-start;background:var(--warn-50);border:1px solid #eddba6;border-radius:10px;padding:11px 14px;font-size:12.5px;color:#5c3d05;margin-top:14px}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);padding:0 10px 10px;border-bottom:1px solid var(--line)}
+td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.mono{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+.company{font-weight:600}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.dot-strong{background:#1E9E63}.dot-healthy{background:#3ECF8E}.dot-moderate{background:#D9842A}.dot-atrisk{background:#B23A2E}
+.badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;font-weight:700;border-radius:6px;padding:3px 8px;white-space:nowrap}
+.b-active{background:var(--adm-50);color:var(--adm-900)}
+.b-ended{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.rowEnded{opacity:.5}
+.rowEnded .btn-end{display:none}
+
+.searchbar{display:flex;gap:10px;margin-bottom:16px}
+.searchbar input{flex:1;border:1px solid var(--line-strong);border-radius:10px;padding:9px 13px;font-size:13.5px;background:var(--surface-2);font-family:var(--disp)}
+.chipf{border:1px solid var(--line-strong);background:var(--panel);border-radius:999px;padding:7px 14px;font-size:12px;font-weight:600;color:var(--ink-soft);cursor:default}
+
+.action-detail{font-size:12px;color:var(--muted)}
+.actor{display:flex;align-items:center;gap:8px}
+.av{width:24px;height:24px;border-radius:7px;background:var(--adm-50);color:var(--adm-900);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="mockbar">
+  <span>MOCK UI · illustrates §05/§08 of <a href="index.html">index.html</a> · not wired to a backend</span>
+  <span><a href="index.html">← architecture doc</a> · <a href="ui-access-sharing.html">← access &amp; sharing mock</a></span>
+</div>
+<div class="stripe">Internal · StartupKit staff only · every view here is itself audited</div>
+
+<topbar>
+  <div class="tb-inner">
+    <div class="tb-brand"><span class="mark">S</span>StartupKit <span class="tb-tag">ADMIN</span></div>
+    <nav class="tb-nav">
+      <a href="#breakglass">Break-glass</a>
+      <a href="#health">Companies</a>
+      <a href="#audit">Audit trail</a>
+    </nav>
+    <span class="tb-who">priya@startupkit.com · support-tier</span>
+  </div>
+</topbar>
+
+<main>
+  <p class="eyebrow">Internal console</p>
+  <h1>Admin</h1>
+  <p class="sub">No standing access to any company's data lives here — every screen below either shows aggregate/no-PII data, or requires opening a logged, time-boxed grant first.</p>
+
+  <div class="card" id="breakglass">
+    <h2>Open a break-glass session</h2>
+    <p class="hint">Creates a time-boxed <code>access_grants</code> row scoped to one company. Written to the audit log before the first read — see the entry appear in §Audit trail below once opened.</p>
+    <div class="row3">
+      <div class="field">
+        <label for="bgco">Company</label>
+        <select id="bgco">
+          <option>CO-20260721-Z0B5 — Acme AI, Inc.</option>
+          <option>CO-20260614-91FQ — Northline Robotics</option>
+          <option>CO-20260603-A2KD — Pillar Health</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="bgdur">Duration</label>
+        <select id="bgdur">
+          <option>30 minutes</option>
+          <option selected>2 hours</option>
+          <option>24 hours</option>
+        </select>
+      </div>
+      <div class="field">
+        <button class="btn btn-adm" style="width:100%;justify-content:center" onclick="openSession()">Open session</button>
+      </div>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label for="bgreason">Reason <span style="font-weight:400;color:var(--muted)">(required, becomes part of the permanent audit record)</span></label>
+      <textarea id="bgreason" placeholder="e.g. Founder ticket #4021 — documents.status stuck at 'generating', need to inspect submission row"></textarea>
+    </div>
+    <div class="warnbox">⚠ Opening this session unmasks EIN/SSN fields for the selected company for the duration above. The founder is not notified in real time by default — this is by design for support speed, but every open/close/read is permanently logged.</div>
+
+    <table style="margin-top:18px">
+      <thead><tr><th>Company</th><th>Opened by</th><th>Reason</th><th>Opened</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+      <tbody id="sessions">
+        <tr>
+          <td class="company mono">CO-20260614-91FQ</td>
+          <td class="actor"><span class="av">DL</span>dan@startupkit.com</td>
+          <td class="action-detail">Ticket #3988 — re-send stuck e-sign webhook</td>
+          <td class="mono">10:12 today</td>
+          <td class="mono">12:12 today</td>
+          <td><span class="badge b-active">● Active</span></td>
+          <td><button class="btn btn-end" onclick="endSession(this)">End now</button></td>
+        </tr>
+        <tr class="rowEnded">
+          <td class="company mono">CO-20260721-Z0B5</td>
+          <td class="actor"><span class="av">PR</span>priya@startupkit.com</td>
+          <td class="action-detail">Ticket #3971 — health score not updating</td>
+          <td class="mono">Jul 21, 15:40</td>
+          <td class="mono">Jul 21, 16:10 (ended early)</td>
+          <td><span class="badge b-ended">Ended</span></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" id="health">
+    <h2>Companies — health overview</h2>
+    <p class="hint">Aggregate status only. No EIN/SSN, no document contents, no facts — this table alone never requires a break-glass session.</p>
+    <table>
+      <thead><tr><th>Company</th><th>Owner</th><th>Stage</th><th>Health</th><th>Formation</th><th>Last active</th></tr></thead>
+      <tbody>
+        <tr><td class="company">Acme AI, Inc.</td><td class="mono">founder@acme.ai</td><td>Selling</td><td><span class="dot dot-healthy"></span>72 · Healthy</td><td>Complete</td><td class="mono">3 min ago</td></tr>
+        <tr><td class="company">Northline Robotics</td><td class="mono">m.chen@northline.dev</td><td>MVP build</td><td><span class="dot dot-moderate"></span>54 · Moderate</td><td>Complete</td><td class="mono">1 hr ago</td></tr>
+        <tr><td class="company">Pillar Health</td><td class="mono">sara@pillarhealth.io</td><td>Pre-seed</td><td><span class="dot dot-atrisk"></span>31 · At risk</td><td>Forming</td><td class="mono">2 days ago</td></tr>
+        <tr><td class="company">Fieldnote Labs</td><td class="mono">j.abara@fieldnote.co</td><td>PMF</td><td><span class="dot dot-strong"></span>88 · Strong</td><td>Complete</td><td class="mono">14 min ago</td></tr>
+        <tr><td class="company">Vela Freight</td><td class="mono">tom@velafreight.com</td><td>Discovery</td><td><span class="dot dot-moderate"></span>46 · Moderate</td><td>Idea</td><td class="mono">6 hr ago</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" id="audit">
+    <h2>Audit trail</h2>
+    <p class="hint">Hash-chained, append-only — this view is a read projection of it, and reading it is itself logged (see the last row).</p>
+    <div class="searchbar">
+      <input type="text" placeholder="Filter by company, actor, or action… (mock — not wired up)">
+      <span class="chipf">Last 24h</span>
+      <span class="chipf">All companies</span>
+    </div>
+    <table>
+      <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Company</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">10:12:04</td><td class="actor"><span class="av">DL</span>dan@startupkit.com</td><td>break-glass.opened</td><td class="mono">CO-20260614-91FQ</td><td class="action-detail">Ticket #3988, 2h grant</td></tr>
+        <tr><td class="mono">09:58:41</td><td class="actor"><span class="av">RS</span>rina@northline.dev</td><td>access_grant.created</td><td class="mono">CO-20260721-Z0B5</td><td class="action-detail">lawyer → W2, expires 2026-09-05</td></tr>
+        <tr><td class="mono">09:40:15</td><td class="actor"><span class="av">FN</span>founder@acme.ai</td><td>document.approved</td><td class="mono">CO-20260721-Z0B5</td><td class="action-detail">W2 · IP Assignment Agreement v3</td></tr>
+        <tr><td class="mono">08:55:02</td><td class="actor"><span class="av">DK</span>d.klein@kleinlawllc.com</td><td>document.viewed</td><td class="mono">CO-20260721-Z0B5</td><td class="action-detail">scoped to W2 only</td></tr>
+        <tr><td class="mono">Jul 21, 16:10</td><td class="actor"><span class="av">PR</span>priya@startupkit.com</td><td>break-glass.ended</td><td class="mono">CO-20260721-Z0B5</td><td class="action-detail">ended early by staff</td></tr>
+        <tr><td class="mono">Jul 21, 15:40</td><td class="actor"><span class="av">PR</span>priya@startupkit.com</td><td>break-glass.opened</td><td class="mono">CO-20260721-Z0B5</td><td class="action-detail">Ticket #3971, 30m grant</td></tr>
+        <tr style="opacity:.7"><td class="mono">just now</td><td class="actor"><span class="av">PR</span>priya@startupkit.com</td><td>audit_log.viewed</td><td class="mono">— (cross-tenant)</td><td class="action-detail">this page load</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+function openSession(){
+  const reason = document.getElementById('bgreason').value.trim();
+  if(!reason){ alert('Reason is required — it becomes part of the permanent audit record.'); return; }
+  const co = document.getElementById('bgco').value;
+  const dur = document.getElementById('bgdur').value;
+  const tbody = document.getElementById('sessions');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="company mono">${co.split(' — ')[0]}</td>
+    <td class="actor"><span class="av">PR</span>priya@startupkit.com</td>
+    <td class="action-detail">${reason}</td>
+    <td class="mono">just now</td>
+    <td class="mono">in ${dur}</td>
+    <td><span class="badge b-active">● Active</span></td>
+    <td><button class="btn btn-end" onclick="endSession(this)">End now</button></td>`;
+  tbody.insertBefore(tr, tbody.firstChild);
+  document.getElementById('bgreason').value = '';
+}
+function endSession(btn){
+  const row = btn.closest('tr');
+  row.classList.add('rowEnded');
+  row.querySelector('.badge').outerHTML = '<span class="badge b-ended">Ended</span>';
+}
+</script>
+</body>
+</html>

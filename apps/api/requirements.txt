@@ -1,0 +1,8 @@
+# Vercel-specific — the Python function build reads this, NOT pyproject.toml/uv.lock.
+# Deliberately minimal: only what's actually imported on the live request path (verified by
+# grep against the codebase), so the function bundle stays small and cold starts stay fast.
+# temporalio/asyncpg are real pyproject.toml deps but nothing imports them yet — excluded here.
+fastapi>=0.111
+pydantic>=2.7
+httpx>=0.27
+anthropic>=0.30

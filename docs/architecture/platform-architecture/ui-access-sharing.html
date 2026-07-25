@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Access &amp; sharing — StartupKit (mock)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Tokens copied 1:1 from apps/web/tailwind.config.ts + globals.css so this reads as a real
+   screen of the product, not the architecture doc's own editorial style. */
+:root{
+  --ink:#171A21; --ink-soft:#2A2F39; --muted:#5C6573;
+  --paper:#F3F5F2; --panel:#FFFFFF; --surface-2:#FAFBF9; --line:#E3E7E2; --line-strong:#CDD3CC;
+  --teal:#2536E8; --teal-50:#E7E9FC; --teal-100:#D5D9FA; --teal-600:#1B2BC0; --teal-900:#141C8C;
+  --seal:#D9842A; --seal-soft:#F7ECDD; --seal-ink:#8A4E10;
+  --forest:#171A21; --amber:#B5780F; --amber-50:#FAF0DC; --danger:#B23A2E;
+  --disp:"Inter",system-ui,sans-serif; --mono:"JetBrains Mono",monospace;
+  --card-shadow:0 1px 2px rgba(23,26,33,0.04), 0 10px 28px -16px rgba(23,26,33,0.12);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--disp);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.mockbar{background:var(--forest);color:#fff;font-family:var(--mono);font-size:11.5px;padding:7px 20px;display:flex;justify-content:space-between;gap:12px}
+.mockbar a{color:#9aa3b2;text-decoration:none;border-bottom:1px dashed #454c5a}
+.mockbar a:hover{color:#fff}
+
+/* sidebar — mirrors components/app-sidebar.tsx */
+aside{position:fixed;inset:0 auto 0 0;width:248px;background:var(--ink);color:var(--paper);display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:10px;padding:20px 20px 18px}
+.brand .mark{width:28px;height:28px;border-radius:8px;background:var(--seal);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:14px;font-weight:700;color:#fff}
+.brand .name{font-weight:700;font-size:15px;letter-spacing:-0.01em}
+.co{margin:0 12px 8px;border-radius:12px;background:rgba(255,255,255,0.04);padding:10px 12px}
+.co p{margin:0;font-size:13.5px;font-weight:600;color:#fff}
+.co span{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#7a828f}
+nav{flex:1;padding:8px 12px;overflow-y:auto}
+.grp{margin-bottom:6px}
+.grp p{padding:12px 12px 4px;margin:0;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.14em;color:#5b6472}
+.item{display:flex;align-items:center;gap:11px;border-radius:8px;padding:8px 12px;font-size:13.5px;color:#9aa3b2;text-decoration:none;position:relative}
+.item:hover{background:rgba(255,255,255,0.05);color:#fff}
+.item.active{background:rgba(37,54,232,0.22);color:#fff;font-weight:600}
+.item.active::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:16px;border-radius:0 3px 3px 0;background:var(--teal)}
+.item svg{width:17px;height:17px;flex:none}
+.item.new::after{content:"NEW";font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:0.06em;color:var(--seal);background:rgba(217,132,42,0.16);border-radius:4px;padding:2px 5px;margin-left:auto}
+.health{border-top:1px solid rgba(255,255,255,0.06);padding:14px 20px}
+.health .row{display:flex;justify-content:space-between;align-items:center}
+.health .lbl{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#7a828f}
+.health .val{display:flex;align-items:center;gap:6px;font-weight:700;color:#fff;font-size:14px}
+.dot{width:8px;height:8px;border-radius:50%;background:#3ECF8E}
+
+main{margin-left:248px;max-width:980px;padding:38px 44px 80px}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:32px;font-weight:800;letter-spacing:-0.02em;margin:.25em 0 .15em}
+.sub{color:var(--muted);font-size:14.5px;max-width:60ch;margin:0 0 28px}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 24px;box-shadow:var(--card-shadow);margin-bottom:28px}
+.card h2{font-size:17px;font-weight:700;margin:0 0 4px;letter-spacing:-0.01em}
+.card .hint{font-size:13px;color:var(--muted);margin:0 0 18px}
+
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px}
+.field input[type=email], .field input[type=date], .field select{
+  width:100%;border:1px solid var(--line-strong);border-radius:10px;padding:10px 12px;font-size:14px;
+  font-family:var(--disp);color:var(--ink);background:var(--surface-2);
+}
+.field input:focus, .field select:focus{outline:2px solid var(--teal-100);outline-offset:1px;border-color:var(--teal)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+.scope-note{display:flex;align-items:flex-start;gap:8px;background:var(--teal-50);border:1px solid var(--teal-100);border-radius:10px;padding:10px 12px;font-size:12.5px;color:var(--teal-900);margin-bottom:12px}
+.scope-note.hidden{display:none}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line-strong);background:var(--panel);border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;user-select:none;transition:.12s}
+.chip:hover{border-color:var(--teal)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.chip.all{border-style:dashed}
+
+.btn{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:10px;padding:11px 20px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:var(--disp)}
+.btn-primary{background:var(--teal);color:#fff}
+.btn-primary:hover{background:var(--teal-600)}
+.btn-ghost{background:transparent;border:1px solid var(--line-strong);color:var(--ink-soft)}
+.btn-ghost:hover{border-color:var(--ink)}
+.btn-danger{background:transparent;color:var(--danger);border:1px solid rgba(178,58,46,0.3);padding:7px 12px;font-size:12.5px}
+.btn-danger:hover{background:rgba(178,58,46,0.06)}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);padding:0 10px 10px;border-bottom:1px solid var(--line)}
+td{padding:13px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.who{display:flex;align-items:center;gap:10px}
+.avatar{width:32px;height:32px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink-soft)}
+.who .email{font-weight:600;color:var(--ink);font-size:13.5px}
+.who .meta{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+
+.badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.03em;border-radius:6px;padding:3px 8px;white-space:nowrap}
+.b-team{background:var(--teal-50);color:var(--teal-900)}
+.b-advisor{background:var(--amber-50);color:var(--seal-ink)}
+.b-external{background:#FBEAE0;color:#7A2A0C}
+.b-status-active{background:#E6F5EC;color:#1d5e3d}
+.b-status-pending{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.b-status-revoked{background:#FBEAE8;color:var(--danger)}
+
+.scope-chips{display:flex;flex-wrap:wrap;gap:4px;max-width:220px}
+.scope-chips span{font-family:var(--mono);font-size:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:2px 6px;color:var(--ink-soft)}
+
+.rowRevoked{opacity:.45}
+.rowRevoked .btn-danger{display:none}
+
+.roles-note{margin-top:10px;font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:flex-start}
+.roles-note code{font-family:var(--mono);background:var(--surface-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+</style>
+</head>
+<body>
+
+<div class="mockbar">
+  <span>MOCK UI · illustrates §05/§06 of <a href="index.html">index.html</a> · not wired to a backend</span>
+  <span><a href="index.html">← architecture doc</a> · <a href="ui-admin-console.html">admin console mock →</a></span>
+</div>
+
+<aside>
+  <div class="brand"><span class="mark">S</span><span class="name">StartupKit</span></div>
+  <div class="co"><p>Acme AI, Inc.</p><span>CO-20260721-Z0B5</span></div>
+  <nav>
+    <div class="grp">
+      <p>Overview</p>
+      <a class="item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8 16.5C13 13 11 9 16 7.5"/></svg>Journey</a>
+      <a class="item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Dashboard</a>
+      <a class="item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M11 7 6.5 16M13 7l4.5 9M7 18h10"/></svg>Knowledge graph</a>
+    </div>
+    <div class="grp">
+      <p>Build</p>
+      <a class="item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="4" rx="1.5"/><rect x="3" y="10" width="18" height="4" rx="1.5"/><rect x="3" y="16" width="12" height="4" rx="1.5"/></svg>Workflows</a>
+      <a class="item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>Assessment</a>
+    </div>
+    <div class="grp">
+      <p>Intelligence</p>
+      <a class="item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>AI Co-Founder</a>
+    </div>
+    <div class="grp">
+      <p>Manage</p>
+      <a class="item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 13v5a2 2 0 002 2h12a2 2 0 002-2v-5"/><path d="M12 3v10m0 0l-3.5-3.5M12 13l3.5-3.5"/></svg>Input layer</a>
+      <a class="item active new" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Access &amp; sharing</a>
+    </div>
+  </nav>
+  <div class="health">
+    <div class="row"><span class="lbl">Health</span><span class="val"><span class="dot"></span>72</span></div>
+  </div>
+</aside>
+
+<main>
+  <p class="eyebrow">CO-20260721-Z0B5 · Acme AI, Inc.</p>
+  <h1>Access &amp; sharing</h1>
+  <p class="sub">Who can see this company, and what they can see. Every grant below is a row — revoke anytime, and scope narrows to a single workflow whenever you invite an external collaborator.</p>
+
+  <div class="card">
+    <h2>Invite someone</h2>
+    <p class="hint">Founders and existing team members always get the full workspace. Everyone else is scoped.</p>
+
+    <div class="row2">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="name@example.com">
+      </div>
+      <div class="field">
+        <label for="role">Role</label>
+        <select id="role" onchange="onRoleChange()">
+          <option value="team">Co-founder / Team</option>
+          <option value="advisor">Advisor / Investor (read-only)</option>
+          <option value="external" selected>Lawyer / Accountant (external)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Workflow scope</label>
+      <div id="scopeNote" class="scope-note">
+        <span>ⓘ</span>
+        <span>Advisor/Investor is always read-only across health, journey, and documents you've marked shareable — no per-workflow scope needed. Switch role to see workflow scoping.</span>
+      </div>
+      <div id="scopeChips" class="chips">
+        <span class="chip all" onclick="toggleAll(this)">All workflows</span>
+        <span class="chip" onclick="toggleChip(this)">W1 Formation</span>
+        <span class="chip on" onclick="toggleChip(this)">W2 IP &amp; Legal</span>
+        <span class="chip" onclick="toggleChip(this)">W3 Financial</span>
+        <span class="chip" onclick="toggleChip(this)">W4 Tech</span>
+        <span class="chip" onclick="toggleChip(this)">W5 Brand</span>
+        <span class="chip" onclick="toggleChip(this)">W6 People</span>
+        <span class="chip" onclick="toggleChip(this)">W7 GTM</span>
+        <span class="chip" onclick="toggleChip(this)">W8 Ops</span>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="expiry">Expires</label>
+        <input type="date" id="expiry" value="2026-08-22">
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="alert('Mock only — no backend wired up. This would POST /companies/{id}/access-grants.')">Send invite</button>
+      </div>
+    </div>
+
+    <div class="roles-note">
+      <span>ⓘ</span>
+      <span>This dropdown reads a <code>roles</code> table, not a hardcoded list (see §05, index.html) — adding a role here is a config change, not a redeploy.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Active &amp; pending grants</h2>
+    <p class="hint">4 people besides you have some access to this company.</p>
+    <table>
+      <thead><tr><th>Person</th><th>Role</th><th>Scope</th><th>Granted by</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="who"><span class="avatar">RS</span><div><div class="email">rina@northline.dev</div><div class="meta">co-founder</div></div></td>
+          <td><span class="badge b-team">TEAM</span></td>
+          <td>Full workspace</td>
+          <td>you</td>
+          <td>Never</td>
+          <td><span class="badge b-status-active">● Active</span></td>
+          <td><button class="btn btn-danger" onclick="revoke(this)">Revoke</button></td>
+        </tr>
+        <tr>
+          <td class="who"><span class="avatar">JM</span><div><div class="email">jamie@brightpath.vc</div><div class="meta">investor</div></div></td>
+          <td><span class="badge b-advisor">ADVISOR</span></td>
+          <td>Read-only</td>
+          <td>you</td>
+          <td>Never</td>
+          <td><span class="badge b-status-active">● Active</span></td>
+          <td><button class="btn btn-danger" onclick="revoke(this)">Revoke</button></td>
+        </tr>
+        <tr>
+          <td class="who"><span class="avatar">DK</span><div><div class="email">d.klein@kleinlawllc.com</div><div class="meta">lawyer</div></div></td>
+          <td><span class="badge b-external">EXTERNAL</span></td>
+          <td><div class="scope-chips"><span>W2 IP &amp; Legal</span></div></td>
+          <td>you</td>
+          <td>2026-09-05</td>
+          <td><span class="badge b-status-active">● Active</span></td>
+          <td><button class="btn btn-danger" onclick="revoke(this)">Revoke</button></td>
+        </tr>
+        <tr>
+          <td class="who"><span class="avatar">MP</span><div><div class="email">maria@pillarcpa.com</div><div class="meta">accountant</div></div></td>
+          <td><span class="badge b-external">EXTERNAL</span></td>
+          <td><div class="scope-chips"><span>W3 Financial</span></div></td>
+          <td>you</td>
+          <td>—</td>
+          <td><span class="badge b-status-pending">○ Pending</span></td>
+          <td><button class="btn btn-danger" onclick="revoke(this)">Revoke</button></td>
+        </tr>
+        <tr class="rowRevoked">
+          <td class="who"><span class="avatar">TC</span><div><div class="email">tom@oldcounsel.com</div><div class="meta">lawyer</div></div></td>
+          <td><span class="badge b-external">EXTERNAL</span></td>
+          <td><div class="scope-chips"><span>W1 Formation</span></div></td>
+          <td>you</td>
+          <td>expired 2026-06-01</td>
+          <td><span class="badge b-status-revoked">✕ Revoked</span></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+function toggleChip(el){
+  if(el.classList.contains('all')) return;
+  el.classList.toggle('on');
+  document.querySelector('.chip.all').classList.remove('on');
+}
+function toggleAll(el){
+  const on = !el.classList.contains('on');
+  el.classList.toggle('on', on);
+  document.querySelectorAll('.chip:not(.all)').forEach(c=>c.classList.toggle('on', on));
+}
+function onRoleChange(){
+  const role = document.getElementById('role').value;
+  const note = document.getElementById('scopeNote');
+  const chips = document.getElementById('scopeChips');
+  if(role === 'advisor'){
+    note.classList.remove('hidden');
+    chips.style.display = 'none';
+  } else {
+    note.classList.add('hidden');
+    chips.style.display = 'flex';
+  }
+}
+function revoke(btn){
+  const row = btn.closest('tr');
+  row.classList.add('rowRevoked');
+  row.querySelector('.badge.b-status-active, .badge.b-status-pending').outerHTML = '<span class="badge b-status-revoked">✕ Revoked</span>';
+}
+</script>
+</body>
+</html>

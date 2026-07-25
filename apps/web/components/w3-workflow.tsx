@@ -407,9 +407,6 @@ function TaxProfile({
   const quarterly = isCorp
     ? "The company pays estimated federal tax: Apr 15 · Jun 15 · Sep 15 · Dec 15 — placeholders even if nothing's owed yet."
     : "Members pay estimated tax personally: Apr 15 · Jun 15 · Sep 15 · Dec 15.";
-  const delaware = isCorp
-    ? { title: "Delaware Franchise Tax & Annual Report", body: "Due every year by March 1, regardless of revenue. $175 minimum + $50 report fee (reference). Your registered agent (from W1) typically files it." }
-    : { title: "Delaware LLC Annual Tax", body: "Flat $300, due June 1 every year, regardless of revenue. No annual report required. Your registered agent (from W1) can file it." };
 
   return (
     <div className="mt-3 rounded-xl border p-4" style={{ borderColor: confirmed ? W3 : "#e3e7e2" }}>
@@ -434,11 +431,6 @@ function TaxProfile({
             )}
           </div>
         </div>
-      </div>
-
-      <div className="mt-3 rounded-lg border border-line bg-paper p-4">
-        <p className="text-sm font-bold text-ink">{delaware.title}</p>
-        <p className="mt-1 text-[13px] text-ink-soft">{delaware.body}</p>
       </div>
 
       {confirmed ? (
@@ -481,14 +473,14 @@ function ComplianceCalendar({
     ["🟢 Legal", "83(b) election window", "30 days from grant", true],
     ["🟢 Legal", "Registered agent renewal", "Annual", false],
   ];
+  // Delaware franchise tax / LLC annual tax are tracked as their own guided-task document in W1
+  // ("stand up ongoing compliance") — not restated here, so there's one real place to mark it done.
   const financialCorp: [string, string, string, boolean][] = [
-    ["🔵 Financial", "Delaware Franchise Tax + Annual Report", "Mar 1", true],
     ["🔵 Financial", "Federal return (Form 1120)", "Apr 15", false],
     ["🔵 Financial", "Estimated quarterly tax", "Apr 15 · Jun 15 · Sep 15 · Dec 15", false],
     ["🔵 Financial", "1099-NEC to contractors", "Jan 31", false],
   ];
   const financialLlc: [string, string, string, boolean][] = [
-    ["🔵 Financial", "Delaware LLC Annual Tax ($300 flat)", "Jun 1", true],
     ["🔵 Financial", "Schedule K-1 to members", "Apr 15", false],
     ["🔵 Financial", "Members' estimated quarterly tax", "Apr 15 · Jun 15 · Sep 15 · Dec 15", false],
     ["🔵 Financial", "1099-NEC to contractors", "Jan 31", false],
@@ -562,17 +554,15 @@ function GuidedConnectCard({
   const [busy, setBusy] = useState(false);
   const [confirmed, setConfirmed] = useState(alreadySubmitted);
 
-  const confirmText =
-    branch === "yes" ? guide.confirmYes(companyName || "the company") : guide.confirmNo;
-
-  async function confirm() {
+  async function confirmWith(b: "yes" | "no") {
     setBusy(true);
     try {
+      const text = b === "yes" ? guide.confirmYes(companyName || "the company") : guide.confirmNo;
       const r = await fillDocument(companyId, {
         workflow_code: workflowCode,
         phase_n: phaseN,
         doc_name: docName,
-        fields: { confirmation: confirmText, had_it_already: branch === "yes" ? "yes" : "no" },
+        fields: { confirmation: text, had_it_already: b },
       });
       setConfirmed(true);
       onSubmitted(r);
@@ -631,7 +621,13 @@ function GuidedConnectCard({
             {(["yes", "no"] as const).map((b) => (
               <button
                 key={b}
-                onClick={() => setBranch(b)}
+                onClick={() => {
+                  setBranch(b);
+                  // "Yes" needs no separate confirmation step — the click itself is the
+                  // attestation. "No" still walks through on-file/bring/providers first, so it
+                  // keeps an explicit checkbox once the founder has actually done the setup.
+                  if (b === "yes" && !locked) void confirmWith("yes");
+                }}
                 className="rounded-lg border px-3 py-1.5 text-sm font-medium transition"
                 style={
                   branch === b
@@ -694,26 +690,29 @@ function GuidedConnectCard({
             </>
           )}
 
-          {branch !== "" &&
-            (locked ? (
-              <p className="mt-4 rounded-lg border border-line bg-paper p-3 text-[13px] text-muted">
-                🔒 Locked until W1 (formation) is complete — the confirmation needs a real company
-                behind it.
-              </p>
-            ) : (
-              <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-lg border border-line bg-paper p-3 text-[13px] text-ink-soft">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  disabled={busy}
-                  checked={false}
-                  onChange={(e) => e.target.checked && confirm()}
-                />
-                <span>
-                  {busy ? "Recording…" : confirmText}
-                </span>
-              </label>
-            ))}
+          {branch !== "" && locked && (
+            <p className="mt-4 rounded-lg border border-line bg-paper p-3 text-[13px] text-muted">
+              🔒 Locked until W1 (formation) is complete — the confirmation needs a real company
+              behind it.
+            </p>
+          )}
+
+          {branch === "yes" && !locked && busy && (
+            <p className="mt-4 text-[13px] text-muted">Recording…</p>
+          )}
+
+          {branch === "no" && !locked && (
+            <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-lg border border-line bg-paper p-3 text-[13px] text-ink-soft">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                disabled={busy}
+                checked={false}
+                onChange={(e) => e.target.checked && confirmWith("no")}
+              />
+              <span>{busy ? "Recording…" : guide.confirmNo}</span>
+            </label>
+          )}
         </div>
       )}
 

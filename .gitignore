@@ -16,5 +16,6 @@ var/
 
 # TS incremental build cache
 *.tsbuildinfo
-/W1/
-/W2/
+
+# raw source-material dumps — content is absorbed into src/startupkit, not tracked itself
+/reference/w1/

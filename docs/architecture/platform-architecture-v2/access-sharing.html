@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Access &amp; Sharing — System Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topbar"><div class="inner">
+  <a class="home" href="index.html">◆ System Design v2</a>
+  <a href="journey.html">Journey</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="knowledge-graph.html">Graph</a>
+  <a href="workflows.html">Workflows</a>
+  <a href="assessment.html">Assessment</a>
+  <a href="ai-cofounder.html">Co-Founder</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="input-layer.html">Inputs</a>
+  <a href="access-sharing.html">Access</a>
+  <a href="admin-console.html">Admin</a>
+  <span class="spacer"></span>
+  <span class="badge">08 · Access</span>
+</div></nav>
+
+<header class="page">
+  <div class="wrap" style="padding:34px 28px 24px">
+    <div class="eyebrow">08 · Access &amp; sharing · <em>proposed</em></div>
+    <h1>Access &amp; sharing</h1>
+    <p class="sub">Granular RBAC as data: a founder invites someone with a role, a scope (down to a single workflow), and an optional expiry. Every request in the whole platform is checked against these grants. Adding a role is a row in a <code>roles</code> table, not a code change. <span style="color:var(--muted)">(The founder-facing screen is mocked in <a href="../platform-architecture/ui-access-sharing.html">v1</a>; here's the system behind it.)</span></p>
+    <div class="meta">
+      <span><b>Core tables</b>&nbsp;<code>roles</code>, <code>access_grants {role, resource, scope, expires_at}</code></span>
+      <span><b>Diagrams</b>&nbsp;conceptual · component · sequence · communication · data-flow</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+<section>
+  <div class="diagram-index">
+    <a href="#conceptual">1 Conceptual</a><a href="#component">2 Component</a><a href="#sequence">3 Sequence</a><a href="#comm">4 Communication</a><a href="#dfd">5 Data-flow</a>
+    <a href="index.html#p-deploy">6 Deployment (shared)</a>
+  </div>
+
+  <div class="dtype" id="conceptual">1 · Conceptual overview</div>
+  <h3>Five roles today, extensible by row</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  OWNER["Founder / Owner"]:::client
+  subgraph INVITED[Invited principals]
+    direction TB
+    TEAM["Co-founder / Team"]:::client
+    ADV["Advisor / Investor"]:::advisor
+    EXT["Lawyer / Accountant"]:::ext
+    OPS["Ops / Admin"]:::admin
+  end
+  ACC{{"Access & sharing<br/>grants: role · scope · expiry"}}:::core
+  POL["RBAC policy engine<br/>(every request checks here)"]:::admin
+  OWNER -->|"invites / revokes"| ACC
+  ACC --> POL
+  POL -->|"allow / deny"| INVITED
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+  classDef advisor fill:#FBEEDA,stroke:#B4740E,color:#402A05;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>Only the owner grants access; everyone else's reach is whatever their grant row says.</figcaption>
+  </figure>
+
+  <div class="dtype" id="component">2 · Component level</div>
+  <h3>Invitations service + policy engine</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  UI["Access & sharing screen"]:::client
+  INV["Invitations service"]:::core
+  ROLES["roles table (config)"]:::admin
+  POL["RBAC policy engine"]:::admin
+  NOTIF["Notifications (invite email)"]:::core
+  PG[("PostgreSQL<br/>access_grants · roles")]:::data
+  APP["Every app service"]:::core
+  UI -->|"create grant (role, scope, expiry)"| INV
+  INV --> ROLES
+  INV --> PG
+  INV --> NOTIF
+  APP -->|"authorize(user, resource, action)"| POL
+  POL --> PG
+  POL --> ROLES
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>Two consumers of the same tables: the invitations service writes grants; the policy engine reads them on every request. Both read <code>roles</code>, so a new role needs no code.</figcaption>
+  </figure>
+
+  <div class="dtype" id="sequence">3 · Sequence</div>
+  <h3>Invite a lawyer, scoped to W2</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor O as Owner
+  participant UI as Access screen
+  participant INV as Invitations service
+  participant PG as PostgreSQL
+  participant N as Notifications
+  actor L as Lawyer
+  participant POL as RBAC engine
+  O->>UI: invite lawyer, role=external, scope=W2, expiry=+30d
+  UI->>INV: create grant
+  INV->>PG: INSERT access_grants
+  INV->>N: send invite email
+  N-->>L: accept link
+  L->>POL: opens /workflows/W2
+  POL->>PG: read grant (valid? not expired? scope matches?)
+  PG-->>POL: allow (W2 only)
+  POL-->>L: W2 renders, W1/W3 hidden, 403 on API
+    </pre>
+    <figcaption>Hiding the nav item and returning 403 at the API are two independent checks against the same grant.</figcaption>
+  </figure>
+
+  <div class="dtype" id="comm">4 · Communication</div>
+  <h3>The grant is the shared fact</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  O["Owner"]:::client
+  INV["Invitations service"]:::core
+  PG[("access_grants")]:::data
+  POL["RBAC engine"]:::admin
+  APP["App services"]:::core
+  L["Invited user"]:::advisor
+  O ---|"1: create grant"| INV
+  INV ---|"2: INSERT"| PG
+  L ---|"3: request resource"| APP
+  APP ---|"4: authorize()"| POL
+  POL ---|"5: read grant"| PG
+  POL ---|"6: allow / deny"| APP
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+  classDef advisor fill:#FBEEDA,stroke:#B4740E,color:#402A05;
+    </pre>
+    <figcaption>Writer and reader never talk directly — the <code>access_grants</code> row is the only thing they share.</figcaption>
+  </figure>
+
+  <div class="dtype" id="dfd">5 · Data-flow (DFD)</div>
+  <h3>Grant in, decisions out</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  O["Owner"]:::client
+  U["Invited user"]:::advisor
+  P1(["Create / revoke grant"]):::core
+  P2(["Evaluate policy"]):::admin
+  D1[("roles (config)")]:::data
+  D2[("access_grants")]:::data
+  D3[("audit_log")]:::data
+  O -->|"role, scope, expiry"| P1
+  P1 --> D2
+  D1 --> P2
+  U -->|"request"| P2
+  D2 --> P2
+  P2 -->|"allow / deny"| U
+  P1 -.event.-> D3
+  P2 -.deny event.-> D3
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+  classDef advisor fill:#FBEEDA,stroke:#B4740E,color:#402A05;
+    </pre>
+    <figcaption>Policy reads two config-ish stores and emits a decision per request; grants and denials both leave an audit trail.</figcaption>
+  </figure>
+
+  <div class="note data"><b>Storage note.</b> Two small tables carry the whole model: <code>roles</code> (seed data — Founder, Team, Ops, Advisor, Lawyer/Accountant) and <code>access_grants</code> (<code>company_id, principal, role, resource, scope, expires_at</code>). PostgreSQL row-level security uses these same rows so the database itself enforces the boundary, not only the app. Shared <a href="index.html#p-deploy">deployment</a>.</div>
+</section>
+</main>
+
+<footer class="wrap">
+  StartupKit · system design v2 · Access &amp; sharing · <a href="index.html">← all sections</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="diagram.js"></script>
+</body>
+</html>

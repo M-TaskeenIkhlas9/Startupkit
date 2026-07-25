@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workflows W1–W8 — System Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topbar"><div class="inner">
+  <a class="home" href="index.html">◆ System Design v2</a>
+  <a href="journey.html">Journey</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="knowledge-graph.html">Graph</a>
+  <a href="workflows.html">Workflows</a>
+  <a href="assessment.html">Assessment</a>
+  <a href="ai-cofounder.html">Co-Founder</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="input-layer.html">Inputs</a>
+  <a href="access-sharing.html">Access</a>
+  <a href="admin-console.html">Admin</a>
+  <span class="spacer"></span>
+  <span class="badge">04 · Workflows</span>
+</div></nav>
+
+<header class="page">
+  <div class="wrap" style="padding:34px 28px 24px">
+    <div class="eyebrow">04 · Workflows · <code>/company/[id]/workflows/[code]</code></div>
+    <h1>Workflows W1–W8</h1>
+    <p class="sub">One generic engine runs every workflow: an ordered set of <strong>phases</strong>, each with an <em>actor</em> (StartupKit / provider / founder) and a <em>mode</em> (automated / assisted / manual), gated by dependencies (<code>depends_on</code> / <code>unlocks</code>). But each workflow plugs different integrations and produces different artifacts — so the engine is shared and the <em>edges</em> differ. This page shows both: the engine six ways, then what makes each W-code distinct.</p>
+    <div class="meta">
+      <span><b>Engine reads/writes</b>&nbsp;<code>getCompanyWorkflows</code>, <code>completePhase</code>, <code>generatePhase</code>, <code>fillDocument</code></span>
+      <span><b>Diagrams</b>&nbsp;engine: all 6 · per-workflow: conceptual + signature flow</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+<section>
+  <div class="kicker">Part A · The shared engine</div>
+  <h2>One engine, six ways</h2>
+  <div class="diagram-index">
+    <a href="#e-conceptual">1 Conceptual</a><a href="#e-component">2 Component</a><a href="#e-sequence">3 Sequence</a><a href="#e-comm">4 Communication</a><a href="#e-dfd">5 Data-flow</a>
+    <a href="index.html#p-deploy">6 Deployment (shared)</a>
+  </div>
+
+  <div class="dtype" id="e-conceptual">1 · Conceptual overview</div>
+  <h3>Phases, actors, gates</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  ENG{{"Workflow engine<br/>runs phases by actor + mode"}}:::core
+  CO[("Company Object")]:::data
+  DOC["Document intelligence"]:::ai
+  PROV["Provider adapters<br/>(differs per workflow)"]:::ext
+  GATE["Dependency gate<br/>depends_on / unlocks"]:::admin
+  F -->|"advance a phase"| ENG
+  ENG -->|"read/write state"| CO
+  ENG -->|"generate artifacts"| DOC
+  ENG -->|"assisted/automated steps"| PROV
+  ENG -->|"completing W-x unlocks W-y"| GATE
+  GATE --> CO
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>Only the "Provider adapters" and "artifacts" boxes change between workflows — everything else is engine.</figcaption>
+  </figure>
+
+  <div class="dtype" id="e-component">2 · Component level</div>
+  <h3>Generic runner, pluggable workflow modules</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  PAGE["Workflow page (SSR)"]:::client
+  CUSTOM["Custom views<br/>W3 · W5 · W6 · W7 · W8"]:::client
+  ENG["Workflow engine (generic runner)"]:::core
+  MOD["Workflow module<br/>(manifest: phases, docs, providers)"]:::core
+  DOC["Document intelligence"]:::ai
+  COSVC["Company service"]:::core
+  GATE["Dependency resolver"]:::admin
+  ADPT["Provider adapters"]:::ext
+  PG[("PostgreSQL<br/>workflow_state · documents")]:::data
+  PAGE --> ENG
+  PAGE --> CUSTOM
+  CUSTOM --> ENG
+  ENG --> MOD
+  ENG -->|"generatePhase"| DOC
+  ENG -->|"completePhase"| COSVC
+  ENG --> GATE
+  MOD --> ADPT
+  DOC --> ADPT
+  COSVC --> PG
+  GATE --> PG
+  DOC --> PG
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>A workflow is data (its manifest) plus optionally a custom client view; the runner and the resolver are shared code. Adding a workflow is mostly a new manifest.</figcaption>
+  </figure>
+
+  <div class="dtype" id="e-sequence">3 · Sequence</div>
+  <h3>Advance a phase that generates a document</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Founder
+  participant P as Workflow page
+  participant R as RBAC engine
+  participant ENG as Workflow engine
+  participant AI as Doc intelligence
+  participant CO as Company service
+  participant PG as PostgreSQL
+  U->>P: open /workflows/W2, click "generate"
+  P->>R: authorize(user, W2, generate)
+  R-->>P: allow
+  P->>ENG: generatePhase(W2, phase)
+  ENG->>AI: ground (template + company facts)
+  AI->>AI: generate + validate
+  AI->>PG: INSERT document (bytea, version, status, issues[])
+  AI-->>ENG: draft + issues
+  ENG-->>U: review draft
+  U->>P: approve + complete phase
+  P->>ENG: completePhase(W2, phase)
+  ENG->>CO: mark phase done
+  CO->>PG: UPDATE workflow_state (JSONB)
+  ENG->>ENG: resolve unlocks (does W2 unlock W6?)
+  ENG->>PG: UPDATE downstream availability
+  ENG-->>U: phase complete, next unlocked
+    </pre>
+    <figcaption>Generation, human approval, completion, and dependency-unlock are the four beats every workflow shares.</figcaption>
+  </figure>
+
+  <div class="dtype" id="e-comm">4 · Communication</div>
+  <h3>Runner at the center</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  U["Founder"]:::client
+  ENG["Workflow engine"]:::core
+  AI["Doc intelligence"]:::ai
+  CO["Company service"]:::core
+  GATE["Dependency resolver"]:::admin
+  PG[("PostgreSQL")]:::data
+  U ---|"1: advance phase"| ENG
+  ENG ---|"2: generate"| AI
+  AI ---|"3: store doc"| PG
+  ENG ---|"4: complete phase"| CO
+  CO ---|"5: update state"| PG
+  ENG ---|"6: resolve unlocks"| GATE
+  GATE ---|"7: update availability"| PG
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>The engine is the only component that talks to all the others; they don't talk to each other.</figcaption>
+  </figure>
+
+  <div class="dtype" id="e-dfd">5 · Data-flow (DFD)</div>
+  <h3>Manifest + facts → artifacts + state</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  PROV["Providers"]:::ext
+  P1(["Run phase"]):::core
+  P2(["Generate + validate doc"]):::ai
+  P3(["Resolve dependencies"]):::admin
+  D1[("workflow manifests")]:::data
+  D2[("facts · founders")]:::data
+  D3[("documents (bytea)")]:::data
+  D4[("workflow_state (JSONB)")]:::data
+  D1 --> P1
+  D2 --> P1
+  F -->|"advance"| P1
+  P1 --> P2
+  P2 --> D3
+  PROV -->|"callbacks / signed"| P2
+  P1 -->|"progress"| D4
+  D4 --> P3
+  P3 -->|"unlocks"| D4
+  P1 -->|"status"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>Documents live in <code>bytea</code>, progress in <code>JSONB</code> — both inside the one Postgres, no object store.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="kicker">Part B · What differs per workflow</div>
+  <h2>Same engine, different edges</h2>
+  <p>Each workflow's "different system design requirements" live almost entirely in <strong>which external systems it touches</strong> and <strong>what it produces</strong>. Below, one conceptual diagram per W-code (its distinct integrations), plus a signature flow for the three most distinct.</p>
+
+  <h3 id="w1">W1 · Business Formation <span style="font-weight:400;color:var(--muted);font-size:14px">— the flagship, and the only one with an irreversible deadline</span></h3>
+  <p class="purpose">Incorporate, get an EIN, auto-derive the cap table &amp; compliance calendar, and arm the 83(b) fuse. Touches the most government/provider systems.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  W1{{"W1 Formation"}}:::core
+  INC["Incorporation provider<br/>(Delaware filing)"]:::ext
+  IRS["IRS e-file<br/>(SS-4 → EIN)"]:::ext
+  SIGN["E-sign"]:::ext
+  CAP(["Auto-derive cap table,<br/>ledger, compliance calendar"]):::core
+  FUSE["83(b) deadline fuse<br/>(30 days, no extension)"]:::admin
+  DOCS[("Formation docs (bytea)")]:::data
+  W1 --> INC
+  W1 --> IRS
+  W1 --> SIGN
+  W1 --> CAP
+  CAP --> DOCS
+  W1 --> FUSE
+  FUSE -->|"escalating reminders"| NOTIF["Notifications"]:::core
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>Cap table, stock ledger, and compliance calendar are <em>derived</em> from founders + share structure, not retyped — the engine pre-fills them.</figcaption>
+  </figure>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Founder
+  participant ENG as W1 engine
+  participant AI as Doc intelligence
+  participant INC as Incorporation provider
+  participant SIGN as E-sign
+  participant W as Worker (fuse)
+  participant PG as PostgreSQL
+  U->>ENG: start formation
+  ENG->>AI: generate Articles + SS-4 (grounded in facts)
+  AI->>PG: store drafts (bytea)
+  ENG->>INC: submit Delaware filing
+  INC-->>ENG: filing accepted (async, days)
+  ENG->>SIGN: send docs for signature
+  SIGN-->>ENG: signed
+  ENG->>PG: store signed (bytea), UPDATE state
+  Note over ENG,W: restricted-stock grant → arm 83(b)
+  ENG->>W: schedule 83(b) fuse (30-day)
+  W->>PG: read acknowledgement daily
+  W-->>U: escalating reminders until acknowledged
+    </pre>
+    <figcaption>The fuse is a durable, worker-driven timer — the one place "best-effort" delivery is not acceptable.</figcaption>
+  </figure>
+
+  <h3 id="w2">W2 · IP &amp; Legal</h3>
+  <p class="purpose">Document-generation heavy: IP assignment agreements, NDAs, and the DPA for EU customers — all grounded, validated, and e-signed.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  W2{{"W2 IP & Legal"}}:::core
+  AI["Doc intelligence<br/>(IP assignment, NDA, DPA)"]:::ai
+  SIGN["E-sign"]:::ext
+  CLAUSE[("Clause / template library (bytea)")]:::data
+  OUT[("Signed agreements (bytea)")]:::data
+  W2 --> AI
+  AI --> CLAUSE
+  AI --> SIGN
+  SIGN --> OUT
+  W2 -.depends on.-> W1["W1 formed"]:::core
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>W2 is the purest test of the document pipeline: almost every phase is generate → validate → sign. This is also the workflow external lawyers are typically scoped into (see <a href="access-sharing.html">Access</a>).</figcaption>
+  </figure>
+
+  <h3 id="w3">W3 · Financial Infrastructure <span style="font-weight:400;color:var(--muted);font-size:14px">— custom Connect / Configure / Generate tracker</span></h3>
+  <p class="purpose">Integration-heavy: connect banking and payments, configure books/tax, then generate. Its UI replaces the generic phase tracker.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  W3{{"W3 Financial"}}:::core
+  BANK["Banking adapter"]:::ext
+  PAY["Payments adapter"]:::ext
+  CONN(["Connect → verify accounts<br/>(OAuth, scoped tokens)"]):::core
+  CFG(["Configure books / tax"]):::core
+  TOK[("Integration tokens<br/>(encrypted)")]:::admin
+  W3 --> CONN
+  CONN --> BANK
+  CONN --> PAY
+  CONN --> TOK
+  W3 --> CFG
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>W3's distinctive need is <em>credential handling</em> — scoped, encrypted, revocable provider tokens rather than document generation.</figcaption>
+  </figure>
+
+  <h3 id="w4">W4 · Tech &amp; Infrastructure <span style="font-weight:400;color:var(--muted);font-size:14px">— largely declarative / planned</span></h3>
+  <p class="purpose">Domain, hosting, and core tooling setup. Lightest external footprint; mostly checklists and links today.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  W4{{"W4 Tech"}}:::core
+  DNS["Domain / DNS"]:::ext
+  HOST["Hosting / infra"]:::ext
+  CHK(["Setup checklist +<br/>connection records"]):::core
+  STATE[("workflow_state (JSONB)")]:::data
+  W4 --> CHK
+  CHK --> DNS
+  CHK --> HOST
+  CHK --> STATE
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>W4 mostly records state and links out — a good example of a workflow that's almost entirely manifest, no custom engine work.</figcaption>
+  </figure>
+
+  <h3 id="w5">W5 · Brand &amp; Product <span style="font-weight:400;color:var(--muted);font-size:14px">— AI-generation heavy, plus a production layer</span></h3>
+  <p class="purpose">Pick a positioning "play," generate a full brand core + visual system, chat to refine, and produce real assets (wordmark, favicon, a published site).</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  W5{{"W5 Brand"}}:::core
+  PLAYS(["Match positioning plays"]):::core
+  GEN["Generate brand core +<br/>visual system"]:::ai
+  CHAT["Brand chat (refine)"]:::ai
+  RESEARCH["Web research"]:::ext
+  ASSETS(["Production layer:<br/>wordmark.svg · favicon · site"]):::core
+  BRAND[("brand state (JSONB)")]:::data
+  W5 --> PLAYS --> GEN
+  GEN --> RESEARCH
+  W5 --> CHAT
+  GEN --> BRAND
+  GEN --> ASSETS
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>W5's distinctive need: a <em>production layer</em> that turns generated brand state into servable files — the only workflow that emits public assets.</figcaption>
+  </figure>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Founder
+  participant W5 as W5 engine
+  participant AI as LLM
+  participant WEB as Web research
+  participant PG as PostgreSQL
+  U->>W5: choose a positioning play
+  W5->>WEB: research category + comparables
+  WEB-->>W5: signals
+  W5->>AI: generate brand core + visual system
+  AI-->>W5: brand state
+  W5->>PG: save brand (JSONB)
+  U->>W5: brand chat "make the voice warmer"
+  W5->>AI: refine
+  AI-->>U: updated copy
+  U->>W5: publish
+  W5->>PG: store wordmark/favicon (bytea) + site record
+    </pre>
+    <figcaption>Generated brand state (JSONB) and rendered assets (bytea) both sit in Postgres — no object store even for the published-site assets in this version.</figcaption>
+  </figure>
+
+  <h3 id="w6">W6 · People &amp; HR</h3>
+  <p class="purpose">Plan hiring roles, then generate offer letters and onboarding docs per employee, tracking onboarding + access state.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  W6{{"W6 People"}}:::core
+  ROLES(["Plan roles<br/>(priority, budget, why-not-founders)"]):::core
+  GEN["Generate offer letters +<br/>onboarding docs"]:::ai
+  SIGN["E-sign"]:::ext
+  PEOPLE[("people state (JSONB):<br/>roles[], employees[]")]:::data
+  W6 --> ROLES --> GEN
+  GEN --> SIGN
+  ROLES --> PEOPLE
+  GEN --> PEOPLE
+  W6 -.needs.-> W1["W1 formed"]:::core
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>W6's shape is a per-employee loop of generate → sign → track, with hiring rationale captured as structured state.</figcaption>
+  </figure>
+
+  <h3 id="w7">W7 · Go-To-Market <span style="font-weight:400;color:var(--muted);font-size:14px">— the most integration- and research-rich</span></h3>
+  <p class="purpose">Infer motion, research pricing &amp; target accounts, rank channels, run sequences/campaigns, track a pipeline, and export to real tools. Reads the Brand Core as inherited context.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  W7{{"W7 GTM"}}:::core
+  BRANDIN["reads Brand Core (W5)"]:::core
+  RES["Web research<br/>pricing comps · account discovery · motion"]:::ext
+  PIPE(["Pipeline: accounts, stages,<br/>attribution, guardrails"]):::core
+  DNS["Deliverability (DNS checks)"]:::ext
+  EXPORT["CSV export → CRM / email tools"]:::ext
+  GTM[("gtm state (JSONB)")]:::data
+  W7 --> BRANDIN
+  W7 --> RES
+  W7 --> PIPE
+  W7 --> DNS
+  PIPE --> EXPORT
+  PIPE --> GTM
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>W7 <em>orchestrates</em> rather than executes: it never takes the money or sends the email — it prepares the decision and exports to the tool that does.</figcaption>
+  </figure>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  P1(["Infer motion<br/>(from company object)"]):::core
+  P2(["Research pricing + accounts"]):::ai
+  P3(["Score pipeline + attribution"]):::core
+  WEB["Web / LLM"]:::ext
+  CRM["External CRM / email"]:::ext
+  D1[("gtm state (JSONB)")]:::data
+  D2[("brand core (JSONB)")]:::data
+  D2 --> P1
+  P1 --> P2
+  WEB --> P2
+  P2 -->|"proposed (not persisted until saved)"| F
+  F -->|"accept"| D1
+  D1 --> P3
+  P3 -->|"who's converting"| F
+  D1 -->|"export CSV"| CRM
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ai fill:#ECEBFB,stroke:#4338CA,color:#241b6b;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>Research results are proposed, not auto-saved — the founder accepts before anything is written, keeping the Company Object clean.</figcaption>
+  </figure>
+
+  <h3 id="w8">W8 · Operations &amp; Tooling</h3>
+  <p class="purpose">Runs across the whole company object — the ongoing operating layer (tooling, cadences) rather than a one-time setup.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  W8{{"W8 Ops"}}:::core
+  SNAP[("whole Company Object")]:::data
+  TOOLS["Tooling connections"]:::ext
+  OPS(["Operating cadences +<br/>tool registry"]):::core
+  W8 -->|"reads everything"| SNAP
+  W8 --> OPS
+  OPS --> TOOLS
+  OPS --> SNAP
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef ext fill:#FBEAE0,stroke:#C24A1E,color:#471C09;
+    </pre>
+    <figcaption>W8 is the widest reader — it takes the whole snapshot rather than one workflow's slice.</figcaption>
+  </figure>
+
+  <div class="note data"><b>Storage note.</b> Every workflow persists into the same two shapes in the one Postgres: structured progress and per-workflow blobs as <code>JSONB</code> (<code>brand</code>, <code>people</code>, <code>gtm</code>…), and generated/signed documents as <code>bytea</code>. Provider tokens (W3) get the encrypted-column treatment (see <a href="input-layer.html">Input layer</a> for the PII pattern). Shared <a href="index.html#p-deploy">deployment</a>.</div>
+</section>
+</main>
+
+<footer class="wrap">
+  StartupKit · system design v2 · Workflows W1–W8 · <a href="index.html">← all sections</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="diagram.js"></script>
+</body>
+</html>

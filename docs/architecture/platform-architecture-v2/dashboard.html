@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — System Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topbar"><div class="inner">
+  <a class="home" href="index.html">◆ System Design v2</a>
+  <a href="journey.html">Journey</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="knowledge-graph.html">Graph</a>
+  <a href="workflows.html">Workflows</a>
+  <a href="assessment.html">Assessment</a>
+  <a href="ai-cofounder.html">Co-Founder</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="input-layer.html">Inputs</a>
+  <a href="access-sharing.html">Access</a>
+  <a href="admin-console.html">Admin</a>
+  <span class="spacer"></span>
+  <span class="badge">02 · Dashboard</span>
+</div></nav>
+
+<header class="page">
+  <div class="wrap" style="padding:34px 28px 24px">
+    <div class="eyebrow">02 · Dashboard · <code>/company/[id]</code></div>
+    <h1>Dashboard</h1>
+    <p class="sub">The analytical home: a health score with its dimensions, the next actions, the compliance calendar, live risks, recommendations, and pre-action guardrails ("is it safe to hire yet?"). Every number is <strong>computed on read</strong> from the Company Object — nothing here is hand-entered.</p>
+    <div class="meta">
+      <span><b>Reads</b>&nbsp;<code>getHealth</code>, <code>getNextActions</code>, <code>getCompliance</code>, <code>getRisks</code>, <code>getRecommendations</code>, <code>checkGuardrail</code></span>
+      <span><b>Diagrams</b>&nbsp;conceptual · component · sequence · data-flow</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+<section>
+  <div class="diagram-index">
+    <a href="#conceptual">1 Conceptual</a><a href="#component">2 Component</a><a href="#sequence">3 Sequence</a><a href="#dfd">5 Data-flow</a>
+    <a href="index.html#p-deploy">6 Deployment (shared)</a>
+  </div>
+
+  <div class="dtype" id="conceptual">1 · Conceptual overview</div>
+  <h3>One object, many scores</h3>
+  <p class="purpose">The dashboard is a lens: several read-only engines each interpret the same Company Object.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  DB{{"Dashboard<br/>health · risks · compliance · next steps"}}:::core
+  CO[("Company Object")]:::data
+  ENG["Scoring & advisory engines<br/>health · compliance · risk · guardrails"]:::core
+  F -->|"views status"| DB
+  DB -->|"asks"| ENG
+  ENG -->|"reads facts + progress"| CO
+  DB -->|"'do this' routes to"| WF["Workflows"]:::core
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>No engine stores its output — the dashboard recomputes each visit, so it can never drift from the underlying facts.</figcaption>
+  </figure>
+
+  <div class="dtype" id="component">2 · Component level</div>
+  <h3>Five read-only engines behind one page</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  PAGE["Dashboard page (SSR)"]:::client
+  COSVC["Company service"]:::core
+  PG[("PostgreSQL<br/>facts · workflow_state · assessments")]:::data
+  HEALTH["Health scorer<br/>(weighted dimensions)"]:::core
+  COMP["Compliance engine<br/>(deadline calendar, 83b fuse)"]:::core
+  RISK["Risk engine"]:::core
+  REC["Recommendation engine"]:::core
+  GUARD["Guardrail checker<br/>(hire · raise · issue equity · bank · sign)"]:::core
+  PAGE --> COSVC
+  COSVC --> PG
+  COSVC --> HEALTH
+  COSVC --> COMP
+  COSVC --> RISK
+  COSVC --> REC
+  PAGE -->|"on demand"| GUARD
+  GUARD --> COSVC
+  HEALTH -->|"score + dims"| PAGE
+  COMP -->|"deadlines"| PAGE
+  RISK -->|"risks[]"| PAGE
+  REC -->|"recommendations[]"| PAGE
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>All five engines are pure functions of the Company Object; the guardrail checker is the only one triggered by a click rather than page load.</figcaption>
+  </figure>
+
+  <div class="dtype" id="sequence">3 · Sequence</div>
+  <h3>Load, then a guardrail check</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Founder
+  participant P as Dashboard page
+  participant CO as Company service
+  participant PG as PostgreSQL
+  participant EN as Scoring engines
+  participant G as Guardrail checker
+  U->>P: open /company/[id]
+  P->>CO: getCompany + health + compliance + risks + recs (parallel)
+  CO->>PG: SELECT facts, workflow_state (RLS)
+  PG-->>CO: rows
+  CO->>EN: compute all scores
+  EN-->>CO: health, risks, deadlines, recs
+  CO-->>P: bundle
+  P-->>U: dashboard
+  U->>P: "Can I hire an employee?"
+  P->>G: checkGuardrail(hire-employee)
+  G->>PG: read prerequisites (EIN, banking, payroll set up?)
+  PG-->>G: state
+  G-->>U: verdict: caution — prerequisites list
+    </pre>
+    <figcaption>Guardrails turn "should I?" into a checklist computed from what the company has actually completed.</figcaption>
+  </figure>
+
+  <div class="dtype" id="dfd">5 · Data-flow (DFD)</div>
+  <h3>Facts in, judgments out</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  P1(["Score health"]):::core
+  P2(["Build compliance calendar"]):::core
+  P3(["Detect risks"]):::core
+  P4(["Rank recommendations"]):::core
+  P5(["Check guardrail"]):::core
+  D1[("facts")]:::data
+  D2[("workflow_state")]:::data
+  D3[("assessments")]:::data
+  D1 --> P1
+  D2 --> P1
+  D3 --> P1
+  D1 --> P2
+  D2 --> P3
+  D1 --> P4
+  D3 --> P4
+  D2 --> P5
+  P1 -->|"score + dims"| F
+  P2 -->|"deadlines"| F
+  P3 -->|"risks"| F
+  P4 -->|"next best actions"| F
+  P5 -->|"safe / caution / blocked"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>Read-only end to end: five processes consume three stores and emit judgments; nothing flows back into the database.</figcaption>
+  </figure>
+
+  <div class="note data"><b>Storage note.</b> The dashboard writes nothing and adds no tables — it's the read-heavy sibling of the Input layer's write path. All reads hit the one self-managed Postgres. Shared <a href="index.html#p-deploy">deployment topology</a>.</div>
+</section>
+</main>
+
+<footer class="wrap">
+  StartupKit · system design v2 · Dashboard · <a href="index.html">← all sections</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="diagram.js"></script>
+</body>
+</html>

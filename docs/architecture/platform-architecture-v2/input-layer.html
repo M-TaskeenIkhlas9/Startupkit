@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Input Layer — System Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topbar"><div class="inner">
+  <a class="home" href="index.html">◆ System Design v2</a>
+  <a href="journey.html">Journey</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="knowledge-graph.html">Graph</a>
+  <a href="workflows.html">Workflows</a>
+  <a href="assessment.html">Assessment</a>
+  <a href="ai-cofounder.html">Co-Founder</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="input-layer.html">Inputs</a>
+  <a href="access-sharing.html">Access</a>
+  <a href="admin-console.html">Admin</a>
+  <span class="spacer"></span>
+  <span class="badge">07 · Input layer</span>
+</div></nav>
+
+<header class="page">
+  <div class="wrap" style="padding:34px 28px 24px">
+    <div class="eyebrow">07 · Input layer · <code>/company/[id]/inputs</code></div>
+    <h1>Input layer — raw facts &amp; PII</h1>
+    <p class="sub">The <strong>write path</strong> for everything hand-entered: milestones, integrations, notes, evidence, the founder profile — and the sensitive fields (EIN, SSN, provider tokens) that need stricter handling than ordinary rows. This is the one section where the storage design has real teeth.</p>
+    <div class="meta">
+      <span><b>Writes</b>&nbsp;<code>addMilestone</code>, <code>connectIntegration</code>, <code>addNote</code>, <code>addEvidence</code>, <code>setFounderProfile</code></span>
+      <span><b>Sensitive</b>&nbsp;EIN · SSN · OAuth tokens</span>
+      <span><b>Diagrams</b>&nbsp;conceptual · component · sequence · data-flow</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+<section>
+  <div class="diagram-index">
+    <a href="#conceptual">1 Conceptual</a><a href="#component">2 Component</a><a href="#sequence">3 Sequence</a><a href="#dfd">5 Data-flow</a>
+    <a href="index.html#p-deploy">6 Deployment (shared)</a>
+  </div>
+
+  <div class="dtype" id="conceptual">1 · Conceptual overview</div>
+  <h3>One write path, two sensitivity classes</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  IN{{"Input layer<br/>facts · notes · evidence · PII"}}:::core
+  CO[("Company Object<br/>ordinary fields")]:::data
+  PII[("Sensitive fields<br/>EIN · SSN · tokens (encrypted)")]:::admin
+  DERIVED["Everything downstream<br/>(dashboard, graph, workflows)"]:::core
+  F -->|"enters data"| IN
+  IN -->|"ordinary"| CO
+  IN -->|"sensitive → encrypt"| PII
+  CO --> DERIVED
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>Everything the rest of the platform reads originates here — which is why the sensitive split is enforced at the point of entry.</figcaption>
+  </figure>
+
+  <div class="dtype" id="component">2 · Component level</div>
+  <h3>Validate, split, encrypt, persist</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  UI["Input forms (client)"]:::client
+  COSVC["Company service (only writer)"]:::core
+  VAL["Validation"]:::core
+  SPLIT["Sensitivity router"]:::admin
+  ENC["Envelope encryption"]:::admin
+  KMS["Key store (KMS)"]:::admin
+  AUDIT["Audit log"]:::admin
+  PG[("PostgreSQL<br/>ordinary tables + JSONB")]:::data
+  PII[("company_pii table<br/>encrypted columns")]:::data
+  UI -->|"addNote / addEvidence / setFounderProfile / connectIntegration"| COSVC
+  COSVC --> VAL
+  VAL --> SPLIT
+  SPLIT -->|"ordinary"| PG
+  SPLIT -->|"EIN/SSN/token"| ENC
+  ENC --> KMS
+  ENC --> PII
+  COSVC -.write event.-> AUDIT
+  AUDIT --> PG
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>Sensitive fields branch to an application-layer envelope-encryption step (keys in a KMS) and land in a separate <code>company_pii</code> table with stricter access than the rest.</figcaption>
+  </figure>
+
+  <div class="dtype" id="sequence">3 · Sequence</div>
+  <h3>Saving a fact that contains an EIN</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Founder
+  participant UI as Input form
+  participant R as RBAC engine
+  participant CO as Company service
+  participant K as KMS
+  participant PG as PostgreSQL
+  participant AU as Audit log
+  U->>UI: enter EIN + a note
+  UI->>R: authorize(user, inputs, edit)
+  R-->>UI: allow
+  UI->>CO: save {note, ein}
+  CO->>CO: validate + split sensitive
+  CO->>K: get data key
+  K-->>CO: wrapped key
+  CO->>CO: encrypt EIN
+  CO->>PG: INSERT note (ordinary) + INSERT ein_encrypted (company_pii)
+  CO->>AU: append 'pii.written' event (hash-chained)
+  AU->>PG: store event
+  CO-->>U: saved
+    </pre>
+    <figcaption>The EIN is encrypted before it reaches Postgres — a leaked DB credential alone never yields the plaintext.</figcaption>
+  </figure>
+
+  <div class="dtype" id="dfd">5 · Data-flow (DFD)</div>
+  <h3>Entry, split by sensitivity</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  P1(["Validate input"]):::core
+  P2(["Route by sensitivity"]):::admin
+  P3(["Encrypt (envelope)"]):::admin
+  D1[("facts · notes · evidence")]:::data
+  D2[("company_pii (encrypted)")]:::data
+  D3[("audit_log")]:::data
+  K["KMS"]:::admin
+  F -->|"raw input"| P1
+  P1 --> P2
+  P2 -->|"ordinary"| D1
+  P2 -->|"EIN/SSN/token"| P3
+  P3 --> K
+  P3 --> D2
+  P1 -.event.-> D3
+  P3 -.event.-> D3
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef admin fill:#EEE7FC,stroke:#6B3FD6,color:#2B1458;
+    </pre>
+    <figcaption>Two destinations, one audit trail. The split is the whole security story: ordinary data and secrets never share a table.</figcaption>
+  </figure>
+
+  <div class="note warn"><b>Why this matters even on self-managed Postgres.</b> A platform that captures EIN/SSN to fill formation and tax forms sits in tax-preparer territory under the FTC Safeguards Rule — encryption at rest and in transit isn't optional. Disk encryption alone doesn't help if a DB credential leaks, so PII gets <em>application-layer</em> envelope encryption with keys held outside the database. There's no fixed legal retention period, so we set and enforce one (e.g. purge raw EIN/SSN after filing, or on request) — easy because it lives in its own table. Shared <a href="index.html#p-deploy">deployment</a>.</div>
+</section>
+</main>
+
+<footer class="wrap">
+  StartupKit · system design v2 · Input layer · <a href="index.html">← all sections</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="diagram.js"></script>
+</body>
+</html>

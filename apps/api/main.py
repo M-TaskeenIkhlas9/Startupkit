@@ -6,16 +6,28 @@ Endpoints back the founder app's intake wizard and dashboard:
   GET  /api/companies/{id}/health  -> 0-100 Health Score across 8 weighted dimensions
   GET  /api/companies/{id}/next    -> ranked next-best-actions (Phase 1 dependency heuristics)
 
-Storage is the in-memory event store today (local-only, zero infra). Swapping to the Postgres
-event store is a one-line wiring change — the service depends on the EventStore Protocol.
-Run: `uv run uvicorn apps.api.main:app --reload`
+Storage: InMemoryEventStore locally/Docker, or RedisEventStore (Vercel KV) when KV_REST_API_URL
+is set — both implement the same EventStore Protocol, chosen in _build_store() below.
+Run locally: `uv run uvicorn apps.api.main:app --reload`
+
+On Vercel, this file is deployed via the ASGI @vercel/python builder (see vercel.json at the repo
+root) with `includeFiles: ["src/**"]` bundling the src/startupkit package alongside this file —
+the sys.path insert immediately below makes `from startupkit...` resolve in that environment
+without the project needing to be pip-installed (it works locally too; the insert is a no-op
+there since the editable install already puts src/ on the path).
 """
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+_SRC = Path(__file__).resolve().parents[2] / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
 import base64
 import os
-from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,6 +47,7 @@ from startupkit.core.company_object.ops_types import OpsState
 from startupkit.core.company_object.people_types import PeopleState
 from startupkit.core.company_object.projections.health_score import HealthScore
 from startupkit.core.company_object.projections.snapshot import CompanySnapshot, DocumentRecord
+from startupkit.core.company_object.store import EventStore
 from startupkit.core.services.advisor import SUGGESTED_QUESTIONS, Answer, ask
 from startupkit.core.services.brand import (
     BrandHealth,
@@ -113,12 +126,6 @@ from startupkit.workflows.catalog import (
 
 app = FastAPI(title="StartupKit API", version="0.1.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 def _load_dotenv() -> None:
     """Minimal .env loader (no dependency): set keys from a gitignored .env if present."""
@@ -134,7 +141,35 @@ def _load_dotenv() -> None:
 
 
 _load_dotenv()
-_store = InMemoryEventStore()
+
+# CORS_ORIGINS is a comma-separated list, e.g. "https://startupkit.vercel.app,https://app.startupkit.com".
+# Defaults to local dev only so nothing is wide-open unless explicitly configured.
+_cors_origins = [
+    o.strip()
+    for o in os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
+    if o.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+def _build_store() -> EventStore:
+    """Redis (Vercel KV) if attached — required there, since InMemoryEventStore's dict doesn't
+    survive Vercel's serverless instance fan-out/cold starts. Falls back to in-memory otherwise
+    (local dev, Docker) where one long-lived process makes that a non-issue."""
+    kv_url = os.environ.get("KV_REST_API_URL")
+    kv_token = os.environ.get("KV_REST_API_TOKEN")
+    if kv_url and kv_token:
+        from startupkit.core.company_object.redis_store import RedisEventStore
+
+        return RedisEventStore(kv_url, kv_token)
+    return InMemoryEventStore()
+
+
+_store = _build_store()
 _service = CompanyObjectService(_store)
 
 
@@ -734,7 +769,14 @@ async def list_documents(company_id: str) -> list[DocumentRecord]:
 
 # --- Founder-completed documents: fill the template, or upload a copy ----------------------------
 
-_UPLOAD_DIR = Path(__file__).resolve().parents[2] / "var" / "uploads"
+# Vercel's filesystem is read-only except /tmp (present via the VERCEL env var it auto-sets).
+# /tmp there is ephemeral per-instance — same caveat as the event store without Redis attached —
+# but at least the write succeeds instead of silently no-op'ing under the read-only-fs except below.
+_UPLOAD_DIR = (
+    Path("/tmp/uploads")
+    if os.environ.get("VERCEL")
+    else Path(__file__).resolve().parents[2] / "var" / "uploads"
+)
 
 
 class FillRequest(BaseModel):

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Journey — System Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topbar"><div class="inner">
+  <a class="home" href="index.html">◆ System Design v2</a>
+  <a href="journey.html">Journey</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="knowledge-graph.html">Graph</a>
+  <a href="workflows.html">Workflows</a>
+  <a href="assessment.html">Assessment</a>
+  <a href="ai-cofounder.html">Co-Founder</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="input-layer.html">Inputs</a>
+  <a href="access-sharing.html">Access</a>
+  <a href="admin-console.html">Admin</a>
+  <span class="spacer"></span>
+  <span class="badge">01 · Journey</span>
+</div></nav>
+
+<header class="page">
+  <div class="wrap" style="padding:34px 28px 24px">
+    <div class="eyebrow">01 · Journey · <code>/company/[id]/journey</code></div>
+    <h1>Journey</h1>
+    <p class="sub">The antidote to a complicated home screen: one ordered spine of milestones with a single "Do this next." It's a <strong>read-only projection</strong> — the journey isn't stored, it's derived from where the company already is across W1–W8.</p>
+    <div class="meta">
+      <span><b>Reads</b>&nbsp;<code>getCompany</code>, <code>getJourney</code></span>
+      <span><b>Writes</b>&nbsp;nothing — pure projection</span>
+      <span><b>Diagrams</b>&nbsp;conceptual · component · sequence · data-flow</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+<section>
+  <div class="diagram-index">
+    <a href="#conceptual">1 Conceptual</a><a href="#component">2 Component</a><a href="#sequence">3 Sequence</a><a href="#dfd">5 Data-flow</a>
+    <a href="index.html#p-deploy">6 Deployment (shared)</a>
+  </div>
+
+  <div class="dtype" id="conceptual">1 · Conceptual overview</div>
+  <h3>A guided path, not a dashboard</h3>
+  <p class="purpose">What Journey is for whom, and where its content comes from.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  J{{"Journey<br/>ordered milestones + one next step"}}:::core
+  CO[("Company Object")]:::data
+  WF["Workflows W1–W8"]:::core
+  CASE["Case-study library<br/>(winner moves)"]:::advisor
+  F -->|"opens journey"| J
+  J -->|"reads current progress"| CO
+  J -->|"'Do this next' routes to"| WF
+  J -->|"each node cites"| CASE
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef advisor fill:#FBEEDA,stroke:#B4740E,color:#402A05;
+    </pre>
+    <figcaption>Journey never owns data — it reads the Company Object and points at the next workflow.</figcaption>
+  </figure>
+
+  <div class="dtype" id="component">2 · Component level</div>
+  <h3>Server component → projection → graph</h3>
+  <p class="purpose">The journey page is server-rendered; a projection turns raw workflow progress into ordered, status-tagged nodes.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  PAGE["Journey page (SSR)"]:::client
+  GRAPH["JourneyGraph component<br/>(client, interactive)"]:::client
+  COSVC["Company service"]:::core
+  PROJ["Journey projection<br/>derive nodes · current_index · headline · next_action"]:::core
+  CATALOG["Case-study catalog"]:::advisor
+  PG[("PostgreSQL<br/>workflow_state · assessments · facts")]:::data
+  PAGE -->|"getCompany + getJourney"| COSVC
+  COSVC --> PROJ
+  PROJ -->|"read progress"| PG
+  PROJ -->|"attach winner_move"| CATALOG
+  PROJ -->|"nodes[]"| PAGE
+  PAGE --> GRAPH
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+  classDef advisor fill:#FBEEDA,stroke:#B4740E,color:#402A05;
+    </pre>
+    <figcaption>The projection is the whole feature — everything else is read or render.</figcaption>
+  </figure>
+
+  <div class="dtype" id="sequence">3 · Sequence</div>
+  <h3>Loading the journey</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Founder
+  participant P as Journey page (SSR)
+  participant R as RBAC engine
+  participant CO as Company service
+  participant PG as PostgreSQL
+  participant PR as Journey projection
+  U->>P: open /journey
+  P->>R: authorize(user, journey, view)
+  R-->>P: allow
+  P->>CO: getCompany + getJourney
+  CO->>PG: SELECT workflow_state, assessments, facts (RLS)
+  PG-->>CO: rows
+  CO->>PR: derive journey
+  PR-->>CO: nodes, current_index, next_action
+  CO-->>P: snapshot + journey
+  P-->>U: spine + "Do this next → W2"
+  U->>P: click "Do this next"
+  P-->>U: redirect to /workflows/W2
+    </pre>
+    <figcaption>One round-trip builds the page; the CTA is just a computed link into the workflow engine.</figcaption>
+  </figure>
+
+  <div class="dtype" id="dfd">5 · Data-flow (DFD)</div>
+  <h3>Progress in, ordered path out</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  P1(["Derive journey<br/>(order · status · current)"]):::core
+  P2(["Pick next action"]):::core
+  D1[("workflow_state")]:::data
+  D2[("assessments")]:::data
+  D3[("case studies")]:::data
+  D1 --> P1
+  D2 --> P1
+  P1 -->|"nodes[]"| P2
+  D3 -->|winner move| P2
+  P1 -->|"progress %, headline"| F
+  P2 -->|"next step + link"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>No store is written — data flows one way, from progress tables to the founder's screen.</figcaption>
+  </figure>
+
+  <div class="note data"><b>Storage note.</b> Journey adds no tables. It reads <code>workflow_state</code> (JSONB) and <code>assessments</code> from the one Postgres instance and computes everything at request time. Deployment is the <a href="index.html#p-deploy">shared platform topology</a>.</div>
+</section>
+</main>
+
+<footer class="wrap">
+  StartupKit · system design v2 · Journey · <a href="index.html">← all sections</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="diagram.js"></script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge Graph — System Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topbar"><div class="inner">
+  <a class="home" href="index.html">◆ System Design v2</a>
+  <a href="journey.html">Journey</a>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="knowledge-graph.html">Graph</a>
+  <a href="workflows.html">Workflows</a>
+  <a href="assessment.html">Assessment</a>
+  <a href="ai-cofounder.html">Co-Founder</a>
+  <a href="intelligence.html">Intelligence</a>
+  <a href="input-layer.html">Inputs</a>
+  <a href="access-sharing.html">Access</a>
+  <a href="admin-console.html">Admin</a>
+  <span class="spacer"></span>
+  <span class="badge">03 · Knowledge graph</span>
+</div></nav>
+
+<header class="page">
+  <div class="wrap" style="padding:34px 28px 24px">
+    <div class="eyebrow">03 · Knowledge graph · <code>/company/[id]/graph</code></div>
+    <h1>Knowledge graph</h1>
+    <p class="sub">The Company Object made visible: a central node ringed by clusters — Founder, Idea, Founders, Domains, Documents, Your answers, Saved facts, Inputs — each a <strong>projection</strong> of the same underlying record. Clicking a cluster inspects its leaves. It's a view, not a store.</p>
+    <div class="meta">
+      <span><b>Reads</b>&nbsp;<code>getCompany</code> → builds clusters client-side</span>
+      <span><b>Writes</b>&nbsp;nothing</span>
+      <span><b>Diagrams</b>&nbsp;conceptual · component · communication · data-flow</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+<section>
+  <div class="diagram-index">
+    <a href="#conceptual">1 Conceptual</a><a href="#component">2 Component</a><a href="#comm">4 Communication</a><a href="#dfd">5 Data-flow</a>
+    <a href="index.html#p-deploy">6 Deployment (shared)</a>
+  </div>
+
+  <div class="dtype" id="conceptual">1 · Conceptual overview</div>
+  <h3>Everything hangs off one object</h3>
+  <p class="purpose">The graph's structure <em>is</em> the concept: one company object, many derived clusters.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  CO(("Company Object")):::data
+  FOUNDER["Founder"]:::client
+  IDEA["Idea"]:::core
+  FOUNDERS["Founders / cap table"]:::core
+  DOMAINS["Domains"]:::core
+  DOCS["Documents"]:::core
+  ANSWERS["Assessment answers"]:::core
+  FACTS["Saved facts"]:::core
+  INPUTS["Inputs (milestones, notes, evidence)"]:::core
+  CO --- IDEA
+  CO --- FOUNDERS
+  CO --- DOMAINS
+  CO --- DOCS
+  CO --- ANSWERS
+  CO --- FACTS
+  CO --- INPUTS
+  FOUNDER -->|"clicks a cluster to inspect"| CO
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>The picture on screen and the data model are the same shape — that's the point of the feature.</figcaption>
+  </figure>
+
+  <div class="dtype" id="component">2 · Component level</div>
+  <h3>One fetch, a client-side cluster builder</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TB
+  PAGE["Graph page (SSR)"]:::client
+  KG["KnowledgeGraph component (client)"]:::client
+  BUILD["buildClusters()<br/>founder · idea · founders · domains ·<br/>documents · answers · facts · inputs"]:::core
+  CAT["Assessment catalog<br/>(qid → question text)"]:::core
+  COSVC["Company service"]:::core
+  PG[("PostgreSQL<br/>whole snapshot")]:::data
+  PAGE -->|"getCompany"| COSVC
+  COSVC --> PG
+  COSVC -->|"snapshot"| PAGE
+  PAGE --> KG
+  KG --> BUILD
+  BUILD -->|"label answers"| CAT
+  BUILD -->|"clusters + leaves"| KG
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>All the clustering happens in the browser from one snapshot — the server just returns the Company Object.</figcaption>
+  </figure>
+
+  <div class="dtype" id="comm">4 · Communication</div>
+  <h3>Interaction, message-numbered</h3>
+  <p class="purpose">Emphasizes that after the initial load, cluster selection is entirely local — no further server calls.</p>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  U["Founder"]:::client
+  PAGE["Graph page"]:::client
+  COSVC["Company service"]:::core
+  PG[("PostgreSQL")]:::data
+  KG["Cluster builder + inspector"]:::core
+  U ---|"1: open /graph"| PAGE
+  PAGE ---|"2: getCompany"| COSVC
+  COSVC ---|"3: SELECT (RLS)"| PG
+  PAGE ---|"4: build clusters"| KG
+  U ---|"5: click cluster (local only)"| KG
+  KG ---|"6: show leaves"| U
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>Messages 5–6 never leave the browser — the inspector reads already-loaded state, which is why the graph feels instant.</figcaption>
+  </figure>
+
+  <div class="dtype" id="dfd">5 · Data-flow (DFD)</div>
+  <h3>Snapshot in, clusters out</h3>
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  F["Founder"]:::client
+  P1(["Fetch snapshot"]):::core
+  P2(["Build clusters<br/>+ count leaves"]):::core
+  P3(["Inspect selected cluster"]):::core
+  D1[("companies · founders · domains")]:::data
+  D2[("documents")]:::data
+  D3[("assessments · facts")]:::data
+  D1 --> P1
+  D2 --> P1
+  D3 --> P1
+  P1 -->|"snapshot"| P2
+  P2 -->|"clusters[]"| F
+  F -->|"select"| P3
+  P2 --> P3
+  P3 -->|"leaves"| F
+  classDef client fill:#E5EFFC,stroke:#1D5FBF,color:#0B2A55;
+  classDef core fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+  classDef data fill:#E2F3F4,stroke:#0E7C86,color:#063f45;
+    </pre>
+    <figcaption>Three groups of tables feed one fetch; the rest is a pure client-side transform.</figcaption>
+  </figure>
+
+  <div class="note data"><b>Storage note.</b> The graph is the clearest illustration of the whole storage philosophy — one object, many views. It reads across several tables of the single Postgres instance and derives structure at render time. Shared <a href="index.html#p-deploy">deployment</a>.</div>
+</section>
+</main>
+
+<footer class="wrap">
+  StartupKit · system design v2 · Knowledge graph · <a href="index.html">← all sections</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="diagram.js"></script>
+</body>
+</html>

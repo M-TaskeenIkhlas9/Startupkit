@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StartupKit — Platform Architecture v1 (Access &amp; Data)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#151a24; --ink-soft:#4b5566; --muted:#6b7485;
+  --paper:#f7f8fb; --panel:#ffffff; --panel-2:#eef0f6; --line:#dfe3ec;
+
+  --founder:#0F6E56; --founder-50:#E1F5EE; --founder-900:#04342C;
+  --team:#1D5FBF; --team-50:#E5EFFC; --team-900:#0B2A55;
+  --admin:#6B3FD6; --admin-50:#EEE7FC; --admin-900:#2B1458;
+  --advisor:#B4740E; --advisor-50:#FBEEDA; --advisor-900:#402A05;
+  --external:#C24A1E; --external-50:#FBEAE0; --external-900:#471C09;
+
+  --data:#0E7C86; --data-50:#E2F3F4;
+  --ai:#4338CA; --ai-50:#ECEBFB;
+  --allow:#2E8B57; --allow-50:#E6F5EC;
+  --deny:#C0392B; --deny-50:#FBEAE8;
+
+  --disp:"Space Grotesk",sans-serif; --body:"Inter",sans-serif; --mono:"IBM Plex Mono",monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.62;font-size:16px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:0 28px}
+svg{display:block;width:100%;height:auto;font-family:var(--body)}
+.t{font-size:14px;font-weight:600}
+.ts{font-size:11.5px}
+.bt{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.04em}
+
+header{border-top:6px solid var(--founder);background:var(--panel);border-bottom:1px solid var(--line)}
+.rail{height:6px;display:flex}
+.rail i{display:block}
+.eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--founder);font-weight:600}
+h1{font-family:var(--disp);font-weight:700;font-size:44px;line-height:1.06;letter-spacing:-.02em;margin:.35em 0 .2em}
+.sub{font-size:18px;color:var(--ink-soft);max-width:66ch;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.meta b{color:var(--ink);font-weight:600}
+
+nav.toc{display:flex;flex-wrap:wrap;gap:6px 14px;padding:16px 0;font-family:var(--mono);font-size:12px}
+nav.toc a{color:var(--ink-soft);text-decoration:none;border-bottom:1px dashed var(--line)}
+nav.toc a:hover{color:var(--founder);border-color:var(--founder)}
+
+section{padding:44px 0;border-bottom:1px solid var(--line)}
+.kicker{font-family:var(--mono);font-size:12.5px;font-weight:600;letter-spacing:.1em;color:var(--advisor);text-transform:uppercase}
+h2{font-family:var(--disp);font-weight:600;font-size:29px;line-height:1.12;letter-spacing:-.015em;margin:.25em 0 .5em}
+h3{font-family:var(--disp);font-weight:600;font-size:18px;margin:1.6em 0 .4em;letter-spacing:-.01em}
+p{margin:.7em 0;color:var(--ink-soft)}
+p strong,li strong{color:var(--ink);font-weight:600}
+code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);padding:.1em .4em;border-radius:5px;color:var(--founder-900)}
+ul{margin:.6em 0;padding-left:0;list-style:none}
+ul li{position:relative;padding-left:22px;margin:.42em 0;color:var(--ink-soft)}
+ul li::before{content:"";position:absolute;left:2px;top:11px;width:7px;height:7px;border-radius:2px;background:var(--founder)}
+ul.admin li::before{background:var(--admin)}
+ul.team li::before{background:var(--team)}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin:6px 0 16px;font-size:12.5px;color:var(--ink-soft);font-family:var(--mono)}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.sw{width:13px;height:13px;border-radius:3px;display:inline-block}
+
+figure{margin:22px 0 6px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 18px}
+figcaption{font-size:13px;color:var(--muted);margin-top:10px;text-align:center;font-style:italic}
+
+.note{border-left:3px solid var(--advisor);background:var(--advisor-50);padding:12px 16px;border-radius:0 8px 8px 0;margin:18px 0;font-size:14.5px}
+.note b{color:var(--advisor-900)}
+.note.open{border-left-color:var(--external);background:var(--external-50)}
+.note.open b{color:var(--external-900)}
+
+.tbl{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.6px}
+.tbl th{font-family:var(--mono);font-size:11.5px;letter-spacing:.03em;text-transform:uppercase;text-align:left;padding:9px 10px;border-bottom:2px solid var(--ink);color:var(--ink)}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--line);color:var(--ink-soft);vertical-align:top}
+.tbl tr td:first-child{font-weight:600;color:var(--ink)}
+.tbl.center td, .tbl.center th{text-align:center}
+.tbl.center tr td:first-child{text-align:left}
+.pill{font-family:var(--mono);font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:20px;white-space:nowrap;display:inline-block}
+.p-none{background:var(--panel-2);color:var(--muted)}
+.p-view{background:var(--advisor-50);color:var(--advisor-900)}
+.p-edit{background:var(--team-50);color:var(--team-900)}
+.p-manage{background:var(--founder-50);color:var(--founder-900)}
+.p-admin{background:var(--admin-50);color:var(--admin-900)}
+.p-rec{background:var(--allow-50);color:#1d5e3d;font-weight:700}
+
+.steps{counter-reset:s;margin:16px 0}
+.step{counter-increment:s;position:relative;padding:14px 0 14px 56px;border-bottom:1px solid var(--line)}
+.step:last-child{border-bottom:0}
+.step::before{content:counter(s,decimal-leading-zero);position:absolute;left:0;top:14px;font-family:var(--mono);font-size:14px;font-weight:600;color:var(--advisor);background:var(--advisor-50);width:38px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:7px}
+.step b{font-family:var(--disp);font-weight:600;color:var(--ink);font-size:16px}
+
+footer{padding:34px 0 60px;color:var(--muted);font-family:var(--mono);font-size:12.5px}
+a{color:var(--founder);text-decoration:none;border-bottom:1px solid var(--line)}
+
+@media (max-width:640px){h1{font-size:32px}h2{font-size:23px}.wrap{padding:0 18px}}
+@media print{
+  body{background:#fff}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  section{break-inside:avoid}
+  figure{break-inside:avoid}
+  nav.toc{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="rail"><i style="flex:1;background:var(--founder)"></i><i style="flex:1;background:var(--team)"></i><i style="flex:1;background:var(--admin)"></i><i style="flex:1;background:var(--advisor)"></i><i style="flex:1;background:var(--external)"></i></div>
+  <div class="wrap" style="padding-top:40px;padding-bottom:16px">
+    <div class="eyebrow">StartupKit · Platform Architecture</div>
+    <h1>Who sees what, and where it's stored.</h1>
+    <p class="sub">A fresh architecture pass over the app actually running today — the Next.js workspace at <code>company/[id]/*</code> — extended with the two things it doesn't have yet: real access control across five kinds of users, and a storage layer that can hold both structured company data and generated documents.</p>
+    <div class="meta">
+      <span><b>Grounded in</b>&nbsp;the running :3200 UI (routes, data shapes, workflows W1–W8)</span>
+      <span><b>Status</b>&nbsp;v1 draft — HTML for review, eraser.io port after sign-off</span>
+      <span><b>Scope</b>&nbsp;independent of prior /docs architecture — new decisions, drawn fresh</span>
+      <span><b>Principles</b>&nbsp;maintainable · extensible · component-swappable</span>
+    </div>
+  </div>
+  <nav class="toc wrap">
+    <a href="#surface">01 Surface</a>
+    <a href="#positioning">02 Positioning</a>
+    <a href="#stack">03 System</a>
+    <a href="#data">04 Data layer</a>
+    <a href="#rbac">05 RBAC model</a>
+    <a href="#roles">06 Role views</a>
+    <a href="#ai">07 AI &amp; documents</a>
+    <a href="#security">08 Security</a>
+    <a href="#open">09 Open decisions</a>
+    <a href="diagrams.html">↳ 5 system diagrams</a>
+    <a href="ui-access-sharing.html">↳ Access &amp; sharing (mock)</a>
+    <a href="ui-admin-console.html">↳ Admin console (mock)</a>
+  </nav>
+</header>
+
+<main class="wrap">
+
+<section id="surface">
+  <div class="kicker">§01 · Starting point</div>
+  <h2>What the running app already is</h2>
+  <p>Before designing access control or storage, here's the actual surface it has to cover — read directly from <code>apps/web</code> at <code>C:\Users\Huzaifa\startupkit-taskeen-view</code>. Two sections marked <em>proposed</em> don't exist in the UI yet; they're the minimum new surface RBAC needs (an access/sharing panel, and an internal admin console).</p>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--founder-50);border:1.5px solid var(--founder)"></i>Live today</span>
+    <span><i class="sw" style="background:#fff;border:1.5px dashed var(--external)"></i>Proposed addition</span>
+  </div>
+  <figure>
+    <svg viewBox="0 0 920 250" role="img" aria-label="Product surface map: pre-auth marketing pages and the per-company workspace">
+      <rect x="20" y="14" width="880" height="70" rx="12" fill="var(--panel-2)" stroke="var(--line)"/>
+      <text class="bt" x="36" y="34" fill="var(--ink-soft)">PRE-AUTH · (marketing)</text>
+      <g fill="#fff">
+        <rect x="36" y="42" width="200" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="248" y="42" width="200" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="460" y="42" width="200" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="672" y="42" width="212" height="34" rx="7" stroke="var(--line)"/>
+      </g>
+      <g class="t" text-anchor="middle" fill="var(--ink)">
+        <text x="136" y="63">Landing</text>
+        <text x="348" y="63">Intake</text>
+        <text x="560" y="63">Onboarding</text>
+        <text x="778" y="63">Validate (AI chat)</text>
+      </g>
+
+      <rect x="20" y="98" width="880" height="140" rx="12" fill="var(--founder-50)" stroke="var(--founder)"/>
+      <text class="bt" x="36" y="118" fill="var(--founder-900)">COMPANY WORKSPACE · company/[id]/*</text>
+      <g fill="#fff">
+        <rect x="36" y="126" width="164" height="36" rx="7" stroke="var(--line)"/>
+        <rect x="212" y="126" width="164" height="36" rx="7" stroke="var(--line)"/>
+        <rect x="388" y="126" width="164" height="36" rx="7" stroke="var(--line)"/>
+        <rect x="564" y="126" width="164" height="36" rx="7" stroke="var(--line)"/>
+        <rect x="740" y="126" width="164" height="36" rx="7" stroke="var(--line)"/>
+      </g>
+      <g class="t" text-anchor="middle" fill="var(--ink)">
+        <text x="118" y="148">Journey</text>
+        <text x="294" y="148">Dashboard</text>
+        <text x="470" y="148">Knowledge graph</text>
+        <text x="646" y="148">Workflows W1–W8</text>
+        <text x="822" y="148">Assessment</text>
+      </g>
+      <g fill="#fff">
+        <rect x="36" y="188" width="200" height="36" rx="7" stroke="var(--line)"/>
+        <rect x="248" y="188" width="200" height="36" rx="7" stroke="var(--line)"/>
+      </g>
+      <g fill="#fff" stroke-dasharray="4 3">
+        <rect x="460" y="188" width="200" height="36" rx="7" stroke="var(--external)"/>
+        <rect x="672" y="188" width="212" height="36" rx="7" stroke="var(--external)"/>
+      </g>
+      <g class="t" text-anchor="middle" fill="var(--ink)">
+        <text x="136" y="210">AI Co-Founder</text>
+        <text x="348" y="210">Input layer</text>
+        <text x="560" y="210" fill="var(--external-900)">Access &amp; sharing *</text>
+        <text x="778" y="210" fill="var(--external-900)">Admin console *</text>
+      </g>
+    </svg>
+    <figcaption>Every box below becomes a scopeable resource in §05 — sections a role can be granted or denied, and workflows can be scoped even further, per W-code.</figcaption>
+  </figure>
+  <p style="font-size:14px;color:var(--muted)">Underlying data today is one <code>CompanySnapshot</code> per company — founders[], workflows[], documents[], assessments{}, facts{}, plus per-workflow sub-state for Brand (W5), People (W6), GTM (W7). No auth, no roles, no multi-user concept exists in the code yet — everything from §05 onward is new design, not a description of what's built.</p>
+  <p style="font-size:14px;color:var(--muted)">The two proposed screens are mocked up as real pages, not just boxes on this diagram: <a href="ui-access-sharing.html">Access &amp; sharing →</a> and <a href="ui-admin-console.html">Admin console →</a>.</p>
+</section>
+
+<section id="positioning">
+  <div class="kicker">§02 · Why this needs more than one user role</div>
+  <h2>What the adjacent tools don't do</h2>
+  <p>The nearest comparisons are single-purpose: they don't need multi-role access because they don't span a company's whole operating life.</p>
+  <table class="tbl">
+    <thead><tr><th>Product</th><th>Scope</th><th>Data model</th><th>Who else gets access</th></tr></thead>
+    <tbody>
+      <tr><td>Stripe Atlas</td><td>Incorporation + basic banking/Stripe setup — a one-time transaction</td><td>Formation record, mostly stateless after issuance</td><td>Nobody by design — single founder, single sitting</td></tr>
+      <tr><td>Tailor Brands</td><td>LLC/brand formation for SMBs — templated, DIY</td><td>Per-order forms, no persistent company object</td><td>No collaborator model</td></tr>
+      <tr><td>Fondo</td><td>Bookkeeping/tax for startups — ongoing but finance-only</td><td>Ledger + filings, accountant-facing on their side</td><td>An accountant sees your books; not a shared platform</td></tr>
+      <tr><td><strong>StartupKit</strong></td><td>Full lifecycle — formation → legal → finance → brand → people → GTM → ops, continuously</td><td>One persistent company object touched by every workflow</td><td>Founders, teammates, internal support, investors/advisors, external lawyers/accountants — <em>at the same time, on the same record</em></td></tr>
+    </tbody>
+  </table>
+  <p>That last column is the actual architectural driver: because one company object is shared by many domains and many humans who shouldn't see the same slice of it, access control isn't a login gate — it's a first-class part of the data model, checked per resource on every read and write.</p>
+</section>
+
+<section id="stack">
+  <div class="kicker">§03 · System at a glance</div>
+  <h2>Seven layers, access checked at the edge and enforced at the data layer</h2>
+  <p>Three properties are load-bearing across every layer below, because this platform has to outlive its first five roles, first six integrations, and first database choice:</p>
+  <ul>
+    <li><strong>Maintainable</strong> — each band below is one bounded service with one job. A bug in the AI Co-Founder service cannot corrupt Company data; it can only call the Company service's interface, same as any other client.</li>
+    <li><strong>Extensible</strong> — roles (§05), workflows (W1–W8 today, more later), and integrations (§03 bottom band) are all rows in a table or files in a manifest, not branches in code. Adding a sixth role or a ninth workflow is a data change and a UI update, not a redesign.</li>
+    <li><strong>Component-swappable</strong> — every external dependency (incorporation provider, e-sign vendor, LLM, even Postgres-vs-managed-Postgres) sits behind a narrow interface the rest of the system calls generically. Swapping DocuSign for another e-sign vendor, or Anthropic for another model, touches one adapter, not the workflow or document logic that calls it.</li>
+  </ul>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--founder-50);border:1.5px solid var(--founder)"></i>Client surfaces</span>
+    <span><i class="sw" style="background:var(--admin-50);border:1.5px solid var(--admin)"></i>Access &amp; edge</span>
+    <span><i class="sw" style="background:#fff;border:1.5px solid var(--line)"></i>Application services</span>
+    <span><i class="sw" style="background:var(--ai-50);border:1.5px solid var(--ai)"></i>AI / document intelligence</span>
+    <span><i class="sw" style="background:var(--data-50);border:1.5px solid var(--data)"></i>Data &amp; storage</span>
+    <span><i class="sw" style="background:var(--advisor-50);border:1.5px solid var(--advisor)"></i>Integrations</span>
+  </div>
+  <figure>
+    <svg viewBox="0 0 920 730" role="img" aria-label="Seven layer system architecture from clients down to integrations">
+      <!-- A: clients -->
+      <rect x="20" y="14" width="880" height="70" rx="12" fill="var(--founder-50)" stroke="var(--founder)"/>
+      <text class="bt" x="36" y="34" fill="var(--founder-900)">CLIENTS</text>
+      <g fill="#fff">
+        <rect x="36" y="42" width="280" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="328" y="42" width="280" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="620" y="42" width="264" height="34" rx="7" stroke="var(--line)"/>
+      </g>
+      <g class="t" text-anchor="middle" fill="var(--ink)">
+        <text x="176" y="63">Founder &amp; team web app</text>
+        <text x="468" y="63">Advisor / external portal (scoped)</text>
+        <text x="752" y="63">Internal admin console</text>
+      </g>
+
+      <!-- B: access edge -->
+      <rect x="20" y="98" width="880" height="70" rx="12" fill="var(--admin-50)" stroke="var(--admin)"/>
+      <text class="bt" x="36" y="118" fill="var(--admin-900)">ACCESS EDGE</text>
+      <g fill="#fff">
+        <rect x="36" y="126" width="280" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="328" y="126" width="280" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="620" y="126" width="264" height="34" rx="7" stroke="var(--line)"/>
+      </g>
+      <g class="t" text-anchor="middle" fill="var(--ink)">
+        <text x="176" y="147">API gateway</text>
+        <text x="468" y="147">Auth (session / OIDC)</text>
+        <text x="752" y="147">RBAC policy engine</text>
+      </g>
+
+      <!-- C: application services -->
+      <rect x="20" y="182" width="880" height="76" rx="12" fill="#fff" stroke="var(--line)" stroke-width="1.5"/>
+      <text class="bt" x="36" y="202" fill="var(--ink-soft)">APPLICATION SERVICES</text>
+      <g fill="var(--panel-2)">
+        <rect x="36" y="210" width="131" height="38" rx="7" stroke="var(--line)"/>
+        <rect x="179" y="210" width="131" height="38" rx="7" stroke="var(--line)"/>
+        <rect x="322" y="210" width="131" height="38" rx="7" stroke="var(--line)"/>
+        <rect x="465" y="210" width="131" height="38" rx="7" stroke="var(--line)"/>
+        <rect x="608" y="210" width="131" height="38" rx="7" stroke="var(--line)"/>
+        <rect x="751" y="210" width="131" height="38" rx="7" stroke="var(--line)"/>
+      </g>
+      <g class="ts" text-anchor="middle" fill="var(--ink)" style="font-weight:600">
+        <text x="101" y="233">Company</text>
+        <text x="244" y="233">Workflow engine</text>
+        <text x="387" y="233">Assessment</text>
+        <text x="530" y="233">AI Co-Founder</text>
+        <text x="673" y="233">Documents</text>
+        <text x="816" y="233">Access &amp; invites</text>
+      </g>
+
+      <!-- D: AI / doc intelligence -->
+      <rect x="20" y="272" width="880" height="70" rx="12" fill="var(--ai-50)" stroke="var(--ai)"/>
+      <text class="bt" x="36" y="292" fill="var(--ai-900,#2a2280)">AI / DOCUMENT INTELLIGENCE</text>
+      <g fill="#fff">
+        <rect x="36" y="300" width="280" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="328" y="300" width="280" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="620" y="300" width="264" height="34" rx="7" stroke="var(--line)"/>
+      </g>
+      <g class="t" text-anchor="middle" fill="var(--ink)">
+        <text x="176" y="321">Ground (facts + templates)</text>
+        <text x="468" y="321">Generate (model call)</text>
+        <text x="752" y="321">Validate + approve</text>
+      </g>
+
+      <!-- E: data layer -->
+      <rect x="20" y="356" width="880" height="80" rx="12" fill="var(--data-50)" stroke="var(--data)" stroke-width="1.5"/>
+      <text class="bt" x="36" y="378" fill="var(--data-900,#063f45)">SOURCE OF TRUTH</text>
+      <text x="460" y="398" text-anchor="middle" fill="var(--data-900,#063f45)" style="font-family:var(--disp);font-weight:600;font-size:18px">Postgres — relational core + JSONB workflow state</text>
+      <text class="ts" x="460" y="418" text-anchor="middle" fill="var(--data)">tenant-isolated by row-level security · see §04</text>
+
+      <!-- F: storage & support -->
+      <rect x="20" y="450" width="880" height="70" rx="12" fill="#fff" stroke="var(--line)" stroke-width="1.5"/>
+      <text class="bt" x="36" y="470" fill="var(--ink-soft)">STORAGE &amp; SUPPORT SERVICES</text>
+      <g fill="var(--panel-2)">
+        <rect x="36" y="478" width="200" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="248" y="478" width="200" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="460" y="478" width="200" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="672" y="478" width="212" height="34" rx="7" stroke="var(--line)"/>
+      </g>
+      <g class="ts" text-anchor="middle" fill="var(--ink)" style="font-weight:600">
+        <text x="136" y="500">Object storage (files)</text>
+        <text x="348" y="500">Cache / sessions</text>
+        <text x="560" y="500">Notifications &amp; reminders</text>
+        <text x="778" y="500">Audit log (hash-chained)</text>
+      </g>
+
+      <!-- G: integrations -->
+      <rect x="20" y="534" width="880" height="70" rx="12" fill="var(--advisor-50)" stroke="var(--advisor)"/>
+      <text class="bt" x="36" y="554" fill="var(--advisor-900)">INTEGRATIONS</text>
+      <g fill="#fff">
+        <rect x="36" y="562" width="131" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="179" y="562" width="131" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="322" y="562" width="131" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="465" y="562" width="131" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="608" y="562" width="131" height="34" rx="7" stroke="var(--line)"/>
+        <rect x="751" y="562" width="131" height="34" rx="7" stroke="var(--line)"/>
+      </g>
+      <g class="ts" text-anchor="middle" fill="var(--ink)" style="font-weight:600">
+        <text x="101" y="584">Incorporation</text>
+        <text x="244" y="584">Banking</text>
+        <text x="387" y="584">E-sign</text>
+        <text x="530" y="584">CRM / analytics</text>
+        <text x="673" y="584">Web research</text>
+        <text x="816" y="584">LLM provider(s)</text>
+      </g>
+
+      <!-- H: infra -->
+      <rect x="20" y="618" width="880" height="92" rx="12" fill="var(--panel-2)" stroke="var(--line)"/>
+      <text class="bt" x="36" y="638" fill="var(--ink-soft)">CROSS-CUTTING · INFRA</text>
+      <g fill="#fff">
+        <rect x="36" y="646" width="200" height="46" rx="7" stroke="var(--line)"/>
+        <rect x="248" y="646" width="200" height="46" rx="7" stroke="var(--line)"/>
+        <rect x="460" y="646" width="200" height="46" rx="7" stroke="var(--line)"/>
+        <rect x="672" y="646" width="212" height="46" rx="7" stroke="var(--line)"/>
+      </g>
+      <g class="t" text-anchor="middle" fill="var(--ink)">
+        <text x="136" y="666">Tenant isolation</text>
+        <text x="348" y="666">Secrets vault</text>
+        <text x="560" y="666">Observability</text>
+        <text x="778" y="666">Single deploy · CI/CD</text>
+      </g>
+      <g class="ts" text-anchor="middle" fill="var(--muted)">
+        <text x="136" y="682">row-level security</text>
+        <text x="348" y="682">scoped, rotated tokens</text>
+        <text x="560" y="682">traces · metrics · errors</text>
+        <text x="778" y="682">one container for MVP</text>
+      </g>
+    </svg>
+    <figcaption>Requests enter through the access edge and are checked once, then again at the data layer via row-level security — belt and suspenders, since the client can never be the only enforcement point.</figcaption>
+  </figure>
+</section>
+
+<section id="data">
+  <div class="kicker">§04 · Storage decision</div>
+  <h2>SQLite, Mongo, Postgres, or Supabase?</h2>
+  <p>The company snapshot you're rendering today (<code>CompanySnapshot</code>) is a mix of tabular facts (founders, EIN, jurisdiction) and deeply nested, workflow-specific blobs (Brand core, GTM state, People roles) that change shape as workflows evolve. That's the actual question the database choice has to answer: can one engine hold both well, under many concurrent users, with per-tenant isolation baked in?</p>
+  <table class="tbl">
+    <thead><tr><th>Option</th><th>Concurrent multi-user writes</th><th>Structured + flexible (nested) data</th><th>Tenant isolation</th><th>Ops burden</th><th>Verdict for StartupKit</th></tr></thead>
+    <tbody>
+      <tr><td>SQLite</td><td>Single-writer file lock — fine for a CLI or a demo, not a multi-founder, multi-role web app</td><td>No native JSON querying worth relying on</td><td>None built in — you'd hand-roll it per file</td><td>Lowest — but wrong tradeoff here</td><td><span class="pill p-none">Rule out</span></td></tr>
+      <tr><td>MongoDB</td><td>Good</td><td>Native document model — a natural fit for the nested workflow blobs</td><td>Roll your own at the app layer</td><td>A second database to run, back up, and secure alongside whatever holds relational facts</td><td><span class="pill p-view">Only if you outgrow JSONB</span></td></tr>
+      <tr><td>PostgreSQL</td><td>Excellent</td><td>Relational tables <em>and</em> JSONB columns with indexing — one engine covers both shapes</td><td>Native row-level security (RLS) — policies enforced by the database itself, not just app code</td><td>You run/patch/back up Postgres yourself</td><td><span class="pill p-edit">Strong default</span></td></tr>
+      <tr><td>Supabase</td><td>Excellent (it <em>is</em> Postgres)</td><td>Same JSONB + relational strengths</td><td>RLS is a first-class product feature — policies are declared once, enforced everywhere including their auto-generated APIs</td><td>Managed — backups, connection pooling, point-in-time recovery handled for you</td><td><span class="pill p-rec">Recommended</span></td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>Recommendation, confirmed by a deeper pass (see below).</b> One database: Postgres, via Supabase to start. Relational tables for founders, workflows, access grants, and audit log; a <code>JSONB</code> column per workflow for the shape-shifting Brand/People/GTM state, indexed with Postgres's <code>GIN</code> indexes where you need to query inside it. Mongo would solve the nested-data half of the problem but reintroduce the exact thing a shared, RBAC-governed company object can't afford: two sources of truth to keep permissioned consistently. Still Postgres even once you add the trickiest data this platform holds — see next.</div>
+
+  <h3>Applying it: templates, filled documents, and SSN/EIN</h3>
+  <p>The concrete case: founders fill formation and tax templates (Delaware entity docs, IRS forms like the SS-4), download the result, sign it externally (DocuSign or similar), and submit the signed version back for the record. That case is what actually stresses a storage choice — a fixed small template set, an unbounded stream of filled submissions, a document that becomes non-deterministic once it's signed, and PII that a bank-adjacent regulation covers. One engine still handles all of it, but not as one undifferentiated blob:</p>
+  <table class="tbl">
+    <thead><tr><th>Data</th><th>Where it lives</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Templates <span style="color:var(--muted);font-weight:400">(fixed set, immutable, tiny)</span></td><td>Postgres <code>bytea</code>, cached in app memory on boot</td><td>Small fixed volume is the exception case where a second storage system buys nothing — one transaction commits template + metadata together, one backup covers both.</td></tr>
+      <tr><td>Submission answers</td><td>Postgres <code>jsonb</code> in <code>submissions</code></td><td>This — not the rendered file — is the real audit record: <code>template_id</code> + version, the answers, <code>user_id</code>, timestamps, and a SHA-256 hash of the generated output.</td></tr>
+      <tr><td>Generated (unsigned) output</td><td>Not stored — regenerated on demand</td><td>Deterministic generation (no embedded timestamps or random IDs) means the stored hash proves a later regeneration is byte-identical. Zero storage growth per submission.</td></tr>
+      <tr><td>Signed, returned artifact</td><td>Object storage (S3-compatible), referenced from <code>submissions.file_ref</code></td><td>Once a founder signs it, it's the actual legal artifact and generation is no longer deterministic — this is the one output that must be retained, not regenerated.</td></tr>
+      <tr><td>SSN / EIN</td><td>Separate <code>submission_pii</code> table, <strong>application-layer</strong> envelope encryption via a real KMS</td><td>Isolated so it can carry stricter RLS, per-read audit logging, and independent purge — a leaked DB credential alone should never hand over an SSN.</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>Why this is a compliance question, not just an engineering one.</b> A platform that fills IRS/EIN forms sits in the same regulatory bucket as a tax preparer under the FTC Safeguards Rule — encryption in transit and at rest, MFA, a written security program, and incident response aren't optional. There's no fixed legal retention period for SSN/EIN, but the obligation is real: keep it only while there's a business purpose, document the policy (e.g. "raw SSN/EIN deleted 90 days after filing, or immediately on request"), and enforce it including in backups. None of this changes the database choice — it changes what you do with two columns.</div>
+
+  <figure>
+    <svg viewBox="0 0 920 400" role="img" aria-label="Data architecture: Postgres tables with row level security, an isolated encrypted PII table, plus object storage for signed artifacts">
+      <rect x="20" y="20" width="600" height="350" rx="14" fill="var(--data-50)" stroke="var(--data)" stroke-width="1.5"/>
+      <text class="bt" x="36" y="44" fill="var(--data-900,#063f45)">POSTGRES · ROW-LEVEL SECURITY PER TENANT</text>
+      <g fill="#fff">
+        <rect x="40" y="60" width="130" height="50" rx="8" stroke="var(--line)"/>
+        <rect x="184" y="60" width="130" height="50" rx="8" stroke="var(--line)"/>
+        <rect x="328" y="60" width="130" height="50" rx="8" stroke="var(--line)"/>
+        <rect x="472" y="60" width="128" height="50" rx="8" stroke="var(--line)"/>
+        <rect x="40" y="170" width="130" height="50" rx="8" stroke="var(--admin)"/>
+        <rect x="184" y="170" width="130" height="50" rx="8" stroke="var(--line)"/>
+        <rect x="328" y="170" width="130" height="50" rx="8" stroke="var(--line)"/>
+        <rect x="472" y="170" width="128" height="50" rx="8" stroke="var(--line)"/>
+      </g>
+      <g class="ts" text-anchor="middle" fill="var(--ink)" style="font-weight:600">
+        <text x="105" y="80">companies</text><text x="105" y="94" style="font-weight:400;fill:var(--muted)">core facts</text>
+        <text x="249" y="80">founders</text><text x="249" y="94" style="font-weight:400;fill:var(--muted)">people on the cap table</text>
+        <text x="393" y="80">workflow_state</text><text x="393" y="94" style="font-weight:400;fill:var(--muted)">JSONB per W-code</text>
+        <text x="536" y="80">documents</text><text x="536" y="94" style="font-weight:400;fill:var(--muted)">bytea templates · jsonb submissions</text>
+        <text x="105" y="190" fill="var(--admin-900)">access_grants</text><text x="105" y="204" style="font-weight:400;fill:var(--muted)">role · scope · expiry</text>
+        <text x="249" y="190">assessments</text><text x="249" y="204" style="font-weight:400;fill:var(--muted)">phase answers</text>
+        <text x="393" y="190">facts &amp; notes</text><text x="393" y="204" style="font-weight:400;fill:var(--muted)">evidence · milestones</text>
+        <text x="536" y="190">audit_log</text><text x="536" y="204" style="font-weight:400;fill:var(--muted)">hash-chained</text>
+      </g>
+
+      <rect x="40" y="240" width="560" height="50" rx="8" fill="var(--external-50)" stroke="var(--external)" stroke-width="1.5"/>
+      <text class="t" x="60" y="260" fill="var(--external-900)">submission_pii</text>
+      <text class="ts" x="60" y="277" fill="var(--external-900)">SSN · EIN — envelope-encrypted (KMS) · isolated RLS · every read logged · independently purgeable</text>
+
+      <text class="ts" x="40" y="320" fill="var(--data)">Every table carries <tspan style="font-family:var(--mono)">company_id</tspan> + an RLS policy;</text>
+      <text class="ts" x="40" y="336" fill="var(--data)"><tspan style="font-family:var(--mono)">access_grants</tspan> narrows further to workflow / section for non-owner roles.</text>
+
+      <defs><marker id="arD" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+      <path d="M600 90 C 640 90, 640 150, 668 150" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arD)"/>
+      <rect x="672" y="112" width="216" height="86" rx="10" fill="#fff" stroke="var(--line)"/>
+      <text class="t" x="780" y="140" text-anchor="middle" fill="var(--ink)">Object storage</text>
+      <text class="ts" x="780" y="158" text-anchor="middle" fill="var(--muted)">S3-compatible (Supabase / R2)</text>
+      <text class="ts" x="780" y="173" text-anchor="middle" fill="var(--muted)">signed / retained artifacts only —</text>
+      <text class="ts" x="780" y="187" text-anchor="middle" fill="var(--muted)">unsigned outputs regenerate on demand</text>
+    </svg>
+    <figcaption>documents.file_ref points at the object store only for artifacts that must be retained; submission_pii is deliberately drawn outside the general table grid — it gets stricter access than everything else in this diagram.</figcaption>
+  </figure>
+</section>
+
+<section id="rbac">
+  <div class="kicker">§05 · Access control</div>
+  <h2>RBAC as configuration, not code</h2>
+  <p>You asked for two properties specifically: granting/revoking access at a granular level (down to a workflow or a section), and being able to add a role or change a policy without shipping a code change. Both come from the same design choice — <strong>permissions are data, evaluated by one policy engine</strong>, not <code>if role == "admin"</code> scattered through the app.</p>
+  <div class="note"><b>Extensible by construction.</b> A <code>roles</code> table (<code>key, label, default_scope, is_external</code>) backs the five below — they're the seed data, not a hardcoded enum. Adding role six ("Auditor," "Franchisee," whatever comes up) is a new row plus a UI label; the policy engine, the invite flow, and the permission matrix in §06 all read the table, so none of them need a code change to recognize it.</div>
+  <h3>The five roles today</h3>
+  <table class="tbl">
+    <thead><tr><th>Role</th><th>Who</th><th>Default scope</th><th>Can narrow to a single workflow?</th></tr></thead>
+    <tbody>
+      <tr><td>Founder / Owner</td><td>The person who created the company</td><td>Everything, including granting/revoking access</td><td>N/A — always full scope</td></tr>
+      <tr><td>Co-founder / Team</td><td>Invited by the owner, works inside the company</td><td>Full workspace by default</td><td>Optional — owner can restrict a teammate to specific workflows</td></tr>
+      <tr><td>Ops / Admin</td><td>Internal StartupKit staff (support, success)</td><td><strong>No</strong> standing access to any company's data</td><td>Break-glass only: time-boxed, reason-logged, fully audited access to one company</td></tr>
+      <tr><td>Advisor / Investor</td><td>External, invited by the founder</td><td>Read-only: health scores, journey, documents marked shareable</td><td>Always scoped — never sees raw PII (EIN/SSN masked) or the input layer</td></tr>
+      <tr><td>Lawyer / Accountant</td><td>External collaborator, invited for a purpose</td><td>Nothing by default</td><td><strong>Always scoped</strong> — e.g. "W2 IP &amp; Legal only," usually with an expiry</td></tr>
+    </tbody>
+  </table>
+
+  <h3>How a permission check actually works</h3>
+  <figure>
+    <svg viewBox="0 0 920 280" role="img" aria-label="RBAC flow: invite creates an access grant, requests are checked against it by the policy engine">
+      <defs><marker id="arR" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+
+      <rect x="20" y="90" width="190" height="70" rx="10" fill="var(--founder-50)" stroke="var(--founder)"/>
+      <text class="t" x="115" y="118" text-anchor="middle" fill="var(--founder-900)">Owner invites</text>
+      <text class="ts" x="115" y="136" text-anchor="middle" fill="var(--founder)">picks role + scope + expiry</text>
+      <line x1="210" y1="125" x2="238" y2="125" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arR)"/>
+
+      <rect x="240" y="90" width="190" height="70" rx="10" fill="var(--admin-50)" stroke="var(--admin)"/>
+      <text class="t" x="335" y="112" text-anchor="middle" fill="var(--admin-900)">Access grant</text>
+      <text class="ts" x="335" y="128" text-anchor="middle" fill="var(--admin)">{role, resource, scope,</text>
+      <text class="ts" x="335" y="142" text-anchor="middle" fill="var(--admin)">expires_at}</text>
+      <line x1="335" y1="160" x2="335" y2="196" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arR)"/>
+
+      <rect x="240" y="200" width="190" height="50" rx="9" fill="var(--data-50)" stroke="var(--data)"/>
+      <text class="t" x="335" y="222" text-anchor="middle" fill="var(--data-900,#063f45)">access_grants table</text>
+      <text class="ts" x="335" y="238" text-anchor="middle" fill="var(--data)">Postgres · RLS-protected</text>
+
+      <rect x="470" y="20" width="190" height="60" rx="10" fill="#fff" stroke="var(--line)"/>
+      <text class="t" x="565" y="45" text-anchor="middle" fill="var(--ink)">Any request</text>
+      <text class="ts" x="565" y="62" text-anchor="middle" fill="var(--muted)">page load or API call, any role</text>
+      <line x1="660" y1="50" x2="688" y2="50" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arR)"/>
+
+      <path d="M430 225 C 640 225, 640 130, 686 100" fill="none" stroke="var(--admin)" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#arR)"/>
+
+      <rect x="690" y="16" width="210" height="88" rx="10" fill="var(--admin-50)" stroke="var(--admin)" stroke-width="1.5"/>
+      <text class="t" x="795" y="42" text-anchor="middle" fill="var(--admin-900)">RBAC policy engine</text>
+      <text class="ts" x="795" y="60" text-anchor="middle" fill="var(--admin)">role default ⊕ access_grants</text>
+      <text class="ts" x="795" y="75" text-anchor="middle" fill="var(--admin)">= permission for this</text>
+      <text class="ts" x="795" y="90" text-anchor="middle" fill="var(--admin)">(resource, action) pair</text>
+
+      <line x1="795" y1="104" x2="795" y2="130" stroke="var(--muted)" stroke-width="1.5"/>
+      <line x1="795" y1="130" x2="720" y2="130" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arR)"/>
+      <line x1="795" y1="130" x2="720" y2="205" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arR)"/>
+
+      <rect x="530" y="150" width="190" height="50" rx="9" fill="var(--allow-50)" stroke="var(--allow)"/>
+      <text class="t" x="625" y="172" text-anchor="middle" fill="#1d5e3d">Allow</text>
+      <text class="ts" x="625" y="188" text-anchor="middle" fill="#1d5e3d">service runs · section renders</text>
+
+      <rect x="530" y="215" width="190" height="50" rx="9" fill="var(--deny-50)" stroke="var(--deny)"/>
+      <text class="t" x="625" y="237" text-anchor="middle" fill="var(--deny)">Deny</text>
+      <text class="ts" x="625" y="253" text-anchor="middle" fill="var(--deny)">403 · hidden from nav</text>
+    </svg>
+    <figcaption>The nav sidebar you see today (Journey / Dashboard / Workflows / Assessment / Co-Founder / Inputs) becomes exactly the set of resources this engine checks — each item renders only if the policy allows it, and the API enforces the same check independently so hiding a link is never the only guard.</figcaption>
+  </figure>
+  <p>Because the rule is <code>{role, resource, scope, expires_at}</code> stored in a table, adding a role, changing what "Advisor" can see, or revoking one lawyer's access to one workflow are all row edits — through an admin UI or a support tool — never a deploy.</p>
+</section>
+
+<section id="roles">
+  <div class="kicker">§06 · Per-role views</div>
+  <h2>The same sidebar, five different shapes</h2>
+  <p>Granularity has two axes: <em>which section</em> (the sidebar groups — Overview, Build, Intelligence, Inputs, plus the two new ones) and, within Workflows, <em>which W-code</em>. The table below is the default policy; every cell is editable per company via §05's access grants.</p>
+  <table class="tbl center">
+    <thead><tr><th>Section</th><th>Founder</th><th>Co-founder</th><th>Ops / Admin</th><th>Advisor / Investor</th><th>Lawyer / Accountant</th></tr></thead>
+    <tbody>
+      <tr><td>Journey</td><td><span class="pill p-manage">Manage</span></td><td><span class="pill p-edit">Edit</span></td><td><span class="pill p-none">None*</span></td><td><span class="pill p-view">View</span></td><td><span class="pill p-none">None</span></td></tr>
+      <tr><td>Dashboard</td><td><span class="pill p-manage">Manage</span></td><td><span class="pill p-edit">Edit</span></td><td><span class="pill p-none">None*</span></td><td><span class="pill p-view">View</span></td><td><span class="pill p-none">None</span></td></tr>
+      <tr><td>Knowledge graph</td><td><span class="pill p-manage">Manage</span></td><td><span class="pill p-edit">Edit</span></td><td><span class="pill p-none">None*</span></td><td><span class="pill p-none">None</span></td><td><span class="pill p-none">None</span></td></tr>
+      <tr><td>Workflows (per W-code)</td><td><span class="pill p-manage">Manage</span></td><td><span class="pill p-edit">Edit (assignable per W-code)</span></td><td><span class="pill p-none">None*</span></td><td><span class="pill p-view">View (shareable docs only)</span></td><td><span class="pill p-edit">Edit — invited W-code only</span></td></tr>
+      <tr><td>Assessment</td><td><span class="pill p-manage">Manage</span></td><td><span class="pill p-edit">Edit</span></td><td><span class="pill p-none">None*</span></td><td><span class="pill p-view">View</span></td><td><span class="pill p-none">None</span></td></tr>
+      <tr><td>AI Co-Founder</td><td><span class="pill p-manage">Manage</span></td><td><span class="pill p-edit">Edit</span></td><td><span class="pill p-none">None*</span></td><td><span class="pill p-none">None</span></td><td><span class="pill p-none">None</span></td></tr>
+      <tr><td>Input layer (raw facts/PII)</td><td><span class="pill p-manage">Manage</span></td><td><span class="pill p-edit">Edit</span></td><td><span class="pill p-none">None*</span></td><td><span class="pill p-none">None</span></td><td><span class="pill p-none">None</span></td></tr>
+      <tr><td>Access &amp; sharing</td><td><span class="pill p-manage">Manage</span></td><td><span class="pill p-view">View own invites</span></td><td><span class="pill p-none">None*</span></td><td><span class="pill p-none">None</span></td><td><span class="pill p-none">None</span></td></tr>
+      <tr><td>Admin console</td><td><span class="pill p-none">N/A</span></td><td><span class="pill p-none">N/A</span></td><td><span class="pill p-admin">Cross-tenant, break-glass*</span></td><td><span class="pill p-none">N/A</span></td><td><span class="pill p-none">N/A</span></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13.5px;color:var(--muted)">* Ops/Admin has no standing per-company access — only the Admin console itself, from which a support action opens a logged, time-boxed grant into one company (§08).</p>
+
+  <ul>
+    <li><strong>Founder/Owner</strong> — the only role that can create or revoke other grants; sees every masked field unmasked (EIN, SSN, bank tokens' last-4).</li>
+    <li><strong>Co-founder/Team</strong> — full workspace by default (most companies are small), but the owner can narrow one teammate to "W7 GTM only" the same mechanism used for external collaborators — it's one policy, not a separate "team" system.</li>
+    <li><strong>Advisor/Investor</strong> — a deliberately thin, read-only slice: health score, journey progress, and only documents the founder explicitly flags shareable. No cap table detail, no raw EIN/SSN, no input-layer notes.</li>
+    <li><strong>Lawyer/Accountant</strong> — the sharpest scope: one workflow (or one document set), usually with an <code>expires_at</code>, and edit rights limited to comment/approve within that workflow — never company-wide fields.</li>
+    <li><strong>Ops/Admin</strong> — inverted from the others: default-deny into any tenant's data, with an explicit, audited break-glass path for support. This protects founders' fiduciary data (EIN/SSN/bank tokens) from casual internal access, which matters as much for trust as for compliance.</li>
+  </ul>
+</section>
+
+<section id="ai">
+  <div class="kicker">§07 · AI &amp; documents</div>
+  <h2>Generation is grounded, validated, and gated — same as the UI already implies</h2>
+  <p>The frontend's <code>GeneratedDocument</code> shape already carries <code>version</code>, <code>status</code>, and <code>issues[]</code> — the UI was designed assuming a pipeline like this exists, even though nothing produces it yet. The design below just fills in the machinery that shape is asking for.</p>
+  <figure>
+    <svg viewBox="0 0 920 250" role="img" aria-label="Document generation pipeline: ground, generate, validate, approve, store">
+      <defs><marker id="arP" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+      <rect x="20" y="90" width="130" height="60" rx="9" fill="#fff" stroke="var(--line)"/><text class="t" x="85" y="115" text-anchor="middle" fill="var(--ink)">Ground</text><text class="ts" x="85" y="132" text-anchor="middle" fill="var(--muted)">facts + templates</text>
+      <line x1="150" y1="120" x2="176" y2="120" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arP)"/>
+      <rect x="178" y="90" width="130" height="60" rx="9" fill="var(--ai-50)" stroke="var(--ai)"/><text class="t" x="243" y="115" text-anchor="middle" fill="#2a2280">Generate</text><text class="ts" x="243" y="132" text-anchor="middle" fill="var(--ai)">model call</text>
+      <line x1="308" y1="120" x2="334" y2="120" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arP)"/>
+      <rect x="336" y="90" width="130" height="60" rx="9" fill="var(--data-50)" stroke="var(--data)"/><text class="t" x="401" y="115" text-anchor="middle" fill="var(--data-900,#063f45)">Validate</text><text class="ts" x="401" y="132" text-anchor="middle" fill="var(--data)">schema · required fields</text>
+      <line x1="466" y1="120" x2="492" y2="120" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arP)"/>
+      <path d="M494 120 L554 90 L614 120 L554 150 Z" fill="var(--advisor-50)" stroke="var(--advisor)"/><text class="t" x="554" y="125" text-anchor="middle" fill="var(--advisor-900)">issues?</text>
+      <line x1="614" y1="120" x2="640" y2="120" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arP)"/>
+      <rect x="642" y="90" width="130" height="60" rx="9" fill="var(--founder-50)" stroke="var(--founder)"/><text class="t" x="707" y="115" text-anchor="middle" fill="var(--founder-900)">Approve</text><text class="ts" x="707" y="132" text-anchor="middle" fill="var(--founder)">founder or scoped role</text>
+      <line x1="772" y1="120" x2="798" y2="120" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arP)"/>
+      <rect x="800" y="90" width="100" height="60" rx="9" fill="#fff" stroke="var(--line)"/><text class="t" x="850" y="115" text-anchor="middle" fill="var(--ink)">Store</text><text class="ts" x="850" y="132" text-anchor="middle" fill="var(--muted)">versioned</text>
+
+      <path d="M554 150 L554 190 L243 190 L243 152" fill="none" stroke="var(--external)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arP)"/>
+      <text class="ts" x="398" y="184" text-anchor="middle" fill="var(--external)">yes → regenerate, issues[] shown in UI</text>
+    </svg>
+    <figcaption>"Approve" is exactly the access-grant check from §05: a Founder always can, a scoped Lawyer/Accountant can only within their invited workflow, an Advisor never can.</figcaption>
+  </figure>
+</section>
+
+<section id="security">
+  <div class="kicker">§08 · Trust</div>
+  <h2>What holding EINs, SSNs, and bank tokens actually requires</h2>
+  <ul class="admin">
+    <li><strong>Field-level encryption</strong> for EIN, SSN, and provider OAuth tokens — encrypted distinctly from ordinary rows, decrypted only for roles whose policy explicitly allows the unmasked field (Founder/Owner; Advisor/Lawyer see masked values only, per §06).</li>
+    <li><strong>Break-glass admin access</strong> — Ops/Admin has zero standing access; opening a company's data from the admin console requires a reason, creates a time-boxed grant, and writes to the audit log before the first read.</li>
+    <li><strong>Tamper-evident audit log</strong> — every grant, revoke, approval, and document generation is hash-chained; this is also what makes "who saw the SSN, when, and why" answerable.</li>
+    <li><strong>Scoped, rotated integration tokens</strong> — banking/e-sign/CRM tokens are per-tenant, least-privilege, and revocable independently of the platform's own auth.</li>
+  </ul>
+</section>
+
+<section id="open" style="border-bottom:0">
+  <div class="kicker">§09 · Next</div>
+  <h2>Open decisions, and where this goes</h2>
+  <div class="note open"><b>Still HTML — no eraser.io port yet.</b> This whole set of files (this page, the 5 system diagrams, and the two UI mocks) is the working draft. Nothing gets ported until it's explicitly signed off.</div>
+  <div class="steps">
+    <div class="step"><b>Role set — resolved as extensible.</b> Five roles today, backed by a <code>roles</code> table rather than an enum (§05), so a sixth doesn't require an architecture change — only a config addition.</div>
+    <div class="step"><b>Storage — resolved.</b> Postgres/Supabase confirmed, with the templates-in-bytea / submissions-in-jsonb / PII-in-its-own-encrypted-table split from §04. Flag it here if a concrete case surfaces that this split doesn't cover.</div>
+    <div class="step"><b>Access &amp; sharing UI — mocked.</b> See <a href="ui-access-sharing.html">ui-access-sharing.html</a>: invite by email, role + workflow-scope multiselect + optional expiry, active/pending grants with revoke.</div>
+    <div class="step"><b>Admin console — mocked.</b> See <a href="ui-admin-console.html">ui-admin-console.html</a>: break-glass request flow, cross-tenant health view, audit trail viewer.</div>
+    <div class="step"><b>Five system diagrams.</b> See <a href="diagrams.html">diagrams.html</a> — conceptual, component, deployment, sequence, and data-flow views of this same platform, drawn per the standard system-design diagramming method.</div>
+    <div class="step"><b>Sign off, then port to eraser.io</b> once all of the above is agreed — this HTML stays the source of truth until then.</div>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  StartupKit · platform-architecture v1 · drawn fresh from the running :3200 UI · independent of prior /docs architecture · HTML only, no eraser.io port yet.
+</footer>
+
+</body>
+</html>
