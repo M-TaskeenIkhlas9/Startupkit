@@ -14,9 +14,10 @@ On Vercel, this file is deployed via the ASGI @vercel/python builder (see apps/a
 deliberately NOT at the repo root, since a root-level vercel.json gets read by every Vercel
 project connected to this repo, not just this one, and silently breaks the separate frontend
 project's Next.js build). `includeFiles: ["../../src/**"]` bundles the src/startupkit package
-alongside this file — the sys.path insert immediately below makes `from startupkit...` resolve in
-that environment without the project needing to be pip-installed (it works locally too; the
-insert is a no-op there since the editable install already puts src/ on the path).
+alongside this file — _find_src() below locates wherever Vercel actually placed it (its bundle
+layout isn't guaranteed to mirror the repo's own folder depth) and adds it to sys.path, so
+`from startupkit...` resolves without the project needing to be pip-installed. Locally this is a
+no-op — the editable install already puts src/ on the path, and _find_src() finds it anyway.
 """
 
 from __future__ import annotations
@@ -24,9 +25,23 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-_SRC = Path(__file__).resolve().parents[2] / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+
+def _find_src() -> Path | None:
+    """Locate the bundled src/startupkit package without assuming a fixed folder depth — Vercel's
+    actual bundle layout for includeFiles isn't guaranteed to match the repo's own layout, so walk
+    up from this file and check each level rather than hardcoding parents[N]."""
+    here = Path(__file__).resolve().parent
+    for base in (here, *here.parents):
+        if (base / "src" / "startupkit").is_dir():
+            return base / "src"
+        if (base / "startupkit").is_dir():
+            return base
+    return None
+
+
+_src = _find_src()
+if _src and str(_src) not in sys.path:
+    sys.path.insert(0, str(_src))
 
 import base64
 import os
